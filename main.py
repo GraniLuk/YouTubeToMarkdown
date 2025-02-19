@@ -86,6 +86,7 @@ The goal is to make the content easier to read and process by:
 - Highlighting key terms, names, or headings with bold text for emphasis.
 - Preserving the original tone, humor, and narrative style while ensuring readability.
 - Adding clear separators or headings for topic shifts to improve navigation.
+- Adding code examples in C# when it's possible
 
 Ensure the text remains informative, capturing the original intent, tone,
 and details while presenting the information in a format optimized for analysis by both humans and AI.
