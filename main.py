@@ -174,7 +174,7 @@ def get_videos_from_channel(channel_id: str) -> list[tuple[str, str]]:
 def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
     """
     Save refined text to a markdown file and update the video index.
-    File will be saved in 'Summaries' folder with format YYYYMMDD-title.md
+    File will be saved in the Documents/Summaries folder with format YYYYMMDD-title.md
 
     Args:
         title (str): YouTube video title
@@ -185,8 +185,10 @@ def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
         str: Path to the saved file
     """
     try:
-        # Create Summaries directory if it doesn't exist
-        summaries_dir = "Summaries"
+        # Determine the user's Documents folder
+        documents_dir = os.path.join(os.path.expanduser("~"), "Documents")
+        # Create Summaries directory inside Documents
+        summaries_dir = os.path.join(documents_dir, "Summaries")
         os.makedirs(summaries_dir, exist_ok=True)
         
         # Clean the title to make it filesystem-friendly
@@ -208,7 +210,7 @@ def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
 
         # Extract video ID from URL
         video_id = video_url.split("?v=")[1].split("&")[0]
-        # Update index file
+        # Update index file inside the Summaries directory in Documents
         index_file = os.path.join(summaries_dir, "video_index.txt")
         with open(index_file, "a", encoding="utf-8") as f:
             f.write(f"{video_id} | {filepath}\n")
