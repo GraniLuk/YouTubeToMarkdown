@@ -147,7 +147,7 @@ def get_videos_from_channel(channel_id: str) -> list[tuple[str, str]]:
     
     # Calculate the datetime 24 hours ago
     end_date = datetime.now()
-    twenty_four_hours_ago = (end_date - timedelta(days=3)).isoformat("T") + "Z"
+    twenty_four_hours_ago = (end_date - timedelta(days=20)).isoformat("T") + "Z"
     
     url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={channel_id}&type=video&order=date&publishedAfter={twenty_four_hours_ago}&key={API_KEY}"
     
@@ -219,6 +219,16 @@ def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
         raise Exception(f"Error saving to markdown: {str(e)}")
 
 
+def open_file(filepath: str):
+    """
+    Open a file using the default application on Windows.
+    """
+    try:
+        os.startfile(filepath)
+    except Exception as e:
+        print(f"Failed to open file {filepath}: {str(e)}")
+
+
 # Example usage
 try:
     # Get all recent videos
@@ -246,6 +256,7 @@ try:
         saved_file_path = save_to_markdown(video_title, video_url, refined_text)
         if saved_file_path:
             print(f"Saved to: {saved_file_path}")
+            open_file(saved_file_path)
 
 except Exception as e:
     print(f"Error: {str(e)}")
