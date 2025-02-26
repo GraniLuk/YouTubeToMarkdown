@@ -125,9 +125,9 @@ def get_video_url(video_id):
     return f"https://www.youtube.com/watch?v={video_id}"
 
 
-def get_videos_from_channel(channel_id: str) -> list[tuple[str, str]]:
+def get_videos_from_channel(channel_id: str, days:int = 8) -> list[tuple[str, str]]:
     """
-    Get all unprocessed videos from a YouTube channel published in the last 24 hours.
+    Get all unprocessed videos from a YouTube channel published in the last days.
     Checks against video_index.txt to skip already processed videos.
     
     Args:
@@ -148,28 +148,37 @@ def get_videos_from_channel(channel_id: str) -> list[tuple[str, str]]:
     
     # Calculate the datetime 24 hours ago
     end_date = datetime.now()
-    twenty_four_hours_ago = (end_date - timedelta(days=20)).isoformat("T") + "Z"
+    start_date = (end_date - timedelta(days=days)).isoformat("T") + "Z"
     
-    url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={channel_id}&type=video&order=date&publishedAfter={twenty_four_hours_ago}&key={API_KEY}"
-    
-    response = requests.get(url)
-    data = response.json()
+    url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={channel_id}&type=video&order=date&publishedAfter={start_date}&key={API_KEY}&maxResults=50"
     
     videos = []
-    if "items" in data and len(data["items"]) > 0:
-        for item in data["items"]:
-            video_id = item["id"]["videoId"]
-            # Skip if video was already processed
-            if video_id in processed_video_ids:
-                print(f"Video {item['snippet']['title']} was already processed. Skipping...")
-                continue
-                
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            title = item["snippet"]["title"]
-            videos.append((video_url, title))
-        return videos
-    else:
-        raise Exception("No videos found in the last 24 hours")
+    next_page_token = None
+
+    while True:
+        if next_page_token:
+            current_url = f"{url}&pageToken={next_page_token}"
+        else:
+            current_url = url
+
+        response = requests.get(current_url)
+        data = response.json()
+
+        if "items" in data:
+            for item in data["items"]:
+                video_id = item["id"]["videoId"]
+                if video_id in processed_video_ids:
+                    print(f"Video {item['snippet']['title']} was already processed. Skipping...")
+                    continue
+                    
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+                title = item["snippet"]["title"]
+                videos.append((video_url, title))
+
+        next_page_token = data.get("nextPageToken")
+        if not next_page_token:
+            break
+    return videos
 
 
 def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
