@@ -140,7 +140,8 @@ def get_videos_from_channel(channel_id: str) -> list[tuple[str, str]]:
     
     # Get processed video IDs from index file
     processed_video_ids = set()
-    index_file = os.path.join("Summaries", "video_index.txt")
+    documents_dir = os.path.join(os.path.expanduser("~"), "Documents/Summaries")
+    index_file = os.path.join(documents_dir, "video_index.txt")
     if os.path.exists(index_file):
         with open(index_file, "r", encoding="utf-8") as f:
             processed_video_ids = {line.split(" | ")[0].strip() for line in f if line.strip()}
