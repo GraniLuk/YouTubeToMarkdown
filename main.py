@@ -246,9 +246,9 @@ try:
     # Get all recent videos
     nick_chapsas_id = "UCrkPsvLGln62OMZRO6K-llg"
     milan_jovanovic_id = "UCC_dVe-RI-vgCZfls06mDZQ"
-    
-    videos = get_videos_from_channel(nick_chapsas_id)
-    videos.extend(get_videos_from_channel(milan_jovanovic_id))
+    days = 15
+    videos = get_videos_from_channel(nick_chapsas_id, days)
+    videos.extend(get_videos_from_channel(milan_jovanovic_id, days))
     
     for video_url, video_title in videos:
         print(f"Processing video: {video_title}")
