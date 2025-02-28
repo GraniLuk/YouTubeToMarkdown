@@ -265,7 +265,7 @@ def main():
             refined_text = analyze_transcript_with_gemini(
                 transcript=transcript,
                 api_key=api_key,
-                model_name="gemini-2.0-flash-thinking-exp-01-21",
+                model_name="gemini-2.0-pro-exp-02-05",
                 output_language="English")
             
             # Save to markdown file
