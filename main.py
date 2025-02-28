@@ -1,16 +1,17 @@
+import argparse
 import os
 import re
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
-import argparse
 
 import google.generativeai as genai
 import requests
+from dotenv import load_dotenv
 from pytube import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi
 
 # Load environment variables
 load_dotenv()
+
 
 def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
     """
@@ -126,33 +127,35 @@ def get_video_url(video_id):
     return f"https://www.youtube.com/watch?v={video_id}"
 
 
-def get_videos_from_channel(channel_id: str, days:int = 8) -> list[tuple[str, str]]:
+def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, str]]:
     """
     Get all unprocessed videos from a YouTube channel published in the last days.
     Checks against video_index.txt to skip already processed videos.
-    
+
     Args:
         channel_id (str): YouTube channel ID
-        
+
     Returns:
         list[tuple[str, str]]: A list of tuples containing (video_url, video_title) for unprocessed videos
     """
     API_KEY = os.getenv("YOUTUBE_API_KEY")
-    
+
     # Get processed video IDs from index file
     processed_video_ids = set()
     documents_dir = os.path.join(os.path.expanduser("~"), "Documents/Summaries")
     index_file = os.path.join(documents_dir, "video_index.txt")
     if os.path.exists(index_file):
         with open(index_file, "r", encoding="utf-8") as f:
-            processed_video_ids = {line.split(" | ")[0].strip() for line in f if line.strip()}
-    
+            processed_video_ids = {
+                line.split(" | ")[0].strip() for line in f if line.strip()
+            }
+
     # Calculate the datetime 24 hours ago
     end_date = datetime.now()
     start_date = (end_date - timedelta(days=days)).isoformat("T") + "Z"
-    
+
     url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={channel_id}&type=video&order=date&publishedAfter={start_date}&key={API_KEY}&maxResults=50"
-    
+
     videos = []
     next_page_token = None
 
@@ -169,9 +172,11 @@ def get_videos_from_channel(channel_id: str, days:int = 8) -> list[tuple[str, st
             for item in data["items"]:
                 video_id = item["id"]["videoId"]
                 if video_id in processed_video_ids:
-                    print(f"Video {item['snippet']['title']} was already processed. Skipping...")
+                    print(
+                        f"Video {item['snippet']['title']} was already processed. Skipping..."
+                    )
                     continue
-                    
+
                 video_url = f"https://www.youtube.com/watch?v={video_id}"
                 title = item["snippet"]["title"]
                 videos.append((video_url, title))
@@ -201,15 +206,15 @@ def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
         # Create Summaries directory inside Documents
         summaries_dir = os.path.join(documents_dir, "Summaries")
         os.makedirs(summaries_dir, exist_ok=True)
-        
+
         # Clean the title to make it filesystem-friendly
         title = re.sub(r"[^\w\s-]", "", title)
         title = title.replace(" ", "_")
-        
+
         # Add date prefix to filename
         today = datetime.now().strftime("%Y%m%d")
         filename = f"{today}-{title}.md"
-        
+
         # Create full path
         filepath = os.path.join(summaries_dir, filename)
 
@@ -243,8 +248,12 @@ def open_file(filepath: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process YouTube videos and create markdown summaries')
-    parser.add_argument('--days', type=int, default=8, help='Number of days to look back for videos')
+    parser = argparse.ArgumentParser(
+        description="Process YouTube videos and create markdown summaries"
+    )
+    parser.add_argument(
+        "--days", type=int, default=8, help="Number of days to look back for videos"
+    )
     args = parser.parse_args()
 
     try:
@@ -253,21 +262,22 @@ def main():
         milan_jovanovic_id = "UCC_dVe-RI-vgCZfls06mDZQ"
         videos = get_videos_from_channel(nick_chapsas_id, args.days)
         videos.extend(get_videos_from_channel(milan_jovanovic_id, args.days))
-        
+
         for video_url, video_title in videos:
             print(f"Processing video: {video_title}")
-            
+
             # Get transcript
             transcript = get_youtube_transcript(video_url, language_code="en")
-            
+
             # Analyze with Gemini
             api_key = os.getenv("GEMINI_API_KEY")
             refined_text = analyze_transcript_with_gemini(
                 transcript=transcript,
                 api_key=api_key,
                 model_name="gemini-2.0-pro-exp-02-05",
-                output_language="English")
-            
+                output_language="English",
+            )
+
             # Save to markdown file
             saved_file_path = save_to_markdown(video_title, video_url, refined_text)
             if saved_file_path:
@@ -276,6 +286,7 @@ def main():
 
     except Exception as e:
         print(f"Error: {str(e)}")
+
 
 if __name__ == "__main__":
     main()
