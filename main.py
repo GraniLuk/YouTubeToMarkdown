@@ -2,6 +2,7 @@ import os
 import re
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import argparse
 
 import google.generativeai as genai
 import requests
@@ -241,34 +242,40 @@ def open_file(filepath: str):
         print(f"Failed to open file {filepath}: {str(e)}")
 
 
-# Example usage
-try:
-    # Get all recent videos
-    nick_chapsas_id = "UCrkPsvLGln62OMZRO6K-llg"
-    milan_jovanovic_id = "UCC_dVe-RI-vgCZfls06mDZQ"
-    days = 15
-    videos = get_videos_from_channel(nick_chapsas_id, days)
-    videos.extend(get_videos_from_channel(milan_jovanovic_id, days))
-    
-    for video_url, video_title in videos:
-        print(f"Processing video: {video_title}")
-        
-        # Get transcript
-        transcript = get_youtube_transcript(video_url, language_code="en")
-        
-        # Analyze with Gemini
-        api_key = os.getenv("GEMINI_API_KEY")
-        refined_text = analyze_transcript_with_gemini(
-            transcript=transcript,
-            api_key=api_key,
-            model_name="gemini-2.0-flash-thinking-exp-01-21",
-            output_language="English")
-        
-        # Save to markdown file
-        saved_file_path = save_to_markdown(video_title, video_url, refined_text)
-        if saved_file_path:
-            print(f"Saved to: {saved_file_path}")
-            open_file(saved_file_path)
+def main():
+    parser = argparse.ArgumentParser(description='Process YouTube videos and create markdown summaries')
+    parser.add_argument('--days', type=int, default=8, help='Number of days to look back for videos')
+    args = parser.parse_args()
 
-except Exception as e:
-    print(f"Error: {str(e)}")
+    try:
+        # Get all recent videos
+        nick_chapsas_id = "UCrkPsvLGln62OMZRO6K-llg"
+        milan_jovanovic_id = "UCC_dVe-RI-vgCZfls06mDZQ"
+        videos = get_videos_from_channel(nick_chapsas_id, args.days)
+        videos.extend(get_videos_from_channel(milan_jovanovic_id, args.days))
+        
+        for video_url, video_title in videos:
+            print(f"Processing video: {video_title}")
+            
+            # Get transcript
+            transcript = get_youtube_transcript(video_url, language_code="en")
+            
+            # Analyze with Gemini
+            api_key = os.getenv("GEMINI_API_KEY")
+            refined_text = analyze_transcript_with_gemini(
+                transcript=transcript,
+                api_key=api_key,
+                model_name="gemini-2.0-flash-thinking-exp-01-21",
+                output_language="English")
+            
+            # Save to markdown file
+            saved_file_path = save_to_markdown(video_title, video_url, refined_text)
+            if saved_file_path:
+                print(f"Saved to: {saved_file_path}")
+                open_file(saved_file_path)
+
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
+if __name__ == "__main__":
+    main()
