@@ -12,10 +12,11 @@ from youtube_transcript_api import YouTubeTranscriptApi
 # Add this class near the top of the file, after imports
 
 class Channel:
-    def __init__(self, id: str, language_code: str, output_language: str):
+    def __init__(self, id: str, language_code: str, output_language: str, category: str):
         self.id = id
         self.language_code = language_code
         self.output_language = output_language
+        self.category = category
 
 # Load environment variables
 load_dotenv()
@@ -258,20 +259,36 @@ def open_file(filepath: str):
 def main():
     parser = argparse.ArgumentParser(description='Process YouTube videos and create markdown summaries')
     parser.add_argument('--days', type=int, default=2, help='Number of days to look back for videos')
+    parser.add_argument('--category', type=str, default='IT', choices=['IT', 'Crypto'], 
+                       help='Category of channels to process (IT or Crypto)')
     args = parser.parse_args()
 
     try:
-        # Define channels with their language settings
-        channels = [
-            Channel("UCrkPsvLGln62OMZRO6K-llg", "en", "English"),  # Nick Chapsas
-            Channel("UCC_dVe-RI-vgCZfls06mDZQ", "en", "English"),  # Milan Jovanovic
-            Channel("UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish"),   # DevMentors
+        # Define channels with their language settings and categories
+        all_channels = [
+            # IT Channels
+            Channel("UCrkPsvLGln62OMZRO6K-llg", "en", "English", "IT"),  # Nick Chapsas
+            Channel("UCC_dVe-RI-vgCZfls06mDZQ", "en", "English", "IT"),  # Milan Jovanovic
+            Channel("UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish", "IT"),   # DevMentors
+            
+            # Crypto Channels - Add your crypto channels here
+            Channel("UCBIt1VN5j37PVM8LLSuTTlw", "en", "English", "Crypto"),  # Coin Bureau
+            Channel("UCqK_GSMbpiV8spgD3ZGloSw", "en", "English", "Crypto"),  # Crypto Banter
+            # Add more crypto channels as needed
         ]
 
+        # Filter channels based on selected category
+        channels = [channel for channel in all_channels if channel.category == args.category]
+        
+        if not channels:
+            print(f"No channels found for category: {args.category}")
+            return
+
+        print(f"Processing {args.category} channels...")
+        
         videos = []
         for channel in channels:
             channel_videos = get_videos_from_channel(channel.id, args.days)
-            # Add channel information to each video tuple
             videos.extend([(url, title, channel) for url, title in channel_videos])
         
         for video_url, video_title, channel in videos:
