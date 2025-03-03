@@ -9,6 +9,14 @@ import requests
 from pytube import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi
 
+# Add this class near the top of the file, after imports
+
+class Channel:
+    def __init__(self, id: str, language_code: str, output_language: str):
+        self.id = id
+        self.language_code = language_code
+        self.output_language = output_language
+
 # Load environment variables
 load_dotenv()
 
@@ -244,29 +252,36 @@ def open_file(filepath: str):
 
 def main():
     parser = argparse.ArgumentParser(description='Process YouTube videos and create markdown summaries')
-    parser.add_argument('--days', type=int, default=8, help='Number of days to look back for videos')
+    parser.add_argument('--days', type=int, default=2, help='Number of days to look back for videos')
     args = parser.parse_args()
 
     try:
-        # Get all recent videos
-        nick_chapsas_id = "UCrkPsvLGln62OMZRO6K-llg"
-        milan_jovanovic_id = "UCC_dVe-RI-vgCZfls06mDZQ"
-        videos = get_videos_from_channel(nick_chapsas_id, args.days)
-        videos.extend(get_videos_from_channel(milan_jovanovic_id, args.days))
+        # Define channels with their language settings
+        channels = [
+            Channel("UCrkPsvLGln62OMZRO6K-llg", "en", "English"),  # Nick Chapsas
+            Channel("UCC_dVe-RI-vgCZfls06mDZQ", "en", "English"),  # Milan Jovanovic
+            Channel("UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish"),   # DevMentors
+        ]
+
+        videos = []
+        for channel in channels:
+            channel_videos = get_videos_from_channel(channel.id, args.days)
+            # Add channel information to each video tuple
+            videos.extend([(url, title, channel) for url, title in channel_videos])
         
-        for video_url, video_title in videos:
+        for video_url, video_title, channel in videos:
             print(f"Processing video: {video_title}")
             
-            # Get transcript
-            transcript = get_youtube_transcript(video_url, language_code="en")
+            # Get transcript with channel-specific language
+            transcript = get_youtube_transcript(video_url, language_code=channel.language_code)
             
-            # Analyze with Gemini
+            # Analyze with Gemini using channel-specific output language
             api_key = os.getenv("GEMINI_API_KEY")
             refined_text = analyze_transcript_with_gemini(
                 transcript=transcript,
                 api_key=api_key,
                 model_name="gemini-2.0-pro-exp-02-05",
-                output_language="English")
+                output_language=channel.output_language)
             
             # Save to markdown file
             saved_file_path = save_to_markdown(video_title, video_url, refined_text)
