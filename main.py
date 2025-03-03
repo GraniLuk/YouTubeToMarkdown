@@ -1,11 +1,18 @@
 import argparse
 import os
+import os.path
+import pickle
 import re
 from datetime import datetime, timedelta
 
 import google.generativeai as genai
 import requests
 from dotenv import load_dotenv
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 from pytube import YouTube
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -210,7 +217,7 @@ def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, s
 
 def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
     """
-    Save refined text to a markdown file and update the video index.
+    Save refined text to a markdown file, update the video index, and upload to Google Drive.
     File will be saved in the Documents/Summaries folder with format YYYYMMDD-title.md
 
     Args:
@@ -252,6 +259,17 @@ def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
         with open(index_file, "a", encoding="utf-8") as f:
             f.write(f"{video_id} | {filepath}\n")
 
+        # After saving the file locally, upload to Google Drive
+        try:
+            drive_service = setup_google_drive()
+            # Replace with your actual Google Drive folder ID for YouTube summaries
+            YOUTUBE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
+
+            file_id = upload_to_drive(drive_service, filepath, YOUTUBE_FOLDER_ID)
+            print(f"Uploaded to Google Drive with ID: {file_id}")
+        except Exception as e:
+            print(f"Warning: Failed to upload to Google Drive: {str(e)}")
+
         return os.path.abspath(filepath)
 
     except Exception as e:
@@ -266,6 +284,71 @@ def open_file(filepath: str):
         os.startfile(filepath)
     except Exception as e:
         print(f"Failed to open file {filepath}: {str(e)}")
+
+
+def setup_google_drive():
+    """
+    Sets up Google Drive API credentials
+    Returns:
+        Google Drive API service
+    """
+    SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+    creds = None
+
+    # The file token.pickle stores the user's access and refresh tokens
+    if os.path.exists("token.pickle"):
+        with open("token.pickle", "rb") as token:
+            creds = pickle.load(token)
+
+    # If there are no (valid) credentials available, let the user log in
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+            except Exception:
+                os.remove("token.pickle")
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    "credentials.json", SCOPES
+                )
+                creds = flow.run_local_server(port=8080)
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(
+                port=8080, access_type="offline", include_granted_scopes="true"
+            )
+        # Save the credentials for the next run
+        with open("token.pickle", "wb") as token:
+            pickle.dump(creds, token)
+
+    return build("drive", "v3", credentials=creds)
+
+
+def upload_to_drive(service, file_path: str, folder_id: str = None) -> str:
+    """
+    Upload a file to Google Drive
+
+    Args:
+        service: Google Drive API service instance
+        file_path (str): Path to the file to upload
+        folder_id (str): Optional Google Drive folder ID
+
+    Returns:
+        str: ID of the uploaded file
+    """
+    file_metadata = {
+        "name": os.path.basename(file_path),
+        "parents": [folder_id] if folder_id else [],
+    }
+
+    media = MediaFileUpload(file_path, mimetype="text/markdown", resumable=True)
+
+    file = (
+        service.files()
+        .create(body=file_metadata, media_body=media, fields="id")
+        .execute()
+    )
+
+    return file.get("id")
 
 
 def main():

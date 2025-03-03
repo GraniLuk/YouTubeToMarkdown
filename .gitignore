@@ -8,3 +8,5 @@ __pycache__/
 /.venv
 
 /Summaries
+token.pickle
+credentials.json
