@@ -380,6 +380,7 @@ def main():
             # Channel("UCBIt1VN5j37PVM8LLSuTTlw", "en", "English", "Crypto"),  # Coin Bureau
             # Channel("UCqK_GSMbpiV8spgD3ZGloSw", "en", "English", "Crypto"),  # Crypto Banter
             Channel("UCsaWU2rEXFkufFN_43jH2MA", "pl", "Polish", "Crypto"),  # Jarzombek
+            Channel("UCXasJkcS9vY8X4HgzReo10A", "pl", "Polish", "Crypto"),  # Ostapowicz
             # Add more crypto channels as needed
         ]
 
