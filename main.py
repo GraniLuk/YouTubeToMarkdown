@@ -11,12 +11,16 @@ from youtube_transcript_api import YouTubeTranscriptApi
 
 # Add this class near the top of the file, after imports
 
+
 class Channel:
-    def __init__(self, id: str, language_code: str, output_language: str, category: str):
+    def __init__(
+        self, id: str, language_code: str, output_language: str, category: str
+    ):
         self.id = id
         self.language_code = language_code
         self.output_language = output_language
         self.category = category
+
 
 # Load environment variables
 load_dotenv()
@@ -57,6 +61,7 @@ def analyze_transcript_with_gemini(
     model_name: str = "gemini-1.5-pro",
     output_language: str = "English",
     chunk_size: int = 3000,
+    category: str = "IT",
 ) -> str:
     """
     Analyze transcript using Gemini API and return refined text.
@@ -67,6 +72,7 @@ def analyze_transcript_with_gemini(
         model_name (str): Gemini model name to use
         output_language (str): Desired output language
         chunk_size (int): Maximum chunk size for processing
+        category (str): Category of the content (default: 'IT')
 
     Returns:
         str: Refined and analyzed text
@@ -87,7 +93,13 @@ def analyze_transcript_with_gemini(
         final_output = []
         previous_response = ""
 
-        PROMPT_TEMPLATE = """
+        # Define category-specific bullet points
+        category_prompts = {
+            "IT": "- Adding code examples in C# when it's possible",
+            "Crypto": "- Adding TradingView chart links when price movements or technical analysis is discussed\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
+        }
+
+        PROMPT_TEMPLATE = f"""
 Turn the following unorganized text into a well-structured, readable format while retaining EVERY detail, context, and nuance of the original content.
 Refine the text to improve clarity, grammar, and coherence WITHOUT cutting, summarizing, or omitting any information.
 The goal is to make the content easier to read and process by:
@@ -97,7 +109,7 @@ The goal is to make the content easier to read and process by:
 - Highlighting key terms, names, or headings with bold text for emphasis.
 - Preserving the original tone, humor, and narrative style while ensuring readability.
 - Adding clear separators or headings for topic shifts to improve navigation.
-- Adding code examples in C# when it's possible
+{category_prompts.get(category, "")}
 
 Ensure the text remains informative, capturing the original intent, tone,
 and details while presenting the information in a format optimized for analysis by both humans and AI.
@@ -257,10 +269,19 @@ def open_file(filepath: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process YouTube videos and create markdown summaries')
-    parser.add_argument('--days', type=int, default=2, help='Number of days to look back for videos')
-    parser.add_argument('--category', type=str, default='IT', choices=['IT', 'Crypto'], 
-                       help='Category of channels to process (IT or Crypto)')
+    parser = argparse.ArgumentParser(
+        description="Process YouTube videos and create markdown summaries"
+    )
+    parser.add_argument(
+        "--days", type=int, default=3, help="Number of days to look back for videos"
+    )
+    parser.add_argument(
+        "--category",
+        type=str,
+        default="IT",
+        choices=["IT", "Crypto"],
+        help="Category of channels to process (IT or Crypto)",
+    )
     args = parser.parse_args()
 
     try:
@@ -268,43 +289,51 @@ def main():
         all_channels = [
             # IT Channels
             Channel("UCrkPsvLGln62OMZRO6K-llg", "en", "English", "IT"),  # Nick Chapsas
-            Channel("UCC_dVe-RI-vgCZfls06mDZQ", "en", "English", "IT"),  # Milan Jovanovic
-            Channel("UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish", "IT"),   # DevMentors
-            
+            Channel(
+                "UCC_dVe-RI-vgCZfls06mDZQ", "en", "English", "IT"
+            ),  # Milan Jovanovic
+            Channel("UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish", "IT"),  # DevMentors
             # Crypto Channels - Add your crypto channels here
-            Channel("UCBIt1VN5j37PVM8LLSuTTlw", "en", "English", "Crypto"),  # Coin Bureau
-            Channel("UCqK_GSMbpiV8spgD3ZGloSw", "en", "English", "Crypto"),  # Crypto Banter
+            # Channel("UCBIt1VN5j37PVM8LLSuTTlw", "en", "English", "Crypto"),  # Coin Bureau
+            # Channel("UCqK_GSMbpiV8spgD3ZGloSw", "en", "English", "Crypto"),  # Crypto Banter
+            Channel("UCsaWU2rEXFkufFN_43jH2MA", "pl", "Polish", "Crypto"),  # Jarzombek
             # Add more crypto channels as needed
         ]
 
         # Filter channels based on selected category
-        channels = [channel for channel in all_channels if channel.category == args.category]
-        
+        channels = [
+            channel for channel in all_channels if channel.category == args.category
+        ]
+
         if not channels:
             print(f"No channels found for category: {args.category}")
             return
 
         print(f"Processing {args.category} channels...")
-        
+
         videos = []
         for channel in channels:
             channel_videos = get_videos_from_channel(channel.id, args.days)
             videos.extend([(url, title, channel) for url, title in channel_videos])
-        
+
         for video_url, video_title, channel in videos:
             print(f"Processing video: {video_title}")
-            
+
             # Get transcript with channel-specific language
-            transcript = get_youtube_transcript(video_url, language_code=channel.language_code)
-            
+            transcript = get_youtube_transcript(
+                video_url, language_code=channel.language_code
+            )
+
             # Analyze with Gemini using channel-specific output language
             api_key = os.getenv("GEMINI_API_KEY")
             refined_text = analyze_transcript_with_gemini(
                 transcript=transcript,
                 api_key=api_key,
                 model_name="gemini-2.0-pro-exp-02-05",
-                output_language=channel.output_language)
-            
+                output_language=channel.output_language,
+                category=channel.category,
+            )
+
             # Save to markdown file
             saved_file_path = save_to_markdown(video_title, video_url, refined_text)
             if saved_file_path:
