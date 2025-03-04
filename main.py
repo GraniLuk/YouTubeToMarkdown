@@ -392,6 +392,9 @@ def main():
             # Channel("UCqK_GSMbpiV8spgD3ZGloSw", "en", "English", "Crypto"),  # Crypto Banter
             Channel("UCsaWU2rEXFkufFN_43jH2MA", "pl", "Polish", "Crypto"),  # Jarzombek
             Channel("UCXasJkcS9vY8X4HgzReo10A", "pl", "Polish", "Crypto"),  # Ostapowicz
+            Channel(
+                "UCKy4pRGNqVvpI6HrO9lo3XA", "pl", "Polish", "Crypto"
+            ),  # Krypto Raport
             # Add more crypto channels as needed
         ]
 
