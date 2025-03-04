@@ -3,6 +3,7 @@ import os
 import os.path
 import pickle
 import re
+import sys
 from datetime import datetime, timedelta
 
 import google.generativeai as genai
@@ -31,6 +32,13 @@ class Channel:
 
 # Load environment variables
 load_dotenv()
+
+
+def get_script_dir() -> str:
+    """
+    Get the directory where the script is located
+    """
+    return os.path.dirname(os.path.abspath(__file__))
 
 
 def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
@@ -294,10 +302,13 @@ def setup_google_drive():
     """
     SCOPES = ["https://www.googleapis.com/auth/drive.file"]
     creds = None
+    script_dir = get_script_dir()
+    token_path = os.path.join(script_dir, "token.pickle")
+    credentials_path = os.path.join(script_dir, "credentials.json")
 
     # The file token.pickle stores the user's access and refresh tokens
-    if os.path.exists("token.pickle"):
-        with open("token.pickle", "rb") as token:
+    if os.path.exists(token_path):
+        with open(token_path, "rb") as token:
             creds = pickle.load(token)
 
     # If there are no (valid) credentials available, let the user log in
@@ -306,18 +317,18 @@ def setup_google_drive():
             try:
                 creds.refresh(Request())
             except Exception:
-                os.remove("token.pickle")
+                os.remove(token_path)
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    "credentials.json", SCOPES
+                    credentials_path, SCOPES
                 )
                 creds = flow.run_local_server(port=8080)
         else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
             creds = flow.run_local_server(
                 port=8080, access_type="offline", include_granted_scopes="true"
             )
         # Save the credentials for the next run
-        with open("token.pickle", "wb") as token:
+        with open(token_path, "wb") as token:
             pickle.dump(creds, token)
 
     return build("drive", "v3", credentials=creds)
