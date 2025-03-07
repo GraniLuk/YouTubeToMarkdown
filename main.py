@@ -178,8 +178,11 @@ def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, s
 
     # Get processed video IDs from index file
     processed_video_ids = set()
-    documents_dir = os.path.join(os.path.expanduser("~"), "Documents/Summaries")
-    index_file = os.path.join(documents_dir, "video_index.txt")
+    summaries_dir = os.getenv("SUMMARIES_PATH")
+    if not summaries_dir:
+        raise ValueError("SUMMARIES_PATH environment variable is not set")
+        
+    index_file = os.path.join(summaries_dir, "video_index.txt")
     if os.path.exists(index_file):
         with open(index_file, "r", encoding="utf-8") as f:
             processed_video_ids = {
@@ -226,7 +229,7 @@ def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, s
 def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
     """
     Save refined text to a markdown file, update the video index, and upload to Google Drive.
-    File will be saved in the Documents/Summaries folder with format YYYYMMDD-title.md
+    File will be saved in the path specified in SUMMARIES_PATH environment variable
 
     Args:
         title (str): YouTube video title
@@ -237,10 +240,12 @@ def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
         str: Path to the saved file
     """
     try:
-        # Determine the user's Documents folder
-        documents_dir = os.path.join(os.path.expanduser("~"), "Documents")
-        # Create Summaries directory inside Documents
-        summaries_dir = os.path.join(documents_dir, "Summaries")
+        # Get path from environment variable
+        summaries_dir = os.getenv("SUMMARIES_PATH")
+        if not summaries_dir:
+            raise ValueError("SUMMARIES_PATH environment variable is not set")
+
+        # Create directory if it doesn't exist
         os.makedirs(summaries_dir, exist_ok=True)
 
         # Clean the title to make it filesystem-friendly
@@ -262,7 +267,7 @@ def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
 
         # Extract video ID from URL
         video_id = video_url.split("?v=")[1].split("&")[0]
-        # Update index file inside the Summaries directory in Documents
+        # Update index file inside the summaries directory
         index_file = os.path.join(summaries_dir, "video_index.txt")
         with open(index_file, "a", encoding="utf-8") as f:
             f.write(f"{video_id} | {filepath}\n")
@@ -270,7 +275,6 @@ def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
         # After saving the file locally, upload to Google Drive
         try:
             drive_service = setup_google_drive()
-            # Replace with your actual Google Drive folder ID for YouTube summaries
             YOUTUBE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
 
             file_id = upload_to_drive(drive_service, filepath, YOUTUBE_FOLDER_ID)
