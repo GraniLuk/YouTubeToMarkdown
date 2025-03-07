@@ -373,8 +373,8 @@ def main():
         "--category",
         type=str,
         default="IT",
-        choices=["IT", "Crypto"],
-        help="Category of channels to process (IT or Crypto)",
+        choices=["IT", "Crypto", "AI"],
+        help="Category of channels to process (IT, Crypto, or AI)",
     )
     args = parser.parse_args()
 
@@ -386,6 +386,7 @@ def main():
             Channel(
                 "UCC_dVe-RI-vgCZfls06mDZQ", "en", "English", "IT"
             ),  # Milan Jovanovic
+            Channel("UCidgSn6WJ9Fv3kwUtoI7_Jg", "en", "English", "IT"),  # Stefan Dokic
             Channel("UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish", "IT"),  # DevMentors
             # Crypto Channels - Add your crypto channels here
             # Channel("UCBIt1VN5j37PVM8LLSuTTlw", "en", "English", "Crypto"),  # Coin Bureau
@@ -395,6 +396,7 @@ def main():
             Channel(
                 "UCKy4pRGNqVvpI6HrO9lo3XA", "pl", "Polish", "Crypto"
             ),  # Krypto Raport
+            Channel("UCWTpgi3bE5gIVfhEys-T12A", "pl", "Polish", "AI"), # Mike Tomala
             # Add more crypto channels as needed
         ]
 
