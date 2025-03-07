@@ -110,7 +110,7 @@ def analyze_transcript_with_gemini(
 
         # Define category-specific bullet points
         category_prompts = {
-            "IT": "- Adding code examples in C# when it's possible",
+            "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax when it can help understand discussed subject\n",
             "Crypto": "- Adding TradingView chart links when price movements or technical analysis is discussed\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
         }
 
