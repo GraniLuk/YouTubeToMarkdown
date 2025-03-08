@@ -38,7 +38,14 @@ def get_script_dir() -> str:
 
 
 # Load environment variables
-load_dotenv(os.path.join(get_script_dir(), ".env"))
+env_path = os.path.join(get_script_dir(), ".env")
+if not load_dotenv(env_path):
+    raise Exception(f"Could not load .env file from {env_path}")
+
+# Verify API keys are loaded
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    raise Exception("GEMINI_API_KEY not found in environment variables")
 
 
 def get_script_dir() -> str:
