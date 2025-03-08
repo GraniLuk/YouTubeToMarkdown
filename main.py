@@ -403,8 +403,10 @@ def main():
             Channel(
                 "UCKy4pRGNqVvpI6HrO9lo3XA", "pl", "Polish", "Crypto"
             ),  # Krypto Raport
-            Channel("UCWTpgi3bE5gIVfhEys-T12A", "pl", "Polish", "AI"), # Mike Tomala
-            # Add more crypto channels as needed
+            Channel("UCWTpgi3bE5gIVfhEys-T12A", "pl", "Polish", "AI"),  # Mike Tomala
+            Channel(
+                "UCgfISCCaUB4zMyD8uvx56jw", "en", "English", "AI"
+            ),  # Ben's Cyber Life
         ]
 
         # Filter channels based on selected category
