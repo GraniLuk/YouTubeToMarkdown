@@ -379,7 +379,7 @@ def main():
     parser.add_argument(
         "--category",
         type=str,
-        default="Crypto",
+        default="IT",
         choices=["IT", "Crypto"],
         help="Category of channels to process (IT or Crypto)",
     )
