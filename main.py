@@ -30,8 +30,15 @@ class Channel:
         self.category = category
 
 
+def get_script_dir() -> str:
+    """
+    Get the directory where the script is located
+    """
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 # Load environment variables
-load_dotenv()
+load_dotenv(os.path.join(get_script_dir(), ".env"))
 
 
 def get_script_dir() -> str:
@@ -372,7 +379,7 @@ def main():
     parser.add_argument(
         "--category",
         type=str,
-        default="IT",
+        default="Crypto",
         choices=["IT", "Crypto"],
         help="Category of channels to process (IT or Crypto)",
     )
