@@ -30,8 +30,22 @@ class Channel:
         self.category = category
 
 
+def get_script_dir() -> str:
+    """
+    Get the directory where the script is located
+    """
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 # Load environment variables
-load_dotenv()
+env_path = os.path.join(get_script_dir(), ".env")
+if not load_dotenv(env_path):
+    raise Exception(f"Could not load .env file from {env_path}")
+
+# Verify API keys are loaded
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    raise Exception("GEMINI_API_KEY not found in environment variables")
 
 
 def get_script_dir() -> str:
@@ -400,8 +414,10 @@ def main():
             Channel(
                 "UCKy4pRGNqVvpI6HrO9lo3XA", "pl", "Polish", "Crypto"
             ),  # Krypto Raport
-            Channel("UCWTpgi3bE5gIVfhEys-T12A", "pl", "Polish", "AI"), # Mike Tomala
-            # Add more crypto channels as needed
+            Channel("UCWTpgi3bE5gIVfhEys-T12A", "pl", "Polish", "AI"),  # Mike Tomala
+            Channel(
+                "UCgfISCCaUB4zMyD8uvx56jw", "en", "English", "AI"
+            ),  # Ben's Cyber Life
         ]
 
         # Filter channels based on selected category
