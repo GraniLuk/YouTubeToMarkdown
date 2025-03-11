@@ -425,6 +425,7 @@ def main():
                 "UC55ODQSvARtgSyc8ThfiepQ", "en", "English", "AI"
             ),  # Sam Witteveen,
             Channel("UChpleBmo18P08aKCIgti38g", "en", "English", "AI"),  # Matt Wolfe
+            Channel("UCsBjURrPoezykLs9EqgamOA", "en", "English", "AI"),  # Fireship
         ]
 
         # Filter channels based on selected category
