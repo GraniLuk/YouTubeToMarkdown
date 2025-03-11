@@ -418,6 +418,7 @@ def main():
             Channel(
                 "UCgfISCCaUB4zMyD8uvx56jw", "en", "English", "AI"
             ),  # Ben's Cyber Life
+            Channel("UCXUPKJO5MZQN11PqgIvyuvQ", "en", "English", "AI"),  # Andrej Karpathy
         ]
 
         # Filter channels based on selected category
