@@ -195,7 +195,7 @@ def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, s
     summaries_dir = os.getenv("SUMMARIES_PATH")
     if not summaries_dir:
         raise ValueError("SUMMARIES_PATH environment variable is not set")
-        
+
     index_file = os.path.join(summaries_dir, "video_index.txt")
     if os.path.exists(index_file):
         with open(index_file, "r", encoding="utf-8") as f:
@@ -418,6 +418,10 @@ def main():
             Channel(
                 "UCgfISCCaUB4zMyD8uvx56jw", "en", "English", "AI"
             ),  # Ben's Cyber Life
+            Channel(
+                "UC55ODQSvARtgSyc8ThfiepQ", "en", "English", "AI"
+            ),  # Sam Witteveen,
+            Channel("UChpleBmo18P08aKCIgti38g", "en", "English", "AI"),  # Matt Wolfe
         ]
 
         # Filter channels based on selected category
