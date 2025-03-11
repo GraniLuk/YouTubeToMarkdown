@@ -419,6 +419,9 @@ def main():
                 "UCgfISCCaUB4zMyD8uvx56jw", "en", "English", "AI"
             ),  # Ben's Cyber Life
             Channel(
+                "UCXUPKJO5MZQN11PqgIvyuvQ", "en", "English", "AI"
+            ),  # Andrej Karpathy
+            Channel(
                 "UC55ODQSvARtgSyc8ThfiepQ", "en", "English", "AI"
             ),  # Sam Witteveen,
             Channel("UChpleBmo18P08aKCIgti38g", "en", "English", "AI"),  # Matt Wolfe
