@@ -446,9 +446,47 @@ def main():
         choices=["IT", "Crypto", "AI"],
         help="Category of channels to process (IT, Crypto, or AI)",
     )
+    parser.add_argument(
+        "--url",
+        type=str,
+        help="Process a specific YouTube video URL instead of channel videos"
+    )
     args = parser.parse_args()
 
     try:
+        if args.url:
+            # Process single video
+            # Extract video title using pytube
+            yt = YouTube(args.url)
+            video_title = yt.title
+            video_url = args.url
+            
+            # Default to English for single video processing
+            language_code = "en"
+            output_language = "English"
+            category = args.category
+            channel_name = yt.author
+            published_date = yt.publish_date.strftime("%Y-%m-%d")
+
+            print(f"Processing video: {video_title}")
+            transcript = get_youtube_transcript(video_url, language_code=language_code)
+            
+            api_key = os.getenv("GEMINI_API_KEY")
+            refined_text, description, tags = analyze_transcript_with_gemini(
+                transcript=transcript,
+                api_key=api_key,
+                model_name="gemini-2.0-pro-exp-02-05",
+                output_language=output_language,
+                category=category,
+            )
+
+            saved_file_path = save_to_markdown(video_title, video_url, refined_text, channel_name, published_date, description, tags)
+            if saved_file_path:
+                print(f"Saved to: {saved_file_path}")
+                open_file(saved_file_path)
+            return
+
+        # Rest of the existing channel processing code
         # Define channels with their language settings and categories
         all_channels = [
             # IT Channels
@@ -522,13 +560,6 @@ def main():
 
     except Exception as e:
         print(f"Error: {str(e)}")
-    finally:
-        # Add cleanup code
-        try:
-            import grpc
-            grpc.shutdown()
-        except:
-            pass
 
 
 if __name__ == "__main__":
