@@ -1,0 +1,2 @@
+[console_scripts]
+yt2md = yt2md.cli:main

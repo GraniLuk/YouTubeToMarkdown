@@ -1,5 +1,5 @@
 import sys
-from .main import main as yt2md_main
+from yt2md.main import main as yt2md_main
 
 def main():
     try:

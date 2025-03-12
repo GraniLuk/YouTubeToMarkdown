@@ -1,0 +1,7 @@
+google-generativeai
+requests
+python-dotenv
+google-auth-oauthlib
+google-api-python-client
+pytube
+youtube-transcript-api
