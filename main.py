@@ -167,24 +167,29 @@ Text:
             previous_response = response.text
             final_output.append(response.text)
 
-        # Add this after processing the main content
-        description_prompt = f"""Based on the following content, generate a concise one-sentence description:
-        {previous_response}"""
-        
-        tags_prompt = f"""Based on the following content, generate relevant technical tags.
-        Format them as a list of tags in the format 'Technical/Tag'.
-        Example: Technical/Docker, Technical/Kubernetes, Technical/DevOps
-        Only include technical topics that are actually discussed in the content, include only the three most relevant tags.:
-        {previous_response}"""
+        # Replace the separate description and tags prompts with a single prompt
+        metadata_prompt = f"""Based on the following content, provide:
+1. A concise one-sentence description
+2. Three relevant technical tags in the format 'Technical/Tag1, Technical/Tag2, Technical/Tag3'
+Only include technical topics that are actually discussed in the content.
 
-        description_response = model.generate_content(description_prompt)
-        tags_response = model.generate_content(tags_prompt)
+Content:
+{previous_response}"""
 
-        description = description_response.text.strip()
-        tags = [tag.strip() for tag in tags_response.text.split(',')]
+        metadata_response = model.generate_content(metadata_prompt)
+        metadata_text = metadata_response.text
 
-
-        tags = tags[:3]
+        # Parse the response to extract description and tags
+        try:
+            # Split the response into lines and clean them up
+            lines = [line.strip() for line in metadata_text.split('\n') if line.strip()]
+            description = lines[0].replace('1.', '').strip()
+            tags = [tag.strip() for tag in lines[1].replace('2.', '').strip().split(',')]
+            tags = tags[:3]  # Ensure we only get 3 tags
+        except Exception as e:
+            # Fallback values if parsing fails
+            description = "No description available"
+            tags = ["Technical/Unknown"]
 
         return "\n\n".join(final_output), description, tags
 
