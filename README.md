@@ -1,3 +1,33 @@
+# YouTube to Markdown Converter
+
+A tool to automatically convert YouTube video transcripts into well-formatted markdown files.
+
+## Installation
+
+1. Clone this repository
+2. Install the package in development mode:
+```bash
+pip install -e .
+```
+
+## Usage
+
+After installation, you can use the `yt2md` command from anywhere:
+
+```bash
+# Process videos from channels in a category
+yt2md --category IT --days 7
+
+# Process a single video
+yt2md --url "https://www.youtube.com/watch?v=..."
+```
+
+Make sure to set up your environment variables in a .env file:
+- GEMINI_API_KEY
+- YOUTUBE_API_KEY
+- SUMMARIES_PATH
+- GOOGLE_DRIVE_FOLDER_ID (optional)
+
 # YouTube Playlist Processor using Gemini API
 <br>
 <br>
