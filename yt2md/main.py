@@ -197,10 +197,6 @@ Content:
         raise Exception(f"Gemini processing error: {str(e)}")
 
 
-def get_video_url(video_id):
-    return f"https://www.youtube.com/watch?v={video_id}"
-
-
 def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, str, str]]:
     """
     Get all unprocessed videos from a YouTube channel published in the last days.
