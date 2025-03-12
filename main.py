@@ -522,6 +522,13 @@ def main():
 
     except Exception as e:
         print(f"Error: {str(e)}")
+    finally:
+        # Add cleanup code
+        try:
+            import grpc
+            grpc.shutdown()
+        except:
+            pass
 
 
 if __name__ == "__main__":
