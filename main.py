@@ -174,7 +174,7 @@ Text:
         tags_prompt = f"""Based on the following content, generate relevant technical tags.
         Format them as a list of tags in the format 'Technical/Tag'.
         Example: Technical/Docker, Technical/Kubernetes, Technical/DevOps
-        Only include technical topics that are actually discussed in the content:
+        Only include technical topics that are actually discussed in the content, include only the three most relevant tags.:
         {previous_response}"""
 
         description_response = model.generate_content(description_prompt)
@@ -182,6 +182,9 @@ Text:
 
         description = description_response.text.strip()
         tags = [tag.strip() for tag in tags_response.text.split(',')]
+
+
+        tags = tags[:3]
 
         return "\n\n".join(final_output), description, tags
 
