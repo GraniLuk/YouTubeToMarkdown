@@ -497,7 +497,7 @@ def main():
         description="Process YouTube videos and create markdown summaries"
     )
     parser.add_argument(
-        "--days", type=int, default=66, help="Number of days to look back for videos"
+        "--days", type=int, default=3, help="Number of days to look back for videos"
     )
     parser.add_argument(
         "--category",
