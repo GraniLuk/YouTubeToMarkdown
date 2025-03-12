@@ -299,6 +299,11 @@ def get_video_details_from_url(url: str) -> tuple[str, str, str, str]:
         if not video_id:
             return "Invalid YouTube URL"
         
+        # Check if the video ID is already processed
+        if video_id in processed_video_ids:
+            print(f"Video with ID {video_id} was already processed. Skipping...")
+            return None
+        
         # Initialize YouTube API client
         youtube = googleapiclient.discovery.build('youtube', 'v3', developerKey=API_KEY)
         
@@ -312,13 +317,6 @@ def get_video_details_from_url(url: str) -> tuple[str, str, str, str]:
         if "items" in data:
             firstItem = data["items"][0]
             if firstItem:
-                video_id = firstItem["snippet"]["videoId"]
-                if video_id in processed_video_ids:
-                    print(
-                        f"Video {firstItem['snippet']['title']} was already processed. Skipping..."
-                    )
-                    return None
-
                 video_url = url
                 title = firstItem["snippet"]["title"]
                 published_date = firstItem["snippet"]["publishedAt"].split("T")[0]  # Get just the date part
