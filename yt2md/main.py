@@ -7,6 +7,7 @@ import sys
 from datetime import datetime, timedelta
 
 import google.generativeai as genai
+import googleapiclient
 import requests
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request
@@ -260,6 +261,71 @@ def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, s
             break
     return videos
 
+def extract_video_id(url):
+    # Extract video ID from different YouTube URL formats
+    pattern = r'(?:v=|\/)([0-9A-Za-z_-]{11}).*'
+    match = re.search(pattern, url)
+    if match:
+        return match.group(1)
+    return None
+
+def get_video_details_from_url(url: str) -> tuple[str, str, str, str]:
+    """
+    Get details for a YouTube video given its URL.
+
+    Args:
+        url (str): YouTube video URL
+
+    Returns:
+        list[tuple[str, str]]: A list of tuples containing (video_url, video_title) for unprocessed videos
+    """
+    API_KEY = os.getenv("YOUTUBE_API_KEY")
+
+    # Get processed video IDs from index file
+    processed_video_ids = set()
+    summaries_dir = os.getenv("SUMMARIES_PATH")
+    if not summaries_dir:
+        raise ValueError("SUMMARIES_PATH environment variable is not set")
+
+    index_file = os.path.join(summaries_dir, "video_index.txt")
+    if os.path.exists(index_file):
+        with open(index_file, "r", encoding="utf-8") as f:
+            processed_video_ids = {
+                line.split(" | ")[0].strip() for line in f if line.strip()
+            }
+
+     # Extract video ID from URL
+        video_id = extract_video_id(url)
+        if not video_id:
+            return "Invalid YouTube URL"
+        
+        # Initialize YouTube API client
+        youtube = googleapiclient.discovery.build('youtube', 'v3', developerKey=API_KEY)
+        
+        # Request video details
+        request = youtube.videos().list(
+            part="snippet",
+            id=video_id
+        )
+        data = request.execute()
+
+        if "items" in data:
+            firstItem = data["items"][0]
+            if firstItem:
+                video_id = firstItem["snippet"]["videoId"]
+                if video_id in processed_video_ids:
+                    print(
+                        f"Video {firstItem['snippet']['title']} was already processed. Skipping..."
+                    )
+                    return None
+
+                video_url = url
+                title = firstItem["snippet"]["title"]
+                published_date = firstItem["snippet"]["publishedAt"].split("T")[0]  # Get just the date part
+                channel_name = firstItem["snippet"]["channelTitle"]
+                return (video_url, title, published_date, channel_name)
+        return None
+    return None
 
 def save_to_markdown(
     title: str, 
@@ -447,22 +513,25 @@ def main():
         type=str,
         help="Process a specific YouTube video URL instead of channel videos"
     )
+    parser.add_argument(
+        "--language",
+        type=str,
+        default="en",
+        choices=["en", "pl"],
+        help="Language code for the transcript (default: 'en' for English)",
+    )
     args = parser.parse_args()
 
     try:
         if args.url:
             # Process single video
             # Extract video title using pytube
-            yt = YouTube(args.url)
-            video_title = yt.title
-            video_url = args.url
+            video_url, video_title, published_date, channel_name = get_video_details_from_url(args.url)
             
-            # Default to English for single video processing
-            language_code = "en"
-            output_language = "English"
+            # Use the specified language for single video processing
+            language_code = args.language
+            output_language = "English" if language_code == "en" else "Polish"  # Determine output language based on input
             category = args.category
-            channel_name = yt.author
-            published_date = yt.publish_date.strftime("%Y-%m-%d")
 
             print(f"Processing video: {video_title}")
             transcript = get_youtube_transcript(video_url, language_code=language_code)
