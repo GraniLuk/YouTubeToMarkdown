@@ -429,7 +429,7 @@ def main():
         description="Process YouTube videos and create markdown summaries"
     )
     parser.add_argument(
-        "--days", type=int, default=3, help="Number of days to look back for videos"
+        "--days", type=int, default=66, help="Number of days to look back for videos"
     )
     parser.add_argument(
         "--category",
@@ -486,7 +486,7 @@ def main():
         videos = []
         for channel in channels:
             channel_videos = get_videos_from_channel(channel.id, args.days)
-            videos.extend([(url, title, channel) for url, title in channel_videos])
+            videos.extend([(url, title, published_date, channel) for url, title, published_date in channel_videos])
 
         for video_url, video_title, published_date, channel in videos:
             print(f"Processing video: {video_title}")
