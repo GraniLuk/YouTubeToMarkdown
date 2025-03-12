@@ -22,12 +22,13 @@ from youtube_transcript_api import YouTubeTranscriptApi
 
 class Channel:
     def __init__(
-        self, id: str, language_code: str, output_language: str, category: str
+        self, id: str, language_code: str, output_language: str, category: str, name: str
     ):
         self.id = id
         self.language_code = language_code
         self.output_language = output_language
         self.category = category
+        self.name = name
 
 
 def get_script_dir() -> str:
@@ -91,7 +92,7 @@ def analyze_transcript_with_gemini(
     output_language: str = "English",
     chunk_size: int = 3000,
     category: str = "IT",
-) -> str:
+) -> tuple[str, str, list[str]]:
     """
     Analyze transcript using Gemini API and return refined text.
 
@@ -124,7 +125,7 @@ def analyze_transcript_with_gemini(
 
         # Define category-specific bullet points
         category_prompts = {
-            "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax when it can help understand discussed subject\n - Add suitable tags at the beginning of the file, using 'Technical' as the main tag and adding subtags as needed. For example, '#Technical/Swagger #Technical/GraphQL",
+            "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax when it can help understand discussed subject",
             "Crypto": "- Adding TradingView chart links when price movements or technical analysis is discussed\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
         }
 
@@ -166,8 +167,23 @@ Text:
             previous_response = response.text
             final_output.append(response.text)
 
-        # Combine all responses
-        return "\n\n".join(final_output)
+        # Add this after processing the main content
+        description_prompt = f"""Based on the following content, generate a concise one-sentence description:
+        {previous_response}"""
+        
+        tags_prompt = f"""Based on the following content, generate relevant technical tags.
+        Format them as a list of tags in the format 'Technical/Tag'.
+        Example: Technical/Docker, Technical/Kubernetes, Technical/DevOps
+        Only include technical topics that are actually discussed in the content:
+        {previous_response}"""
+
+        description_response = model.generate_content(description_prompt)
+        tags_response = model.generate_content(tags_prompt)
+
+        description = description_response.text.strip()
+        tags = [tag.strip() for tag in tags_response.text.split(',')]
+
+        return "\n\n".join(final_output), description, tags
 
     except Exception as e:
         raise Exception(f"Gemini processing error: {str(e)}")
@@ -177,7 +193,7 @@ def get_video_url(video_id):
     return f"https://www.youtube.com/watch?v={video_id}"
 
 
-def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, str]]:
+def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, str, str]]:
     """
     Get all unprocessed videos from a YouTube channel published in the last days.
     Checks against video_index.txt to skip already processed videos.
@@ -232,7 +248,8 @@ def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, s
 
                 video_url = f"https://www.youtube.com/watch?v={video_id}"
                 title = item["snippet"]["title"]
-                videos.append((video_url, title))
+                published_date = item["snippet"]["publishedAt"].split("T")[0]  # Get just the date part
+                videos.append((video_url, title, published_date))
 
         next_page_token = data.get("nextPageToken")
         if not next_page_token:
@@ -240,7 +257,15 @@ def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, s
     return videos
 
 
-def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
+def save_to_markdown(
+    title: str, 
+    video_url: str, 
+    refined_text: str, 
+    author: str,
+    published_date: str,
+    description: str,
+    tags: list[str]
+) -> str:
     """
     Save refined text to a markdown file, update the video index, and upload to Google Drive.
     File will be saved in the path specified in SUMMARIES_PATH environment variable
@@ -249,6 +274,10 @@ def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
         title (str): YouTube video title
         video_url (str): YouTube video URL
         refined_text (str): Text to save
+        author (str): Author of the video
+        published_date (str): Published date of the video
+        description (str): Description of the video
+        tags (list[str]): List of tags for the video
 
     Returns:
         str: Path to the saved file
@@ -273,10 +302,25 @@ def save_to_markdown(title: str, video_url: str, refined_text: str) -> str:
         # Create full path
         filepath = os.path.join(summaries_dir, filename)
 
+        # Get current date for 'created' field
+        created_date = datetime.now().strftime("%Y-%m-%d")
+
+        # Create the frontmatter
+        frontmatter = f"""---
+title: "{title}"
+source: {video_url}
+author: "[[{author}]]"
+published: {published_date}
+created: {created_date}
+description: {description}
+tags:
+  - {" ".join(tags)}
+---
+
+"""
         # Save to file
         with open(filepath, "w", encoding="utf-8") as f:
-            f.write(f"# YouTube Video\n\n")
-            f.write(f"Source: {video_url}\n\n")
+            f.write(frontmatter)
             f.write(refined_text)
 
         # Extract video ID from URL
@@ -400,32 +444,32 @@ def main():
         # Define channels with their language settings and categories
         all_channels = [
             # IT Channels
-            Channel("UCrkPsvLGln62OMZRO6K-llg", "en", "English", "IT"),  # Nick Chapsas
+            Channel("UCrkPsvLGln62OMZRO6K-llg", "en", "English", "IT", "Nick Chapsas"),  # Nick Chapsas
             Channel(
-                "UCC_dVe-RI-vgCZfls06mDZQ", "en", "English", "IT"
+                "UCC_dVe-RI-vgCZfls06mDZQ", "en", "English", "IT", "Milan Jovanovic"
             ),  # Milan Jovanovic
-            Channel("UCidgSn6WJ9Fv3kwUtoI7_Jg", "en", "English", "IT"),  # Stefan Dokic
-            Channel("UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish", "IT"),  # DevMentors
+            Channel("UCidgSn6WJ9Fv3kwUtoI7_Jg", "en", "English", "IT", "Stefan Dokic"),  # Stefan Dokic
+            Channel("UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish", "IT", "DevMentors"),  # DevMentors
             # Crypto Channels - Add your crypto channels here
-            # Channel("UCBIt1VN5j37PVM8LLSuTTlw", "en", "English", "Crypto"),  # Coin Bureau
-            # Channel("UCqK_GSMbpiV8spgD3ZGloSw", "en", "English", "Crypto"),  # Crypto Banter
-            Channel("UCsaWU2rEXFkufFN_43jH2MA", "pl", "Polish", "Crypto"),  # Jarzombek
-            Channel("UCXasJkcS9vY8X4HgzReo10A", "pl", "Polish", "Crypto"),  # Ostapowicz
+            # Channel("UCBIt1VN5j37PVM8LLSuTTlw", "en", "English", "Crypto", "Coin Bureau"),  # Coin Bureau
+            # Channel("UCqK_GSMbpiV8spgD3ZGloSw", "en", "English", "Crypto", "Crypto Banter"),  # Crypto Banter
+            Channel("UCsaWU2rEXFkufFN_43jH2MA", "pl", "Polish", "Crypto", "Jarzombek"),  # Jarzombek
+            Channel("UCXasJkcS9vY8X4HgzReo10A", "pl", "Polish", "Crypto", "Ostapowicz"),  # Ostapowicz
             Channel(
-                "UCKy4pRGNqVvpI6HrO9lo3XA", "pl", "Polish", "Crypto"
+                "UCKy4pRGNqVvpI6HrO9lo3XA", "pl", "Polish", "Crypto", "Krypto Raport"
             ),  # Krypto Raport
-            Channel("UCWTpgi3bE5gIVfhEys-T12A", "pl", "Polish", "AI"),  # Mike Tomala
+            Channel("UCWTpgi3bE5gIVfhEys-T12A", "pl", "Polish", "AI", "Mike Tomala"),  # Mike Tomala
             Channel(
-                "UCgfISCCaUB4zMyD8uvx56jw", "en", "English", "AI"
+                "UCgfISCCaUB4zMyD8uvx56jw", "en", "English", "AI", "Ben's Cyber Life"
             ),  # Ben's Cyber Life
             Channel(
-                "UCXUPKJO5MZQN11PqgIvyuvQ", "en", "English", "AI"
+                "UCXUPKJO5MZQN11PqgIvyuvQ", "en", "English", "AI", "Andrej Karpathy"
             ),  # Andrej Karpathy
             Channel(
-                "UC55ODQSvARtgSyc8ThfiepQ", "en", "English", "AI"
+                "UC55ODQSvARtgSyc8ThfiepQ", "en", "English", "AI", "Sam Witteveen"
             ),  # Sam Witteveen,
-            Channel("UChpleBmo18P08aKCIgti38g", "en", "English", "AI"),  # Matt Wolfe
-            Channel("UCsBjURrPoezykLs9EqgamOA", "en", "English", "AI"),  # Fireship
+            Channel("UChpleBmo18P08aKCIgti38g", "en", "English", "AI", "Matt Wolfe"),  # Matt Wolfe
+            Channel("UCsBjURrPoezykLs9EqgamOA", "en", "English", "AI", "Fireship"),  # Fireship
         ]
 
         # Filter channels based on selected category
@@ -444,7 +488,7 @@ def main():
             channel_videos = get_videos_from_channel(channel.id, args.days)
             videos.extend([(url, title, channel) for url, title in channel_videos])
 
-        for video_url, video_title, channel in videos:
+        for video_url, video_title, published_date, channel in videos:
             print(f"Processing video: {video_title}")
 
             # Get transcript with channel-specific language
@@ -454,7 +498,7 @@ def main():
 
             # Analyze with Gemini using channel-specific output language
             api_key = os.getenv("GEMINI_API_KEY")
-            refined_text = analyze_transcript_with_gemini(
+            refined_text, description, tags = analyze_transcript_with_gemini(
                 transcript=transcript,
                 api_key=api_key,
                 model_name="gemini-2.0-pro-exp-02-05",
@@ -463,7 +507,7 @@ def main():
             )
 
             # Save to markdown file
-            saved_file_path = save_to_markdown(video_title, video_url, refined_text)
+            saved_file_path = save_to_markdown(video_title, video_url, refined_text, channel.name, published_date, description, tags)
             if saved_file_path:
                 print(f"Saved to: {saved_file_path}")
                 open_file(saved_file_path)
