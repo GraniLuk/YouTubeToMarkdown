@@ -37,6 +37,7 @@ def analyze_transcript_with_gemini(
         # Process each chunk
         final_output = []
         previous_response = ""
+        description = "No description available"
 
         # Define category-specific bullet points
         category_prompts = {
@@ -63,6 +64,8 @@ All output must be generated entirely in [Language]. Do not use any other langua
 Text:
 """
 
+        FIRST_CHUNK_TEMPLATE = f"First, provide a one-sentence description of the content (start with \"DESCRIPTION:\").\nThen, {PROMPT_TEMPLATE}"
+
         for i, chunk in enumerate(chunks):
             # Prepare prompt with context if needed
             if previous_response:
@@ -73,32 +76,29 @@ Text:
             else:
                 context_prompt = ""
 
+            # Use different template for first chunk
+            if i == 0:
+                template = FIRST_CHUNK_TEMPLATE
+            else:
+                template = PROMPT_TEMPLATE
+
             # Create full prompt
-            formatted_prompt = PROMPT_TEMPLATE.replace("[Language]", output_language)
+            formatted_prompt = template.replace("[Language]", output_language)
             full_prompt = f"{context_prompt}{formatted_prompt}\n\n{chunk}"
 
             # Generate response
             response = model.generate_content(full_prompt)
-            previous_response = response.text
-            final_output.append(response.text)
+            text = response.text
 
-        metadata_prompt = f"""Based on the following content, provide:
-1. A concise one-sentence description of the content.
+            # Extract description from first chunk
+            if i == 0:
+                lines = text.split('\n')
+                if lines[0].startswith('DESCRIPTION:'):
+                    description = lines[0].replace('DESCRIPTION:', '').strip()
+                    text = '\n'.join(lines[1:])
 
-Content:
-{previous_response}"""
-
-        metadata_response = model.generate_content(metadata_prompt)
-        metadata_text = metadata_response.text
-
-        # Parse the response to extract description and
-        try:
-            # Split the response into lines and clean them up
-            lines = [line.strip() for line in metadata_text.split('\n') if line.strip()]
-            description = lines[0].replace('1.', '').strip()
-        except Exception as e:
-            # Fallback values if parsing fails
-            description = "No description available"
+            previous_response = text
+            final_output.append(text)
 
         return "\n\n".join(final_output), description
 
