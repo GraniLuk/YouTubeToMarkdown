@@ -1,5 +1,6 @@
 README.md
 setup.py
+yt2md/AI.py
 yt2md/__init__.py
 yt2md/cli.py
 yt2md/main.py
