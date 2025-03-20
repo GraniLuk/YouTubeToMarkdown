@@ -104,3 +104,25 @@ Text:
 
     except Exception as e:
         raise Exception(f"Gemini processing error: {str(e)}")
+    
+
+import os
+if __name__ == "__main__":
+    # Example usage
+    transcript_text_from_file = "C:\\Users\\5028lukgr\\Downloads\\Geeks Club-20250319_080718-Meeting Recording-en-US.txt"
+    with open(transcript_text_from_file, 'r') as file:
+        transcript = file.read()
+    api_key = os.getenv("GEMINI_API_KEY")
+    newTranscript = analyze_transcript_with_gemini(
+        transcript=transcript,
+        api_key=api_key,
+        model_name="gemini-2.0-pro-exp-02-05",
+        output_language="English",
+        chunk_size=3000,
+        category="IT"
+    )
+    print(newTranscript[0])
+    print(newTranscript[1])
+    # Save the refined transcript to a file
+    with open("refined_transcript.txt", 'w') as file:
+        file.write(newTranscript[0])
