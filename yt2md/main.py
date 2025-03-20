@@ -443,6 +443,7 @@ def main():
             ),  # Milan Jovanovic
             Channel("UCidgSn6WJ9Fv3kwUtoI7_Jg", "en", "English", "IT", "Stefan Dokic"),  # Stefan Dokic
             Channel("UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish", "IT", "DevMentors"),  # DevMentors
+            Channel("UC3RKA4vunFAfrfxiJhPEplw", "en", "English", "IT", "CodeOpinion"),  # CodeOpinion
             # Crypto Channels - Add your crypto channels here
             # Channel("UCBIt1VN5j37PVM8LLSuTTlw", "en", "English", "Crypto", "Coin Bureau"),  # Coin Bureau
             # Channel("UCqK_GSMbpiV8spgD3ZGloSw", "en", "English", "Crypto", "Crypto Banter"),  # Crypto Banter
