@@ -5,7 +5,6 @@ import pickle
 import re
 from datetime import datetime, timedelta
 
-
 import googleapiclient
 import requests
 from dotenv import load_dotenv
@@ -16,19 +15,7 @@ from googleapiclient.http import MediaFileUpload
 from youtube_transcript_api import YouTubeTranscriptApi
 
 from yt2md.AI import analyze_transcript_with_gemini
-
-# Add this class near the top of the file, after imports
-
-
-class Channel:
-    def __init__(
-        self, id: str, language_code: str, output_language: str, category: str, name: str
-    ):
-        self.id = id
-        self.language_code = language_code
-        self.output_language = output_language
-        self.category = category
-        self.name = name
+from yt2md.channel import Channel
 
 
 def get_script_dir() -> str:
@@ -85,7 +72,9 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
         raise Exception(f"Transcript extraction error: {str(e)}")
 
 
-def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, str, str]]:
+def get_videos_from_channel(
+    channel_id: str, days: int = 8
+) -> list[tuple[str, str, str]]:
     """
     Get all unprocessed videos from a YouTube channel published in the last days.
     Checks against video_index.txt to skip already processed videos.
@@ -140,7 +129,9 @@ def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, s
 
                 video_url = f"https://www.youtube.com/watch?v={video_id}"
                 title = item["snippet"]["title"]
-                published_date = item["snippet"]["publishedAt"].split("T")[0]  # Get just the date part
+                published_date = item["snippet"]["publishedAt"].split("T")[
+                    0
+                ]  # Get just the date part
                 videos.append((video_url, title, published_date))
 
         next_page_token = data.get("nextPageToken")
@@ -148,13 +139,15 @@ def get_videos_from_channel(channel_id: str, days: int = 8) -> list[tuple[str, s
             break
     return videos
 
+
 def extract_video_id(url):
     # Extract video ID from different YouTube URL formats
-    pattern = r'(?:v=|\/)([0-9A-Za-z_-]{11}).*'
+    pattern = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
     match = re.search(pattern, url)
     if match:
         return match.group(1)
     return None
+
 
 def get_video_details_from_url(url: str) -> tuple[str, str, str, str]:
     """
@@ -181,24 +174,21 @@ def get_video_details_from_url(url: str) -> tuple[str, str, str, str]:
                 line.split(" | ")[0].strip() for line in f if line.strip()
             }
 
-     # Extract video ID from URL
+        # Extract video ID from URL
         video_id = extract_video_id(url)
         if not video_id:
             return "Invalid YouTube URL"
-        
+
         # Check if the video ID is already processed
         if video_id in processed_video_ids:
             print(f"Video with ID {video_id} was already processed. Skipping...")
             return None
-        
+
         # Initialize YouTube API client
-        youtube = googleapiclient.discovery.build('youtube', 'v3', developerKey=API_KEY)
-        
+        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
+
         # Request video details
-        request = youtube.videos().list(
-            part="snippet",
-            id=video_id
-        )
+        request = youtube.videos().list(part="snippet", id=video_id)
         data = request.execute()
 
         if "items" in data:
@@ -206,19 +196,22 @@ def get_video_details_from_url(url: str) -> tuple[str, str, str, str]:
             if firstItem:
                 video_url = url
                 title = firstItem["snippet"]["title"]
-                published_date = firstItem["snippet"]["publishedAt"].split("T")[0]  # Get just the date part
+                published_date = firstItem["snippet"]["publishedAt"].split("T")[
+                    0
+                ]  # Get just the date part
                 channel_name = firstItem["snippet"]["channelTitle"]
                 return (video_url, title, published_date, channel_name)
         return None
     return None
 
+
 def save_to_markdown(
-    title: str, 
-    video_url: str, 
-    refined_text: str, 
+    title: str,
+    video_url: str,
+    refined_text: str,
     author: str,
     published_date: str,
-    description: str
+    description: str,
 ) -> str:
     """
     Save refined text to a markdown file, update the video index, and upload to Google Drive.
@@ -393,7 +386,7 @@ def main():
     parser.add_argument(
         "--url",
         type=str,
-        help="Process a specific YouTube video URL instead of channel videos"
+        help="Process a specific YouTube video URL instead of channel videos",
     )
     parser.add_argument(
         "--language",
@@ -408,16 +401,20 @@ def main():
         if args.url:
             # Process single video
             # Extract video title using pytube
-            video_url, video_title, published_date, channel_name = get_video_details_from_url(args.url)
-            
+            video_url, video_title, published_date, channel_name = (
+                get_video_details_from_url(args.url)
+            )
+
             # Use the specified language for single video processing
             language_code = args.language
-            output_language = "English" if language_code == "en" else "Polish"  # Determine output language based on input
+            output_language = (
+                "English" if language_code == "en" else "Polish"
+            )  # Determine output language based on input
             category = args.category
 
             print(f"Processing video: {video_title}")
             transcript = get_youtube_transcript(video_url, language_code=language_code)
-            
+
             api_key = os.getenv("GEMINI_API_KEY")
             refined_text, description = analyze_transcript_with_gemini(
                 transcript=transcript,
@@ -427,7 +424,14 @@ def main():
                 category=category,
             )
 
-            saved_file_path = save_to_markdown(video_title, video_url, refined_text, channel_name, published_date, description)
+            saved_file_path = save_to_markdown(
+                video_title,
+                video_url,
+                refined_text,
+                channel_name,
+                published_date,
+                description,
+            )
             if saved_file_path:
                 print(f"Saved to: {saved_file_path}")
                 open_file(saved_file_path)
@@ -437,22 +441,36 @@ def main():
         # Define channels with their language settings and categories
         all_channels = [
             # IT Channels
-            Channel("UCrkPsvLGln62OMZRO6K-llg", "en", "English", "IT", "Nick Chapsas"),  # Nick Chapsas
+            Channel(
+                "UCrkPsvLGln62OMZRO6K-llg", "en", "English", "IT", "Nick Chapsas"
+            ),  # Nick Chapsas
             Channel(
                 "UCC_dVe-RI-vgCZfls06mDZQ", "en", "English", "IT", "Milan Jovanovic"
             ),  # Milan Jovanovic
-            Channel("UCidgSn6WJ9Fv3kwUtoI7_Jg", "en", "English", "IT", "Stefan Dokic"),  # Stefan Dokic
-            Channel("UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish", "IT", "DevMentors"),  # DevMentors
-            Channel("UC3RKA4vunFAfrfxiJhPEplw", "en", "English", "IT", "CodeOpinion"),  # CodeOpinion
+            Channel(
+                "UCidgSn6WJ9Fv3kwUtoI7_Jg", "en", "English", "IT", "Stefan Dokic"
+            ),  # Stefan Dokic
+            Channel(
+                "UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish", "IT", "DevMentors"
+            ),  # DevMentors
+            Channel(
+                "UC3RKA4vunFAfrfxiJhPEplw", "en", "English", "IT", "CodeOpinion"
+            ),  # CodeOpinion
             # Crypto Channels - Add your crypto channels here
             # Channel("UCBIt1VN5j37PVM8LLSuTTlw", "en", "English", "Crypto", "Coin Bureau"),  # Coin Bureau
             # Channel("UCqK_GSMbpiV8spgD3ZGloSw", "en", "English", "Crypto", "Crypto Banter"),  # Crypto Banter
-            Channel("UCsaWU2rEXFkufFN_43jH2MA", "pl", "Polish", "Crypto", "Jarzombek"),  # Jarzombek
-            Channel("UCXasJkcS9vY8X4HgzReo10A", "pl", "Polish", "Crypto", "Ostapowicz"),  # Ostapowicz
+            Channel(
+                "UCsaWU2rEXFkufFN_43jH2MA", "pl", "Polish", "Crypto", "Jarzombek"
+            ),  # Jarzombek
+            Channel(
+                "UCXasJkcS9vY8X4HgzReo10A", "pl", "Polish", "Crypto", "Ostapowicz"
+            ),  # Ostapowicz
             Channel(
                 "UCKy4pRGNqVvpI6HrO9lo3XA", "pl", "Polish", "Crypto", "Krypto Raport"
             ),  # Krypto Raport
-            Channel("UCWTpgi3bE5gIVfhEys-T12A", "pl", "Polish", "AI", "Mike Tomala"),  # Mike Tomala
+            Channel(
+                "UCWTpgi3bE5gIVfhEys-T12A", "pl", "Polish", "AI", "Mike Tomala"
+            ),  # Mike Tomala
             Channel(
                 "UCgfISCCaUB4zMyD8uvx56jw", "en", "English", "AI", "Ben's Cyber Life"
             ),  # Ben's Cyber Life
@@ -462,8 +480,12 @@ def main():
             Channel(
                 "UC55ODQSvARtgSyc8ThfiepQ", "en", "English", "AI", "Sam Witteveen"
             ),  # Sam Witteveen,
-            Channel("UChpleBmo18P08aKCIgti38g", "en", "English", "AI", "Matt Wolfe"),  # Matt Wolfe
-            Channel("UCsBjURrPoezykLs9EqgamOA", "en", "English", "AI", "Fireship"),  # Fireship
+            Channel(
+                "UChpleBmo18P08aKCIgti38g", "en", "English", "AI", "Matt Wolfe"
+            ),  # Matt Wolfe
+            Channel(
+                "UCsBjURrPoezykLs9EqgamOA", "en", "English", "AI", "Fireship"
+            ),  # Fireship
         ]
 
         # Filter channels based on selected category
@@ -480,7 +502,12 @@ def main():
         videos = []
         for channel in channels:
             channel_videos = get_videos_from_channel(channel.id, args.days)
-            videos.extend([(url, title, published_date, channel) for url, title, published_date in channel_videos])
+            videos.extend(
+                [
+                    (url, title, published_date, channel)
+                    for url, title, published_date in channel_videos
+                ]
+            )
 
         for video_url, video_title, published_date, channel in videos:
             print(f"Processing video: {video_title}")
@@ -501,7 +528,14 @@ def main():
             )
 
             # Save to markdown file
-            saved_file_path = save_to_markdown(video_title, video_url, refined_text, channel.name, published_date, description)
+            saved_file_path = save_to_markdown(
+                video_title,
+                video_url,
+                refined_text,
+                channel.name,
+                published_date,
+                description,
+            )
             if saved_file_path:
                 print(f"Saved to: {saved_file_path}")
                 open_file(saved_file_path)
