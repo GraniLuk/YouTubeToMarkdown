@@ -36,13 +36,6 @@ if not api_key:
     raise Exception("GEMINI_API_KEY not found in environment variables")
 
 
-def get_script_dir() -> str:
-    """
-    Get the directory where the script is located
-    """
-    return os.path.dirname(os.path.abspath(__file__))
-
-
 def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
     """
     Extract transcript from a YouTube video and return it as a string.
