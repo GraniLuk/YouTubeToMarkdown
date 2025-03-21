@@ -7,7 +7,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from yt2md.AI import analyze_transcript_with_gemini
-from yt2md.channel import Channel
+from yt2md.config import load_channels
 from yt2md.google_drive import setup_google_drive, upload_to_drive
 from yt2md.youtube import (
     get_video_details_from_url,
@@ -198,61 +198,8 @@ def main():
                 open_file(saved_file_path)
             return
 
-        # Rest of the existing channel processing code
-        # Define channels with their language settings and categories
-        all_channels = [
-            # IT Channels
-            Channel(
-                "UCrkPsvLGln62OMZRO6K-llg", "en", "English", "IT", "Nick Chapsas"
-            ),  # Nick Chapsas
-            Channel(
-                "UCC_dVe-RI-vgCZfls06mDZQ", "en", "English", "IT", "Milan Jovanovic"
-            ),  # Milan Jovanovic
-            Channel(
-                "UCidgSn6WJ9Fv3kwUtoI7_Jg", "en", "English", "IT", "Stefan Dokic"
-            ),  # Stefan Dokic
-            Channel(
-                "UCX189tVw5L1E0uRpzJgj8mQ", "pl", "Polish", "IT", "DevMentors"
-            ),  # DevMentors
-            Channel(
-                "UC3RKA4vunFAfrfxiJhPEplw", "en", "English", "IT", "CodeOpinion"
-            ),  # CodeOpinion
-            # Crypto Channels - Add your crypto channels here
-            # Channel("UCBIt1VN5j37PVM8LLSuTTlw", "en", "English", "Crypto", "Coin Bureau"),  # Coin Bureau
-            # Channel("UCqK_GSMbpiV8spgD3ZGloSw", "en", "English", "Crypto", "Crypto Banter"),  # Crypto Banter
-            Channel(
-                "UCsaWU2rEXFkufFN_43jH2MA", "pl", "Polish", "Crypto", "Jarzombek"
-            ),  # Jarzombek
-            Channel(
-                "UCXasJkcS9vY8X4HgzReo10A", "pl", "Polish", "Crypto", "Ostapowicz"
-            ),  # Ostapowicz
-            Channel(
-                "UCKy4pRGNqVvpI6HrO9lo3XA", "pl", "Polish", "Crypto", "Krypto Raport"
-            ),  # Krypto Raport
-            Channel(
-                "UCWTpgi3bE5gIVfhEys-T12A", "pl", "Polish", "AI", "Mike Tomala"
-            ),  # Mike Tomala
-            Channel(
-                "UCgfISCCaUB4zMyD8uvx56jw", "en", "English", "AI", "Ben's Cyber Life"
-            ),  # Ben's Cyber Life
-            Channel(
-                "UCXUPKJO5MZQN11PqgIvyuvQ", "en", "English", "AI", "Andrej Karpathy"
-            ),  # Andrej Karpathy
-            Channel(
-                "UC55ODQSvARtgSyc8ThfiepQ", "en", "English", "AI", "Sam Witteveen"
-            ),  # Sam Witteveen,
-            Channel(
-                "UChpleBmo18P08aKCIgti38g", "en", "English", "AI", "Matt Wolfe"
-            ),  # Matt Wolfe
-            Channel(
-                "UCsBjURrPoezykLs9EqgamOA", "en", "English", "AI", "Fireship"
-            ),  # Fireship
-        ]
-
-        # Filter channels based on selected category
-        channels = [
-            channel for channel in all_channels if channel.category == args.category
-        ]
+        # Load channels from configuration
+        channels = load_channels(args.category)
 
         if not channels:
             print(f"No channels found for category: {args.category}")

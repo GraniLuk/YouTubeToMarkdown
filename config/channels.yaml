@@ -1,0 +1,42 @@
+IT:
+  - id: UCrkPsvLGln62OMZRO6K-llg
+    name: Nick Chapsas
+    language_code: en
+    output_language: English
+    
+  - id: UCC_dVe-RI-vgCZfls06mDZQ
+    name: Milan Jovanovic
+    language_code: en
+    output_language: English
+    
+  - id: UCidgSn6WJ9Fv3kwUtoI7_Jg
+    name: Stefan Dokic
+    language_code: en
+    output_language: English
+
+  - id: UCX189tVw5L1E0uRpzJgj8mQ
+    name: DevMentors
+    language_code: pl
+    output_language: Polish
+
+AI:
+  - id: UCWTpgi3bE5gIVfhEys-T12A
+    name: Mike Tomala
+    language_code: pl
+    output_language: Polish
+
+  - id: UCgfISCCaUB4zMyD8uvx56jw
+    name: Ben's Cyber Life
+    language_code: en
+    output_language: English
+
+Crypto:
+  - id: UCsaWU2rEXFkufFN_43jH2MA
+    name: Jarzombek
+    language_code: pl
+    output_language: Polish
+
+  - id: UCXasJkcS9vY8X4HgzReo10A
+    name: Ostapowicz
+    language_code: pl
+    output_language: Polish
