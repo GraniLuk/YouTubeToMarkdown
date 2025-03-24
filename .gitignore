@@ -10,3 +10,5 @@ __pycache__/
 /Summaries
 token.pickle
 credentials.json
+
+channels.json
