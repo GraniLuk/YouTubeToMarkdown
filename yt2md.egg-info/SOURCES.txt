@@ -2,8 +2,12 @@ README.md
 setup.py
 yt2md/AI.py
 yt2md/__init__.py
+yt2md/channel.py
 yt2md/cli.py
+yt2md/config.py
+yt2md/google_drive.py
 yt2md/main.py
+yt2md/youtube.py
 yt2md.egg-info/PKG-INFO
 yt2md.egg-info/SOURCES.txt
 yt2md.egg-info/dependency_links.txt
