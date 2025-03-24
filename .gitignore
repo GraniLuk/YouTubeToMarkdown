@@ -11,4 +11,4 @@ __pycache__/
 token.pickle
 credentials.json
 
-channels.json
+config/channels.yaml
