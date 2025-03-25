@@ -220,33 +220,38 @@ def main():
         for video_url, video_title, published_date, channel in videos:
             print(f"Processing video: {video_title}")
 
-            # Get transcript with channel-specific language
-            transcript = get_youtube_transcript(
-                video_url, language_code=channel.language_code
-            )
+            try:
+                # Get transcript with channel-specific language
+                transcript = get_youtube_transcript(
+                    video_url, language_code=channel.language_code
+                )
 
-            # Analyze with Gemini using channel-specific output language
-            api_key = os.getenv("GEMINI_API_KEY")
-            refined_text, description = analyze_transcript_with_gemini(
-                transcript=transcript,
-                api_key=api_key,
-                model_name="gemini-2.0-pro-exp-02-05",
-                output_language=channel.output_language,
-                category=channel.category,
-            )
+                # Analyze with Gemini using channel-specific output language
+                api_key = os.getenv("GEMINI_API_KEY")
+                refined_text, description = analyze_transcript_with_gemini(
+                    transcript=transcript,
+                    api_key=api_key,
+                    model_name="gemini-2.0-pro-exp-02-05",
+                    output_language=channel.output_language,
+                    category=channel.category,
+                )
 
-            # Save to markdown file
-            saved_file_path = save_to_markdown(
-                video_title,
-                video_url,
-                refined_text,
-                channel.name,
-                published_date,
-                description,
-            )
-            if saved_file_path:
-                print(f"Saved to: {saved_file_path}")
-                open_file(saved_file_path)
+                # Save to markdown file
+                saved_file_path = save_to_markdown(
+                    video_title,
+                    video_url,
+                    refined_text,
+                    channel.name,
+                    published_date,
+                    description,
+                )
+                if saved_file_path:
+                    print(f"Saved to: {saved_file_path}")
+                    open_file(saved_file_path)
+
+            except Exception as e:
+                print(f"Skipping video {video_title}: {str(e)}")
+                continue
 
     except Exception as e:
         print(f"Error: {str(e)}")
