@@ -11,6 +11,7 @@ Requires-Dist: google-auth-oauthlib
 Requires-Dist: google-api-python-client
 Requires-Dist: pytube
 Requires-Dist: youtube-transcript-api
+Requires-Dist: pyyaml
 Dynamic: author
 Dynamic: description
 Dynamic: description-content-type
