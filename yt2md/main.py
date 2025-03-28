@@ -180,7 +180,7 @@ def main():
             refined_text, description = analyze_transcript_with_gemini(
                 transcript=transcript,
                 api_key=api_key,
-                model_name="gemini-2.0-pro-exp-02-05",
+                model_name="gemini-2.5-pro-exp-03-25",
                 output_language=output_language,
                 category=category,
             )
@@ -231,7 +231,7 @@ def main():
                 refined_text, description = analyze_transcript_with_gemini(
                     transcript=transcript,
                     api_key=api_key,
-                    model_name="gemini-2.0-pro-exp-02-05",
+                    model_name="gemini-2.5-pro-exp-03-25",
                     output_language=channel.output_language,
                     category=channel.category,
                 )
