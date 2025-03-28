@@ -12,6 +12,7 @@ setup(
         "google-api-python-client",
         "pytube",
         "youtube-transcript-api",
+        "pyyaml"
     ],
     entry_points={
         "console_scripts": [
