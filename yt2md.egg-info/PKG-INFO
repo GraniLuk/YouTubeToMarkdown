@@ -47,6 +47,29 @@ Make sure to set up your environment variables in a .env file:
 - SUMMARIES_PATH
 - GOOGLE_DRIVE_FOLDER_ID (optional)
 
+## Channel Configuration
+
+The `channels.yaml` file in the `config` directory organizes YouTube channels into categories. Each channel entry requires:
+- `id`: The YouTube channel ID (found in channel URL)
+- `name`: Display name for the channel
+- `language_code`: Source language code (e.g., 'en' for English, 'pl' for Polish)
+- `output_language`: Target language for the output
+
+Example configuration:
+```yaml
+IT:
+  - id: UCrkPsvLGln62OMZRO6K-llg
+    name: Nick Chapsas
+    language_code: en
+    output_language: English
+    
+AI:
+  - id: UCWTpgi3bE5gIVfhEys-T12A
+    name: Mike Tomala
+    language_code: pl
+    output_language: Polish
+```
+
 # YouTube Playlist Processor using Gemini API
 <br>
 <br>
