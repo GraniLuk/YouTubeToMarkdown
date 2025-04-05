@@ -81,10 +81,10 @@ def save_to_markdown(
         os.makedirs(file_dir, exist_ok=True)
 
         # Clean the title to make it filesystem-friendly
-        title = re.sub(r"[^\w\s-]", "", title)
-        title = title.replace(" ", "_")
+        filenameTitle = re.sub(r"[^\w\s-]", "", title)
+        filenameTitle = title.replace(" ", "_")
 
-        filename = f"{title}.md"
+        filename = f"{filenameTitle}.md"
 
         # Create full path
         filepath = os.path.join(file_dir, filename)
