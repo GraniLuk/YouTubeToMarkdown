@@ -81,8 +81,17 @@ def save_to_markdown(
         os.makedirs(file_dir, exist_ok=True)
 
         # Clean the title to make it filesystem-friendly
-        filenameTitle = re.sub(r"[^\w\s-]", "", title)
-        filenameTitle = title.replace(" ", "_")
+        filenameTitle = re.sub(
+            r'[\\/*?:"<>|]', "", title
+        )  # Remove characters not allowed in Windows filenames
+        filenameTitle = re.sub(
+            r"[^\w\s.-]", "", filenameTitle
+        )  # Remove other non-alphanumeric chars except dots and dashes
+        filenameTitle = filenameTitle.replace(" ", "_")
+        # Limit filename length to avoid path length issues
+        filenameTitle = (
+            filenameTitle[:150] if len(filenameTitle) > 150 else filenameTitle
+        )
 
         filename = f"{filenameTitle}.md"
 
