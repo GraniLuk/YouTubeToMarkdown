@@ -84,9 +84,7 @@ def save_to_markdown(
         title = re.sub(r"[^\w\s-]", "", title)
         title = title.replace(" ", "_")
 
-        # Add date prefix to filename
-        today = datetime.now().strftime("%Y%m%d")
-        filename = f"{today}-{title}.md"
+        filename = f"{title}.md"
 
         # Create full path
         filepath = os.path.join(file_dir, filename)
