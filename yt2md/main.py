@@ -41,10 +41,11 @@ def save_to_markdown(
     author: str,
     published_date: str,
     description: str,
+    category: str = None,
 ) -> str:
     """
     Save refined text to a markdown file, update the video index, and upload to Google Drive.
-    File will be saved in the path specified in SUMMARIES_PATH environment variable
+    File will be saved in a nested structure: SUMMARIES_PATH/category/author
 
     Args:
         title (str): YouTube video title
@@ -53,6 +54,7 @@ def save_to_markdown(
         author (str): Author of the video
         published_date (str): Published date of the video
         description (str): Description of the video
+        category (str): Category of the video (IT, Crypto, AI, etc.)
 
     Returns:
         str: Path to the saved file
@@ -63,8 +65,20 @@ def save_to_markdown(
         if not summaries_dir:
             raise ValueError("SUMMARIES_PATH environment variable is not set")
 
-        # Create directory if it doesn't exist
-        os.makedirs(summaries_dir, exist_ok=True)
+        # Create nested directory structure
+        if category:
+            # Clean up author name to make it filesystem-friendly
+            clean_author = re.sub(r"[^\w\s-]", "", author)
+            clean_author = clean_author.replace(" ", "_")
+
+            # Create path with category and channel subfolders
+            file_dir = os.path.join(summaries_dir, category, clean_author)
+        else:
+            # Fallback to main directory if no category
+            file_dir = summaries_dir
+
+        # Create directory structure if it doesn't exist
+        os.makedirs(file_dir, exist_ok=True)
 
         # Clean the title to make it filesystem-friendly
         title = re.sub(r"[^\w\s-]", "", title)
@@ -75,7 +89,7 @@ def save_to_markdown(
         filename = f"{today}-{title}.md"
 
         # Create full path
-        filepath = os.path.join(summaries_dir, filename)
+        filepath = os.path.join(file_dir, filename)
 
         # Get current date for 'created' field
         created_date = datetime.now().strftime("%Y-%m-%d")
@@ -99,7 +113,7 @@ tags:
 
         # Extract video ID from URL
         video_id = video_url.split("?v=")[1].split("&")[0]
-        # Update index file inside the summaries directory
+        # Update index file inside the main summaries directory
         index_file = os.path.join(summaries_dir, "video_index.txt")
         with open(index_file, "a", encoding="utf-8") as f:
             f.write(f"{video_id} | {filepath}\n")
@@ -192,6 +206,7 @@ def main():
                 channel_name,
                 published_date,
                 description,
+                category,
             )
             if saved_file_path:
                 print(f"Saved to: {saved_file_path}")
@@ -244,6 +259,7 @@ def main():
                     channel.name,
                     published_date,
                     description,
+                    channel.category,
                 )
                 if saved_file_path:
                     print(f"Saved to: {saved_file_path}")
