@@ -1,7 +1,5 @@
 import argparse
 import os
-import re
-from datetime import datetime
 
 from dotenv import load_dotenv
 
