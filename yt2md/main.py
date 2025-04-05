@@ -162,8 +162,8 @@ def main():
         "--category",
         type=str,
         default="IT",
-        choices=["IT", "Crypto", "AI"],
-        help="Category of channels to process (IT, Crypto, or AI)",
+        choices=["IT", "Crypto", "AI", "Fitness"],
+        help="Category of channels to process (IT, Crypto, Fitness, or AI)",
     )
     parser.add_argument(
         "--url",
