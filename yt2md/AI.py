@@ -97,6 +97,9 @@ Text:
                 if lines[0].startswith("DESCRIPTION:"):
                     description = lines[0].replace("DESCRIPTION:", "").strip()
                     text = "\n".join(lines[1:])
+                if lines[0].startswith("OPIS:"):
+                    description = lines[0].replace("OPIS:", "").strip()
+                    text = "\n".join(lines[1:])
 
             previous_response = text
             final_output.append(text)
