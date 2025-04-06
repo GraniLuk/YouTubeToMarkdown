@@ -102,6 +102,11 @@ def main():
         choices=["en", "pl"],
         help="Language code for the transcript (default: 'en' for English)",
     )
+    parser.add_argument(
+        "--channel",
+        type=str,
+        help="Process videos only from a specific channel name within the category",
+    )
     args = parser.parse_args()
 
     try:
@@ -138,7 +143,19 @@ def main():
             print(f"No channels found for category: {args.category}")
             return
 
-        print(f"Processing {args.category} channels...")
+        # Filter by channel name if specified
+        if args.channel:
+            channels = [
+                ch for ch in channels if ch.name.lower() == args.channel.lower()
+            ]
+            if not channels:
+                print(
+                    f"Channel '{args.channel}' not found in category '{args.category}'"
+                )
+                return
+            print(f"Processing channel: {args.channel} in {args.category} category...")
+        else:
+            print(f"Processing {args.category} channels...")
 
         videos = []
         for channel in channels:
