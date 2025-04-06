@@ -23,6 +23,59 @@ if not api_key:
     raise Exception("GEMINI_API_KEY not found in environment variables")
 
 
+def process_video(
+    video_url,
+    video_title,
+    published_date,
+    author_name,
+    language_code,
+    output_language,
+    category,
+):
+    """
+    Process a single video: get transcript, analyze with Gemini, and save to markdown.
+
+    Returns:
+        str: Path to the saved file or None if processing failed
+    """
+    try:
+        print(f"Processing video: {video_title}")
+
+        # Get transcript
+        transcript = get_youtube_transcript(video_url, language_code=language_code)
+
+        # Analyze with Gemini
+        api_key = os.getenv("GEMINI_API_KEY")
+        refined_text, description = analyze_transcript_with_gemini(
+            transcript=transcript,
+            api_key=api_key,
+            model_name="gemini-2.5-pro-exp-03-25",
+            output_language=output_language,
+            category=category,
+        )
+
+        # Save to markdown file
+        saved_file_path = save_to_markdown(
+            video_title,
+            video_url,
+            refined_text,
+            author_name,
+            published_date,
+            description,
+            category,
+        )
+
+        if saved_file_path:
+            print(f"Saved to: {saved_file_path}")
+            open_file(saved_file_path)
+            return saved_file_path
+
+        return None
+    except Exception as e:
+        print(f"Error processing video {video_title}: {str(e)}")
+        return None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Process YouTube videos and create markdown summaries"
@@ -54,45 +107,31 @@ def main():
     try:
         if args.url:
             # Process single video
-            # Extract video title using pytube
-            video_url, video_title, published_date, channel_name = (
-                get_video_details_from_url(args.url)
-            )
+            video_details = get_video_details_from_url(args.url)
+            if not video_details:
+                print("Could not retrieve video details or video already processed")
+                return
+
+            video_url, video_title, published_date, channel_name = video_details
 
             # Use the specified language for single video processing
             language_code = args.language
-            output_language = (
-                "English" if language_code == "en" else "Polish"
-            )  # Determine output language based on input
+            output_language = "English" if language_code == "en" else "Polish"
             category = args.category
 
-            print(f"Processing video: {video_title}")
-            transcript = get_youtube_transcript(video_url, language_code=language_code)
-
-            api_key = os.getenv("GEMINI_API_KEY")
-            refined_text, description = analyze_transcript_with_gemini(
-                transcript=transcript,
-                api_key=api_key,
-                model_name="gemini-2.5-pro-exp-03-25",
-                output_language=output_language,
-                category=category,
-            )
-
-            saved_file_path = save_to_markdown(
-                video_title,
+            # Process the video using our common function
+            process_video(
                 video_url,
-                refined_text,
-                channel_name,
+                video_title,
                 published_date,
-                description,
+                channel_name,
+                language_code,
+                output_language,
                 category,
             )
-            if saved_file_path:
-                print(f"Saved to: {saved_file_path}")
-                open_file(saved_file_path)
             return
 
-        # Load channels from configuration
+        # Process videos from channels in a category
         channels = load_channels(args.category)
 
         if not channels:
@@ -112,41 +151,16 @@ def main():
             )
 
         for video_url, video_title, published_date, channel in videos:
-            print(f"Processing video: {video_title}")
-
-            try:
-                # Get transcript with channel-specific language
-                transcript = get_youtube_transcript(
-                    video_url, language_code=channel.language_code
-                )
-
-                # Analyze with Gemini using channel-specific output language
-                api_key = os.getenv("GEMINI_API_KEY")
-                refined_text, description = analyze_transcript_with_gemini(
-                    transcript=transcript,
-                    api_key=api_key,
-                    model_name="gemini-2.5-pro-exp-03-25",
-                    output_language=channel.output_language,
-                    category=channel.category,
-                )
-
-                # Save to markdown file
-                saved_file_path = save_to_markdown(
-                    video_title,
-                    video_url,
-                    refined_text,
-                    channel.name,
-                    published_date,
-                    description,
-                    channel.category,
-                )
-                if saved_file_path:
-                    print(f"Saved to: {saved_file_path}")
-                    open_file(saved_file_path)
-
-            except Exception as e:
-                print(f"Skipping video {video_title}: {str(e)}")
-                continue
+            # Process the video using our common function
+            process_video(
+                video_url,
+                video_title,
+                published_date,
+                channel.name,
+                channel.language_code,
+                channel.output_language,
+                channel.category,
+            )
 
     except Exception as e:
         print(f"Error: {str(e)}")
