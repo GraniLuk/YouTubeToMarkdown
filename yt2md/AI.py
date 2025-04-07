@@ -1,26 +1,86 @@
+import os
+import time
+
 import google.generativeai as genai
+import requests
+
+
+def analyze_transcript_with_perplexity(
+    prompt: str,
+    api_key: str,
+    model_name: str = "sonar-pro",
+    max_retries: int = 3,
+    retry_delay: int = 2,
+) -> str:
+    """
+    Fallback function to analyze transcript using Perplexity API when Gemini fails.
+
+    Args:
+        prompt (str): The prompt to send to Perplexity API
+        api_key (str): Perplexity API key
+        model_name (str): Perplexity model name to use
+        max_retries (int): Maximum number of retry attempts
+        retry_delay (int): Delay between retries in seconds
+
+    Returns:
+        str: Generated text from Perplexity API
+    """
+    url = "https://api.perplexity.ai/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+    data = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7,
+        "max_tokens": 4000,
+    }
+
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(url, json=data, headers=headers)
+            response.raise_for_status()
+
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
+
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 429 and attempt < max_retries - 1:
+                # If rate limited, wait and retry
+                wait_time = retry_delay * (attempt + 1)
+                print(f"Perplexity API rate limit hit, retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                # Re-raise the exception if it's not a rate limit or we've exhausted retries
+                raise Exception(
+                    f"Perplexity API error: {str(e)}, Response: {response.text}"
+                )
+
+        except Exception as e:
+            raise Exception(f"Perplexity API error: {str(e)}")
 
 
 def analyze_transcript_with_gemini(
     transcript: str,
     api_key: str,
+    perplexity_api_key: str = None,
     model_name: str = "gemini-1.5-pro",
     output_language: str = "English",
     category: str = "IT",
 ) -> tuple[str, str]:
     """
     Analyze transcript using Gemini API and return refined text.
+    Falls back to Perplexity API if Gemini returns a 429 error.
 
     Args:
         transcript (str): Text transcript to analyze
         api_key (str): Gemini API key
+        perplexity_api_key (str): Perplexity API key for fallback
         model_name (str): Gemini model name to use
         output_language (str): Desired output language
-        chunk_size (int): Maximum chunk size for processing
         category (str): Category of the content (default: 'IT')
 
     Returns:
-        str: Refined and analyzed text
+        tuple[str, str]: Refined and analyzed text, description
     """
     try:
         # Configure Gemini
@@ -87,9 +147,30 @@ Text:
             formatted_prompt = template.replace("[Language]", output_language)
             full_prompt = f"{context_prompt}{formatted_prompt}\n\n{chunk}"
 
-            # Generate response
-            response = model.generate_content(full_prompt)
-            text = response.text
+            # Generate response with fallback to Perplexity API on 429 error
+            try:
+                response = model.generate_content(full_prompt)
+                text = response.text
+            except Exception as e:
+                error_message = str(e).lower()
+                if "429" in error_message or "too many requests" in error_message:
+                    # Fallback to Perplexity API if Gemini returns a 429 error and a key is provided
+                    if perplexity_api_key:
+                        print(
+                            "Gemini API rate limit hit, falling back to Perplexity API..."
+                        )
+                        text = analyze_transcript_with_perplexity(
+                            prompt=full_prompt,
+                            api_key=perplexity_api_key,
+                            model_name="sonar-pro",
+                        )
+                    else:
+                        raise Exception(
+                            "Gemini API rate limit hit and no Perplexity API key provided for fallback"
+                        )
+                else:
+                    # Re-raise other exceptions
+                    raise Exception(f"Gemini API error: {str(e)}")
 
             # Extract description from first chunk
             if i == 0:
@@ -107,10 +188,8 @@ Text:
         return "\n\n".join(final_output), description
 
     except Exception as e:
-        raise Exception(f"Gemini processing error: {str(e)}")
+        raise Exception(f"AI processing error: {str(e)}")
 
-
-import os
 
 if __name__ == "__main__":
     # Example usage
@@ -118,12 +197,14 @@ if __name__ == "__main__":
     with open(transcript_text_from_file, "r") as file:
         transcript = file.read()
     api_key = os.getenv("GEMINI_API_KEY")
+    perplexity_key = os.getenv("PERPLEXITY_API_KEY")
+
     newTranscript = analyze_transcript_with_gemini(
         transcript=transcript,
         api_key=api_key,
+        perplexity_api_key=perplexity_key,
         model_name="gemini-2.0-pro-exp-02-05",
         output_language="English",
-        chunk_size=3000,
         category="IT",
     )
     print(newTranscript[0])

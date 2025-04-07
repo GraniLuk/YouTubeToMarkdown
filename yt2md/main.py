@@ -19,8 +19,15 @@ if not load_dotenv(env_path):
 
 # Verify API keys are loaded
 api_key = os.getenv("GEMINI_API_KEY")
+perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
 if not api_key:
     raise Exception("GEMINI_API_KEY not found in environment variables")
+
+# Perplexity API key is optional but recommended for fallback
+if not perplexity_api_key:
+    print(
+        "Warning: PERPLEXITY_API_KEY not found. Fallback for rate limits won't be available."
+    )
 
 
 def process_video(
@@ -46,9 +53,11 @@ def process_video(
 
         # Analyze with Gemini
         api_key = os.getenv("GEMINI_API_KEY")
+        perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
         refined_text, description = analyze_transcript_with_gemini(
             transcript=transcript,
             api_key=api_key,
+            perplexity_api_key=perplexity_api_key,
             model_name="gemini-2.5-pro-exp-03-25",
             output_language=output_language,
             category=category,
