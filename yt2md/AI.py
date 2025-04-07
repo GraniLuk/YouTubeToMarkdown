@@ -109,14 +109,14 @@ Text:
 import os
 if __name__ == "__main__":
     # Example usage
-    transcript_text_from_file = "C:\\Users\\5028lukgr\\Downloads\\Geeks Club-20250319_080718-Meeting Recording-en-US.txt"
+    transcript_text_from_file = "C:\\Users\\5028lukgr\\Downloads\\Geeks Club-20250402_081037-Nagrywanie spotkania-en-US.txt"
     with open(transcript_text_from_file, 'r') as file:
         transcript = file.read()
     api_key = os.getenv("GEMINI_API_KEY")
     newTranscript = analyze_transcript_with_gemini(
         transcript=transcript,
         api_key=api_key,
-        model_name="gemini-2.0-pro-exp-02-05",
+        model_name="gemini-2.5-pro-exp-03-25",
         output_language="English",
         chunk_size=3000,
         category="IT"
