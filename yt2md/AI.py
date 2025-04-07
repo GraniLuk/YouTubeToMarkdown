@@ -203,7 +203,7 @@ if __name__ == "__main__":
         transcript=transcript,
         api_key=api_key,
         perplexity_api_key=perplexity_key,
-        model_name="gemini-2.0-pro-exp-02-05",
+        model_name="gemini-2.5-pro-exp-03-25",
         output_language="English",
         category="IT",
     )
