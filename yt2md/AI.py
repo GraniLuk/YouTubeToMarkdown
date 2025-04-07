@@ -1,11 +1,11 @@
 import google.generativeai as genai
 
+
 def analyze_transcript_with_gemini(
     transcript: str,
     api_key: str,
     model_name: str = "gemini-1.5-pro",
     output_language: str = "English",
-    chunk_size: int = 3000,
     category: str = "IT",
 ) -> tuple[str, str]:
     """
@@ -28,6 +28,7 @@ def analyze_transcript_with_gemini(
         model = genai.GenerativeModel(model_name)
 
         # Split transcript into chunks if it's too long
+        chunk_size = 6000  # Adjust chunk size as needed
         words = transcript.split()
         chunks = [
             " ".join(words[i : i + chunk_size])
@@ -64,7 +65,7 @@ All output must be generated entirely in [Language]. Do not use any other langua
 Text:
 """
 
-        FIRST_CHUNK_TEMPLATE = f"First, provide a one-sentence description of the content (start with \"DESCRIPTION:\").\nThen, {PROMPT_TEMPLATE}"
+        FIRST_CHUNK_TEMPLATE = f'First, provide a one-sentence description of the content (start with "DESCRIPTION:").\nThen, {PROMPT_TEMPLATE}'
 
         for i, chunk in enumerate(chunks):
             # Prepare prompt with context if needed
@@ -92,10 +93,13 @@ Text:
 
             # Extract description from first chunk
             if i == 0:
-                lines = text.split('\n')
-                if lines[0].startswith('DESCRIPTION:'):
-                    description = lines[0].replace('DESCRIPTION:', '').strip()
-                    text = '\n'.join(lines[1:])
+                lines = text.split("\n")
+                if lines[0].startswith("DESCRIPTION:"):
+                    description = lines[0].replace("DESCRIPTION:", "").strip()
+                    text = "\n".join(lines[1:])
+                if lines[0].startswith("OPIS:"):
+                    description = lines[0].replace("OPIS:", "").strip()
+                    text = "\n".join(lines[1:])
 
             previous_response = text
             final_output.append(text)
@@ -104,13 +108,14 @@ Text:
 
     except Exception as e:
         raise Exception(f"Gemini processing error: {str(e)}")
-    
+
 
 import os
+
 if __name__ == "__main__":
     # Example usage
-    transcript_text_from_file = "C:\\Users\\5028lukgr\\Downloads\\Geeks Club-20250402_081037-Nagrywanie spotkania-en-US.txt"
-    with open(transcript_text_from_file, 'r') as file:
+    transcript_text_from_file = "C:\\Users\\5028lukgr\\Downloads\\Geeks Club-20250319_080718-Meeting Recording-en-US.txt"
+    with open(transcript_text_from_file, "r") as file:
         transcript = file.read()
     api_key = os.getenv("GEMINI_API_KEY")
     newTranscript = analyze_transcript_with_gemini(
@@ -119,10 +124,10 @@ if __name__ == "__main__":
         model_name="gemini-2.5-pro-exp-03-25",
         output_language="English",
         chunk_size=3000,
-        category="IT"
+        category="IT",
     )
     print(newTranscript[0])
     print(newTranscript[1])
     # Save the refined transcript to a file
-    with open("refined_transcript.txt", 'w') as file:
+    with open("refined_transcript.txt", "w") as file:
         file.write(newTranscript[0])
