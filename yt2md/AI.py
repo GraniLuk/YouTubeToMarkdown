@@ -1,8 +1,4 @@
 import os
-import time
-
-import google.generativeai as genai
-import requests
 
 from yt2md.llm_strategies import LLMFactory
 
