@@ -98,14 +98,14 @@ def save_to_markdown(
 
     # Prepare the markdown content
     header = f"""---
- title: "{title}"
- source: {video_url}
- author: "[[{author}]]"
- published: {published_date}
- created: {created_date}
- description: {description}
- tags:
- ---
+title: "{title}"
+source: {video_url}
+author: "[[{author}]]"
+published: {published_date}
+created: {created_date}
+description: {description}
+tags:
+---
 
 """
 
@@ -115,5 +115,12 @@ def save_to_markdown(
     # Write to file
     with open(filepath, "w", encoding="utf-8") as file:
         file.write(full_content)
+
+    # Extract video ID from URL
+    video_id = video_url.split("?v=")[1].split("&")[0]
+    # Update index file inside the main summaries directory
+    index_file = os.path.join(summaries_dir, "video_index.txt")
+    with open(index_file, "a", encoding="utf-8") as f:
+        f.write(f"{video_id} | {filepath}\n")
 
     return filepath
