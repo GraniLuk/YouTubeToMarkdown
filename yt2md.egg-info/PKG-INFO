@@ -40,6 +40,9 @@ yt2md --category IT --days 7
 
 # Process a single video
 yt2md --url "https://www.youtube.com/watch?v=..."
+
+# Process videos with Ollama (local LLM)
+yt2md --category IT --days 3 --ollama
 ```
 
 Make sure to set up your environment variables in a .env file:
@@ -47,6 +50,24 @@ Make sure to set up your environment variables in a .env file:
 - YOUTUBE_API_KEY
 - SUMMARIES_PATH
 - GOOGLE_DRIVE_FOLDER_ID (optional)
+- PERPLEXITY_API_KEY (optional, used as fallback for rate limits)
+
+### Using Ollama
+
+To use [Ollama](https://ollama.ai/) (local LLM) for processing videos:
+
+1. Install Ollama on your system from [ollama.ai](https://ollama.ai/)
+2. Add the following environment variables to your .env file:
+   ```
+   OLLAMA_MODEL=gemma3:4b  # or any model you have pulled
+   OLLAMA_BASE_URL=http://localhost:11434  # default, change if running on another host/port
+   ```
+3. Run the tool with the `--ollama` flag:
+   ```bash
+   yt2md --url "https://www.youtube.com/watch?v=..." --ollama
+   ```
+
+This will process the video with both cloud and local LLMs, generating two separate markdown files for comparison.
 
 ## Channel Configuration
 
