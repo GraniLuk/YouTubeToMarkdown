@@ -132,10 +132,10 @@ def analyze_transcript_with_ollama(
         ollama_strategy = LLMFactory.get_strategy("ollama")
 
         # Pass parameters to strategy
-        refined_text, description = ollama_strategy.analyze_transcript(
+        return ollama_strategy.analyze_transcript(
             transcript=transcript,
             model_name=model_name,
-            base_url=host,  # Pass host as base_url  # Pass port for backward compatibility
+            base_url=host,  # Pass host as base_url
             output_language=output_language,
             category=category,
         )
