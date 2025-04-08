@@ -1,11 +1,7 @@
 import os
 import re
-import subprocess
 import sys
 from datetime import datetime
-from pathlib import Path
-
-from yt2md.google_drive import setup_google_drive, upload_to_drive
 
 
 def get_script_dir():
