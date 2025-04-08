@@ -3,7 +3,11 @@ import os
 
 from dotenv import load_dotenv
 
-from yt2md.AI import analyze_transcript_with_gemini, analyze_transcript_with_ollama
+from yt2md.AI import (
+    analyze_transcript_by_length,
+    analyze_transcript_with_gemini,
+    analyze_transcript_with_ollama,
+)
 from yt2md.config import load_channels
 from yt2md.file_operations import get_script_dir, open_file, save_to_markdown
 from yt2md.youtube import (
@@ -45,8 +49,7 @@ def process_video(
     use_ollama=False,
 ):
     """
-    Process a single video: get transcript, analyze with Gemini, and save to markdown.
-    Optionally also process with Ollama for comparison.
+    Process a single video: get transcript, analyze with appropriate LLM based on transcript length, and save to markdown.
 
     Args:
         video_url: YouTube video URL
@@ -56,7 +59,7 @@ def process_video(
         language_code: Language code for the transcript
         output_language: Target language for the output
         category: Video category
-        use_ollama: Whether to also process using Ollama
+        use_ollama: Whether to force using Ollama regardless of transcript length
 
     Returns:
         list: Paths to the saved file(s) or None if processing failed
@@ -68,73 +71,62 @@ def process_video(
         # Get transcript
         transcript = get_youtube_transcript(video_url, language_code=language_code)
 
-        # Analyze with Gemini/Perplexity (cloud LLM)
+        # Get API keys from environment
         api_key = os.getenv("GEMINI_API_KEY")
         perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
 
-        # Process with cloud LLM
-        refined_text, description = analyze_transcript_with_gemini(
+        # Process transcript based on length
+        results = analyze_transcript_by_length(
             transcript=transcript,
             api_key=api_key,
             perplexity_api_key=perplexity_api_key,
-            model_name="gemini-2.5-pro-exp-03-25",
+            ollama_model=ollama_model,
+            ollama_base_url=ollama_base_url,
+            cloud_model_name="gemini-2.5-pro-exp-03-25",
             output_language=output_language,
             category=category,
+            force_ollama=use_ollama,
         )
 
-        # Save cloud LLM result to markdown file
-        saved_file_path = save_to_markdown(
-            video_title,
-            video_url,
-            refined_text,
-            author_name,
-            published_date,
-            description,
-            category,
-        )
+        # Save cloud LLM result if available
+        if "cloud" in results:
+            refined_text, description = results["cloud"]
 
-        if saved_file_path:
-            print(f"Saved cloud LLM result to: {saved_file_path}")
-            saved_files.append(saved_file_path)
-            open_file(saved_file_path)
+            # Save cloud LLM result to markdown file
+            saved_file_path = save_to_markdown(
+                video_title,
+                video_url,
+                refined_text,
+                author_name,
+                published_date,
+                description,
+                category,
+            )
 
-        # Process with Ollama if requested
-        if use_ollama:
-            try:
-                print(
-                    f"Processing with Ollama model: {ollama_model} at {ollama_base_url}..."
-                )
+            if saved_file_path:
+                print(f"Saved cloud LLM result to: {saved_file_path}")
+                saved_files.append(saved_file_path)
+                open_file(saved_file_path)
 
-                # Process transcript with Ollama
-                ollama_refined_text, ollama_description = (
-                    analyze_transcript_with_ollama(
-                        transcript=transcript,
-                        model_name=ollama_model,
-                        host=ollama_base_url,
-                        output_language=output_language,
-                        category=category,
-                    )
-                )
+        # Save Ollama result if available
+        if "ollama" in results:
+            ollama_refined_text, ollama_description = results["ollama"]
 
-                # Save Ollama result to markdown with suffix
-                ollama_file_path = save_to_markdown(
-                    video_title,
-                    video_url,
-                    ollama_refined_text,
-                    author_name,
-                    published_date,
-                    ollama_description,
-                    category,
-                    suffix="Ollama",
-                )
+            # Save Ollama result to markdown with suffix
+            ollama_file_path = save_to_markdown(
+                video_title,
+                video_url,
+                ollama_refined_text,
+                author_name,
+                published_date,
+                ollama_description,
+                category,
+                suffix="Ollama",
+            )
 
-                if ollama_file_path:
-                    print(f"Saved Ollama result to: {ollama_file_path}")
-                    saved_files.append(ollama_file_path)
-
-            except Exception as e:
-                print(f"Error processing with Ollama: {str(e)}")
-                print("Continuing with cloud LLM result only.")
+            if ollama_file_path:
+                print(f"Saved Ollama result to: {ollama_file_path}")
+                saved_files.append(ollama_file_path)
 
         return saved_files
 

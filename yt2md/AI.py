@@ -143,6 +143,103 @@ def analyze_transcript_with_ollama(
         raise Exception(f"Ollama processing error: {str(e)}")
 
 
+def analyze_transcript_by_length(
+    transcript: str,
+    api_key: str,
+    perplexity_api_key: str = None,
+    ollama_model: str = None,
+    ollama_base_url: str = None,
+    cloud_model_name: str = "gemini-1.5-pro",
+    output_language: str = "English",
+    category: str = "IT",
+    force_ollama: bool = False,
+) -> dict:
+    """
+    Analyze transcript using different strategies based on transcript length.
+
+    Strategy:
+    - If transcript length < 1000: Use Ollama only
+    - If transcript length between 1000-3000: Use both Ollama and cloud (Gemini/Perplexity)
+    - If transcript length > 3000: Use only cloud (Gemini with Perplexity fallback)
+    - If force_ollama is True, always include Ollama processing regardless of transcript length
+
+    Args:
+        transcript: Text transcript to analyze
+        api_key: Gemini API key
+        perplexity_api_key: Perplexity API key for fallback (optional)
+        ollama_model: Name of the Ollama model to use
+        ollama_base_url: Base URL for Ollama API
+        cloud_model_name: Gemini model name to use
+        output_language: Desired output language
+        category: Category of the content
+        force_ollama: Whether to force using Ollama regardless of transcript length
+
+    Returns:
+        dict: Dictionary containing results from different LLMs with keys:
+              'cloud': (refined_text, description) from cloud provider if used
+              'ollama': (refined_text, description) from Ollama if used
+    """
+    results = {}
+    transcript_length = len(transcript)
+    print(f"Transcript length: {transcript_length} characters")
+
+    # Determine which strategies to use based on transcript length
+    use_ollama = transcript_length < 3000 or force_ollama
+    use_cloud = transcript_length > 1000 or not use_ollama
+
+    # Log the strategy being used
+    print(f"Transcript length: {transcript_length} characters")
+    if use_ollama and use_cloud:
+        print("Using both cloud and local LLM processing")
+    elif use_ollama:
+        print("Using only local LLM (Ollama) processing")
+    else:
+        print("Using only cloud LLM processing")
+
+    # Process with cloud LLM if needed
+    if use_cloud:
+        try:
+            cloud_result = analyze_transcript_with_gemini(
+                transcript=transcript,
+                api_key=api_key,
+                perplexity_api_key=perplexity_api_key,
+                model_name=cloud_model_name,
+                output_language=output_language,
+                category=category,
+            )
+            results["cloud"] = cloud_result
+        except Exception as e:
+            print(f"Error with cloud LLM processing: {str(e)}")
+
+    # Process with Ollama if needed
+    if use_ollama:
+        try:
+            ollama_result = analyze_transcript_with_ollama(
+                transcript=transcript,
+                model_name=ollama_model,
+                host=ollama_base_url,
+                output_language=output_language,
+                category=category,
+            )
+            results["ollama"] = ollama_result
+        except Exception as e:
+            print(f"Error with Ollama processing: {str(e)}")
+            # If Ollama was the only strategy and it failed, try cloud as fallback
+            if not use_cloud and "cloud" not in results:
+                print("Falling back to cloud LLM processing...")
+                cloud_result = analyze_transcript_with_gemini(
+                    transcript=transcript,
+                    api_key=api_key,
+                    perplexity_api_key=perplexity_api_key,
+                    model_name=cloud_model_name,
+                    output_language=output_language,
+                    category=category,
+                )
+                results["cloud"] = cloud_result
+
+    return results
+
+
 if __name__ == "__main__":
     # Example usage
     transcript_text_from_file = "C:\\Users\\5028lukgr\\Downloads\\Geeks Club-20250319_080718-Meeting Recording-en-US.txt"
