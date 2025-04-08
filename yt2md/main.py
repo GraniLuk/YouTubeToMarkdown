@@ -3,7 +3,7 @@ import os
 
 from dotenv import load_dotenv
 
-from yt2md.AI import analyze_transcript_with_gemini
+from yt2md.AI import analyze_transcript_with_gemini, analyze_transcript_with_ollama
 from yt2md.config import load_channels
 from yt2md.file_operations import get_script_dir, open_file, save_to_markdown
 from yt2md.youtube import (
@@ -38,22 +38,43 @@ def process_video(
     language_code,
     output_language,
     category,
+    use_ollama=False,
+    ollama_model="mistral",
+    ollama_host="http://localhost",
+    ollama_port=11434,
 ):
     """
     Process a single video: get transcript, analyze with Gemini, and save to markdown.
+    Optionally also process with Ollama for comparison.
+
+    Args:
+        video_url: YouTube video URL
+        video_title: Title of the video
+        published_date: Date when the video was published
+        author_name: Channel/author name
+        language_code: Language code for the transcript
+        output_language: Target language for the output
+        category: Video category
+        use_ollama: Whether to also process using Ollama
+        ollama_model: Model name to use with Ollama
+        ollama_host: Host address for Ollama API
+        ollama_port: Port for Ollama API
 
     Returns:
-        str: Path to the saved file or None if processing failed
+        list: Paths to the saved file(s) or None if processing failed
     """
     try:
         print(f"Processing video: {video_title}")
+        saved_files = []
 
         # Get transcript
         transcript = get_youtube_transcript(video_url, language_code=language_code)
 
-        # Analyze with Gemini
+        # Analyze with Gemini/Perplexity (cloud LLM)
         api_key = os.getenv("GEMINI_API_KEY")
         perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
+
+        # Process with cloud LLM
         refined_text, description = analyze_transcript_with_gemini(
             transcript=transcript,
             api_key=api_key,
@@ -63,7 +84,7 @@ def process_video(
             category=category,
         )
 
-        # Save to markdown file
+        # Save cloud LLM result to markdown file
         saved_file_path = save_to_markdown(
             video_title,
             video_url,
@@ -75,11 +96,51 @@ def process_video(
         )
 
         if saved_file_path:
-            print(f"Saved to: {saved_file_path}")
+            print(f"Saved cloud LLM result to: {saved_file_path}")
+            saved_files.append(saved_file_path)
             open_file(saved_file_path)
-            return saved_file_path
 
-        return None
+        # Process with Ollama if requested
+        if use_ollama:
+            try:
+                print(
+                    f"Processing with Ollama model: {ollama_model} at {ollama_host}:{ollama_port}..."
+                )
+
+                # Process transcript with Ollama
+                ollama_refined_text, ollama_description = (
+                    analyze_transcript_with_ollama(
+                        transcript=transcript,
+                        model_name=ollama_model,
+                        host=ollama_host,
+                        port=ollama_port,
+                        output_language=output_language,
+                        category=category,
+                    )
+                )
+
+                # Save Ollama result to markdown with suffix
+                ollama_file_path = save_to_markdown(
+                    video_title,
+                    video_url,
+                    ollama_refined_text,
+                    author_name,
+                    published_date,
+                    ollama_description,
+                    category,
+                    suffix="Ollama",
+                )
+
+                if ollama_file_path:
+                    print(f"Saved Ollama result to: {ollama_file_path}")
+                    saved_files.append(ollama_file_path)
+
+            except Exception as e:
+                print(f"Error processing with Ollama: {str(e)}")
+                print("Continuing with cloud LLM result only.")
+
+        return saved_files
+
     except Exception as e:
         print(f"Error processing video {video_title}: {str(e)}")
         return None
@@ -116,6 +177,29 @@ def main():
         type=str,
         help="Process videos only from a specific channel name within the category",
     )
+    parser.add_argument(
+        "--ollama",
+        action="store_true",
+        help="Also process transcript with local Ollama LLM",
+    )
+    parser.add_argument(
+        "--ollama-model",
+        type=str,
+        default="mistral",
+        help="Model name to use with Ollama (default: mistral)",
+    )
+    parser.add_argument(
+        "--ollama-host",
+        type=str,
+        default="http://localhost",
+        help="Host address for Ollama API (default: http://localhost)",
+    )
+    parser.add_argument(
+        "--ollama-port",
+        type=int,
+        default=11434,
+        help="Port for Ollama API (default: 11434)",
+    )
     args = parser.parse_args()
 
     try:
@@ -142,6 +226,10 @@ def main():
                 language_code,
                 output_language,
                 category,
+                use_ollama=args.ollama,
+                ollama_model=args.ollama_model,
+                ollama_host=args.ollama_host,
+                ollama_port=args.ollama_port,
             )
             return
 
@@ -186,6 +274,10 @@ def main():
                 channel.language_code,
                 channel.output_language,
                 channel.category,
+                use_ollama=args.ollama,
+                ollama_model=args.ollama_model,
+                ollama_host=args.ollama_host,
+                ollama_port=args.ollama_port,
             )
 
     except Exception as e:
