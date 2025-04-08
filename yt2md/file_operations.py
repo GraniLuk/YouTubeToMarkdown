@@ -32,12 +32,7 @@ def open_file(filepath):
     """Open a file with the default system application."""
     try:
         # Open file with default application
-        if sys.platform == "win32":
-            os.startfile(filepath)
-        elif sys.platform == "darwin":  # macOS
-            subprocess.call(["open", filepath])
-        else:  # Linux and other Unix-like systems
-            subprocess.call(["xdg-open", filepath])
+        os.startfile(filepath)
         return True
     except Exception as e:
         print(f"Error opening file {filepath}: {e}")
