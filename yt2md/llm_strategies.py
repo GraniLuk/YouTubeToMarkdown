@@ -252,8 +252,6 @@ class OllamaStrategy(LLMStrategy):
         Returns:
             tuple[str, str]: Refined text and description
         """
-        import json
-        import os
 
         # Use environment variables with kwargs as fallback
         model_name = kwargs.get("model_name", os.getenv("OLLAMA_MODEL", "gemma3:4b"))
