@@ -10,6 +10,38 @@ from abc import ABC, abstractmethod
 import google.generativeai as genai
 import requests
 
+# Category-specific prompt additions
+CATEGORY_PROMPTS = {
+    "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax when it can help understand discussed subject",
+    "Crypto": "- Adding TradingView chart links when price movements or technical analysis is discussed\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
+}
+
+# Main prompt template shared across all strategies
+PROMPT_TEMPLATE = """
+Turn the following unorganized text into a well-structured, readable format while retaining EVERY detail, context, and nuance of the original content.
+Refine the text to improve clarity, grammar, and coherence WITHOUT cutting, summarizing, or omitting any information.
+The goal is to make the content easier to read and process by:
+
+- Organizing the content into logical sections with appropriate subheadings.
+- Using bullet points or numbered lists where applicable to present facts, stats, or comparisons.
+- Highlighting key terms, names, or headings with bold text for emphasis.
+- Preserving the original tone, humor, and narrative style while ensuring readability.
+- Adding clear separators or headings for topic shifts to improve navigation.
+{category_prompts}
+
+Ensure the text remains informative, capturing the original intent, tone,
+and details while presenting the information in a format optimized for analysis by both humans and AI.
+REMEMBER that Details are important, DO NOT overlook Any details, even small ones.
+All output must be generated entirely in {output_language}. Do not use any other language at any point in the response.
+Text:
+"""
+
+# First chunk template (with description request) for strategies that need it
+FIRST_CHUNK_TEMPLATE = """
+First, provide a one-sentence description of the content (start with "DESCRIPTION:").
+Then, {base_prompt}
+"""
+
 
 class LLMStrategy(ABC):
     """Abstract base class for LLM processing strategies."""
@@ -68,32 +100,16 @@ class GeminiStrategy(LLMStrategy):
         previous_response = ""
         description = "No description available"
 
-        # Define category-specific bullet points
-        category_prompts = {
-            "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax when it can help understand discussed subject",
-            "Crypto": "- Adding TradingView chart links when price movements or technical analysis is discussed\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
-        }
+        # Get category-specific prompts
+        category_prompt = CATEGORY_PROMPTS.get(category, "")
 
-        PROMPT_TEMPLATE = f"""
-Turn the following unorganized text into a well-structured, readable format while retaining EVERY detail, context, and nuance of the original content.
-Refine the text to improve clarity, grammar, and coherence WITHOUT cutting, summarizing, or omitting any information.
-The goal is to make the content easier to read and process by:
+        # Prepare base prompt
+        base_prompt = PROMPT_TEMPLATE.format(
+            category_prompts=category_prompt, output_language=output_language
+        )
 
-- Organizing the content into logical sections with appropriate subheadings.
-- Using bullet points or numbered lists where applicable to present facts, stats, or comparisons.
-- Highlighting key terms, names, or headings with bold text for emphasis.
-- Preserving the original tone, humor, and narrative style while ensuring readability.
-- Adding clear separators or headings for topic shifts to improve navigation.
-{category_prompts.get(category, "")}
-
-Ensure the text remains informative, capturing the original intent, tone,
-and details while presenting the information in a format optimized for analysis by both humans and AI.
-REMEMBER that Details are important, DO NOT overlook Any details, even small ones.
-All output must be generated entirely in [Language]. Do not use any other language at any point in the response.
-Text:
-"""
-
-        FIRST_CHUNK_TEMPLATE = f'First, provide a one-sentence description of the content (start with "DESCRIPTION:").\nThen, {PROMPT_TEMPLATE}'
+        # Prepare first chunk prompt with description request
+        first_chunk_prompt = FIRST_CHUNK_TEMPLATE.format(base_prompt=base_prompt)
 
         for i, chunk in enumerate(chunks):
             # Prepare prompt with context if needed
@@ -106,14 +122,10 @@ Text:
                 context_prompt = ""
 
             # Use different template for first chunk
-            if i == 0:
-                template = FIRST_CHUNK_TEMPLATE
-            else:
-                template = PROMPT_TEMPLATE
+            template = first_chunk_prompt if i == 0 else base_prompt
 
             # Create full prompt
-            formatted_prompt = template.replace("[Language]", output_language)
-            full_prompt = f"{context_prompt}{formatted_prompt}\n\n{chunk}"
+            full_prompt = f"{context_prompt}{template}\n\n{chunk}"
 
             try:
                 response = model.generate_content(full_prompt)
@@ -162,33 +174,16 @@ class PerplexityStrategy(LLMStrategy):
         if not api_key:
             raise ValueError("Perplexity API key is required")
 
-        # Define category-specific bullet points
-        category_prompts = {
-            "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax when it can help understand discussed subject",
-            "Crypto": "- Adding TradingView chart links when price movements or technical analysis is discussed\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
-        }
+        # Get category-specific prompts
+        category_prompt = CATEGORY_PROMPTS.get(category, "")
 
-        prompt_template = f"""
-First, provide a one-sentence description of the content (start with "DESCRIPTION:").
-Then, turn the following unorganized text into a well-structured, readable format while retaining EVERY detail, context, and nuance of the original content.
-Refine the text to improve clarity, grammar, and coherence WITHOUT cutting, summarizing, or omitting any information.
-The goal is to make the content easier to read and process by:
+        # Prepare base prompt
+        base_prompt = PROMPT_TEMPLATE.format(
+            category_prompts=category_prompt, output_language=output_language
+        )
 
-- Organizing the content into logical sections with appropriate subheadings.
-- Using bullet points or numbered lists where applicable to present facts, stats, or comparisons.
-- Highlighting key terms, names, or headings with bold text for emphasis.
-- Preserving the original tone, humor, and narrative style while ensuring readability.
-- Adding clear separators or headings for topic shifts to improve navigation.
-{category_prompts.get(category, "")}
-
-Ensure the text remains informative, capturing the original intent, tone,
-and details while presenting the information in a format optimized for analysis by both humans and AI.
-REMEMBER that Details are important, DO NOT overlook Any details, even small ones.
-All output must be generated entirely in {output_language}. Do not use any other language at any point in the response.
-Text:
-
-{transcript}
-"""
+        # Prepare first chunk prompt with description request
+        first_chunk_prompt = FIRST_CHUNK_TEMPLATE.format(base_prompt=base_prompt)
 
         url = "https://api.perplexity.ai/chat/completions"
         headers = {
@@ -196,46 +191,82 @@ Text:
             "Content-Type": "application/json",
         }
 
-        data = {
-            "model": model_name,
-            "messages": [{"role": "user", "content": prompt_template}],
-            "temperature": 0.7,
-            "max_tokens": 4000,
-        }
+        # Split transcript into chunks if it's too long
+        chunk_size = 6000  # Adjust chunk size as needed
+        words = transcript.split()
+        chunks = [
+            " ".join(words[i : i + chunk_size])
+            for i in range(0, len(words), chunk_size)
+        ]
 
-        for attempt in range(max_retries):
-            try:
-                response = requests.post(url, json=data, headers=headers)
-                response.raise_for_status()
+        # Process each chunk
+        final_output = []
+        previous_response = ""
+        description = "No description available"
 
-                result = response.json()
-                text = result["choices"][0]["message"]["content"]
+        for i, chunk in enumerate(chunks):
+            # Prepare prompt with context if needed
+            if previous_response:
+                context_prompt = (
+                    "The following text is a continuation... "
+                    f"Previous response:\n{previous_response}\n\nNew text to process(Do Not Repeat the Previous response:):\n"
+                )
+            else:
+                context_prompt = ""
 
-                # Extract description
-                description = "No description available"
-                lines = text.split("\n")
-                if lines[0].startswith("DESCRIPTION:"):
-                    description = lines[0].replace("DESCRIPTION:", "").strip()
-                    text = "\n".join(lines[1:])
+            # Use different template for first chunk
+            template = first_chunk_prompt if i == 0 else base_prompt
 
-                return text, description
+            # Create full prompt
+            full_prompt = f"{context_prompt}{template}\n\n{chunk}"
 
-            except requests.exceptions.HTTPError as e:
-                if response.status_code == 429 and attempt < max_retries - 1:
-                    # If rate limited, wait and retry
-                    wait_time = retry_delay * (attempt + 1)
-                    print(f"Perplexity API rate limit hit, retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                else:
-                    # Re-raise the exception if it's not a rate limit or we've exhausted retries
-                    raise Exception(
-                        f"Perplexity API error: {str(e)}, Response: {response.text}"
-                    )
+            data = {
+                "model": model_name,
+                "messages": [{"role": "user", "content": full_prompt}],
+                "temperature": 0.7,
+                "max_tokens": 4000,
+            }
 
-            except Exception as e:
-                raise Exception(f"Perplexity API error: {str(e)}")
+            for attempt in range(max_retries):
+                try:
+                    response = requests.post(url, json=data, headers=headers)
+                    response.raise_for_status()
 
-        raise Exception("Failed to get response after multiple retries")
+                    result = response.json()
+                    text = result["choices"][0]["message"]["content"]
+
+                    # Extract description from first chunk only
+                    if i == 0:
+                        lines = text.split("\n")
+                        if lines[0].startswith("DESCRIPTION:"):
+                            description = lines[0].replace("DESCRIPTION:", "").strip()
+                            text = "\n".join(lines[1:])
+
+                    previous_response = text
+                    final_output.append(text)
+                    break
+
+                except requests.exceptions.HTTPError as e:
+                    if response.status_code == 429 and attempt < max_retries - 1:
+                        # If rate limited, wait and retry
+                        wait_time = retry_delay * (attempt + 1)
+                        print(
+                            f"Perplexity API rate limit hit, retrying in {wait_time}s..."
+                        )
+                        time.sleep(wait_time)
+                    else:
+                        # Re-raise the exception if it's not a rate limit or we've exhausted retries
+                        raise Exception(
+                            f"Perplexity API error: {str(e)}, Response: {response.text}"
+                        )
+
+                except Exception as e:
+                    raise Exception(f"Perplexity API error: {str(e)}")
+            else:
+                # This will execute if the for loop completes without a break statement
+                raise Exception("Failed to get response after multiple retries")
+
+        return "\n\n".join(final_output), description
 
 
 class OllamaStrategy(LLMStrategy):
@@ -266,67 +297,84 @@ class OllamaStrategy(LLMStrategy):
         max_retries = kwargs.get("max_retries", 3)
         retry_delay = kwargs.get("retry_delay", 2)
 
-        # Define category-specific bullet points
-        category_prompts = {
-            "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax when it can help understand discussed subject",
-            "Crypto": "- Adding TradingView chart links when price movements or technical analysis is discussed\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
-        }
+        # Get category-specific prompts
+        category_prompt = CATEGORY_PROMPTS.get(category, "")
 
-        prompt_template = f"""
-First, provide a one-sentence description of the content (start with "DESCRIPTION:").
-Then, turn the following unorganized text into a well-structured, readable format while retaining EVERY detail, context, and nuance of the original content.
-Refine the text to improve clarity, grammar, and coherence WITHOUT cutting, summarizing, or omitting any information.
-The goal is to make the content easier to read and process by:
+        # Prepare base prompt
+        base_prompt = PROMPT_TEMPLATE.format(
+            category_prompts=category_prompt, output_language=output_language
+        )
 
-- Organizing the content into logical sections with appropriate subheadings.
-- Using bullet points or numbered lists where applicable to present facts, stats, or comparisons.
-- Highlighting key terms, names, or headings with bold text for emphasis.
-- Preserving the original tone, humor, and narrative style while ensuring readability.
-- Adding clear separators or headings for topic shifts to improve navigation.
-{category_prompts.get(category, "")}
+        # Prepare first chunk prompt with description request
+        first_chunk_prompt = FIRST_CHUNK_TEMPLATE.format(base_prompt=base_prompt)
 
-Ensure the text remains informative, capturing the original intent, tone,
-and details while presenting the information in a format optimized for analysis by both humans and AI.
-REMEMBER that Details are important, DO NOT overlook Any details, even small ones.
-All output must be generated entirely in {output_language}. Do not use any other language at any point in the response.
-Text:
+        # Split transcript into chunks if it's too long
+        chunk_size = 6000  # Adjust chunk size as needed
+        words = transcript.split()
+        chunks = [
+            " ".join(words[i : i + chunk_size])
+            for i in range(0, len(words), chunk_size)
+        ]
 
-{transcript}
-"""
+        # Process each chunk
+        final_output = []
+        previous_response = ""
+        description = "No description available"
 
         url = f"{base_url}/api/generate"
 
-        data = {"model": model_name, "prompt": prompt_template, "stream": False}
+        for i, chunk in enumerate(chunks):
+            # Prepare prompt with context if needed
+            if previous_response:
+                context_prompt = (
+                    "The following text is a continuation... "
+                    f"Previous response:\n{previous_response}\n\nNew text to process(Do Not Repeat the Previous response:):\n"
+                )
+            else:
+                context_prompt = ""
 
-        for attempt in range(max_retries):
-            try:
-                response = requests.post(url, json=data)
-                response.raise_for_status()
+            # Use different template for first chunk
+            template = first_chunk_prompt if i == 0 else base_prompt
 
-                result = response.json()
-                text = result.get("response", "")
+            # Create full prompt
+            full_prompt = f"{context_prompt}{template}\n\n{chunk}"
 
-                # Extract description
-                description = "No description available"
-                lines = text.split("\n")
-                if lines[0].startswith("DESCRIPTION:"):
-                    description = lines[0].replace("DESCRIPTION:", "").strip()
-                    text = "\n".join(lines[1:])
+            data = {"model": model_name, "prompt": full_prompt, "stream": False}
 
-                return text, description
+            for attempt in range(max_retries):
+                try:
+                    response = requests.post(url, json=data)
+                    response.raise_for_status()
 
-            except requests.exceptions.RequestException as e:
-                if attempt < max_retries - 1:
-                    wait_time = retry_delay * (attempt + 1)
-                    print(f"Ollama API error, retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                else:
+                    result = response.json()
+                    text = result.get("response", "")
+
+                    # Extract description from first chunk only
+                    if i == 0:
+                        lines = text.split("\n")
+                        if lines[0].startswith("DESCRIPTION:"):
+                            description = lines[0].replace("DESCRIPTION:", "").strip()
+                            text = "\n".join(lines[1:])
+
+                    previous_response = text
+                    final_output.append(text)
+                    break
+
+                except requests.exceptions.RequestException as e:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (attempt + 1)
+                        print(f"Ollama API error, retrying in {wait_time}s...")
+                        time.sleep(wait_time)
+                    else:
+                        raise Exception(f"Ollama API error: {str(e)}")
+
+                except Exception as e:
                     raise Exception(f"Ollama API error: {str(e)}")
+            else:
+                # This will execute if the for loop completes without a break statement
+                raise Exception("Failed to get response after multiple retries")
 
-            except Exception as e:
-                raise Exception(f"Ollama API error: {str(e)}")
-
-        raise Exception("Failed to get response after multiple retries")
+        return "\n\n".join(final_output), description
 
 
 class LLMFactory:
