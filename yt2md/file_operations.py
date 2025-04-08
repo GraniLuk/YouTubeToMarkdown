@@ -61,11 +61,21 @@ def save_to_markdown(
     Returns:
         str: Path to the saved file
     """
-    # Create the summaries directory if it doesn't exist
-    summaries_dir = os.path.join(
-        os.path.dirname(os.path.dirname(get_script_dir())), "Summaries"
-    )
-    os.makedirs(summaries_dir, exist_ok=True)
+    # Get path from environment variable
+    summaries_dir = os.getenv("SUMMARIES_PATH")
+    if not summaries_dir:
+        raise ValueError("SUMMARIES_PATH environment variable is not set")
+    
+    # Create nested directory structure
+    if category:
+        # Clean up author name to make it filesystem-friendly
+        clean_author = re.sub(r"[^\w\s-]", "", author)
+        clean_author = clean_author.replace(" ", "_")
+        # Create path with category and channel subfolders
+        file_dir = os.path.join(summaries_dir, category, clean_author)
+    else:
+        # Fallback to main directory if no category
+        file_dir = summaries_dir
 
     # Format the date
     date_prefix = ""
@@ -81,17 +91,21 @@ def save_to_markdown(
 
     # Create the full filename
     filename = f"{date_prefix}{clean_title}.md"
-    filepath = os.path.join(summaries_dir, filename)
+    filepath = os.path.join(file_dir, filename)
+
+    # Get current date for 'created' field
+    created_date = datetime.now().strftime("%Y-%m-%d")
 
     # Prepare the markdown content
-    header = f"""# {title}
-
-Author: {author}
-Date: {published_date.strftime("%Y-%m-%d") if isinstance(published_date, datetime) else published_date}
-Category: {category}
-URL: {video_url}
-
-> {description}
+    header = f"""---
+ title: "{title}"
+ source: {video_url}
+ author: "[[{author}]]"
+ published: {published_date}
+ created: {created_date}
+ description: {description}
+ tags:
+ ---
 
 """
 
