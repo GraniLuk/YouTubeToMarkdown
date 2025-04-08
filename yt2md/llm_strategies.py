@@ -254,7 +254,7 @@ class OllamaStrategy(LLMStrategy):
         """
         import json
 
-        model_name = kwargs.get("model_name", "mistral")
+        model_name = kwargs.get("model_name", "gemma3:4b")
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
         host = kwargs.get("host", "http://localhost")

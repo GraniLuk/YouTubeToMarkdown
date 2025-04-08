@@ -110,7 +110,7 @@ def analyze_transcript_with_gemini(
 
 def analyze_transcript_with_ollama(
     transcript: str,
-    model_name: str = "mistral",
+    model_name: str = "gemma3:4b",
     host: str = "http://localhost",
     port: int = 11434,
     output_language: str = "English",

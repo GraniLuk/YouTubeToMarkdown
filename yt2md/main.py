@@ -39,7 +39,7 @@ def process_video(
     output_language,
     category,
     use_ollama=False,
-    ollama_model="mistral",
+    ollama_model="gemma3:4b",
     ollama_host="http://localhost",
     ollama_port=11434,
 ):
@@ -185,8 +185,8 @@ def main():
     parser.add_argument(
         "--ollama-model",
         type=str,
-        default="mistral",
-        help="Model name to use with Ollama (default: mistral)",
+        default="gemma3:4b",
+        help="Model name to use with Ollama (default: gemma3:4b)",
     )
     parser.add_argument(
         "--ollama-host",
