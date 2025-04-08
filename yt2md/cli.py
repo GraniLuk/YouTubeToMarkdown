@@ -44,8 +44,8 @@ def create_parser():
     parser.add_argument(
         "--ollama-model",
         type=str,
-        default="mistral",
-        help="Model name to use with Ollama (default: mistral)",
+        default="gemma3:4b",
+        help="Model name to use with Ollama (default: gemma3:4b)",
     )
     parser.add_argument(
         "--ollama-host",
