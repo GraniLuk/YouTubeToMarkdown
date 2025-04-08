@@ -247,18 +247,24 @@ class OllamaStrategy(LLMStrategy):
 
         Args:
             transcript: Input transcript text
-            **kwargs: May include model_name, output_language, category, host, port
+            **kwargs: May include model_name, output_language, category, base_url
 
         Returns:
             tuple[str, str]: Refined text and description
         """
         import json
+        import os
 
-        model_name = kwargs.get("model_name", "gemma3:4b")
+        # Use environment variables with kwargs as fallback
+        model_name = kwargs.get("model_name", os.getenv("OLLAMA_MODEL", "gemma3:4b"))
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
-        host = kwargs.get("host", "http://localhost")
-        port = kwargs.get("port", 11434)
+
+        # For backward compatibility, check both host and base_url parameters
+        base_url = kwargs.get(
+            "base_url", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        )
+
         max_retries = kwargs.get("max_retries", 3)
         retry_delay = kwargs.get("retry_delay", 2)
 
@@ -290,7 +296,7 @@ Text:
 {transcript}
 """
 
-        url = f"{host}:{port}/api/generate"
+        url = f"{base_url}/api/generate"
 
         data = {"model": model_name, "prompt": prompt_template, "stream": False}
 

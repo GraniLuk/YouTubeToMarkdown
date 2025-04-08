@@ -110,33 +110,32 @@ def analyze_transcript_with_gemini(
 
 def analyze_transcript_with_ollama(
     transcript: str,
-    model_name: str = "gemma3:4b",
-    host: str = "http://localhost",
-    port: int = 11434,
+    model_name: str = None,
+    host: str = None,
     output_language: str = "English",
     category: str = "IT",
 ) -> tuple[str, str]:
     """
-    Analyze transcript using local Ollama instance.
+    Analyze transcript with Ollama.
 
     Args:
-        transcript (str): Text transcript to analyze
-        model_name (str): Ollama model name to use
-        host (str): Ollama host address
-        port (int): Ollama port
-        output_language (str): Desired output language
-        category (str): Category of the content (default: 'IT')
+        transcript: The transcript text to analyze
+        model_name: Name of the Ollama model to use
+        host: Base URL for Ollama (e.g., "http://localhost:11434"), for backward compatibility
+        output_language: Language for the output
+        category: Content category
 
     Returns:
-        tuple[str, str]: Refined and analyzed text, description
+        tuple[str, str]: Refined text and description
     """
     try:
         ollama_strategy = LLMFactory.get_strategy("ollama")
-        return ollama_strategy.analyze_transcript(
+
+        # Pass parameters to strategy
+        refined_text, description = ollama_strategy.analyze_transcript(
             transcript=transcript,
             model_name=model_name,
-            host=host,
-            port=port,
+            base_url=host,  # Pass host as base_url  # Pass port for backward compatibility
             output_language=output_language,
             category=category,
         )

@@ -29,6 +29,10 @@ if not perplexity_api_key:
         "Warning: PERPLEXITY_API_KEY not found. Fallback for rate limits won't be available."
     )
 
+# Load Ollama configuration from environment variables
+ollama_model = os.getenv("OLLAMA_MODEL", "gemma3:4b")
+ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
 
 def process_video(
     video_url,
@@ -39,9 +43,6 @@ def process_video(
     output_language,
     category,
     use_ollama=False,
-    ollama_model="gemma3:4b",
-    ollama_host="http://localhost",
-    ollama_port=11434,
 ):
     """
     Process a single video: get transcript, analyze with Gemini, and save to markdown.
@@ -56,9 +57,6 @@ def process_video(
         output_language: Target language for the output
         category: Video category
         use_ollama: Whether to also process using Ollama
-        ollama_model: Model name to use with Ollama
-        ollama_host: Host address for Ollama API
-        ollama_port: Port for Ollama API
 
     Returns:
         list: Paths to the saved file(s) or None if processing failed
@@ -104,7 +102,7 @@ def process_video(
         if use_ollama:
             try:
                 print(
-                    f"Processing with Ollama model: {ollama_model} at {ollama_host}:{ollama_port}..."
+                    f"Processing with Ollama model: {ollama_model} at {ollama_base_url}..."
                 )
 
                 # Process transcript with Ollama
@@ -112,8 +110,7 @@ def process_video(
                     analyze_transcript_with_ollama(
                         transcript=transcript,
                         model_name=ollama_model,
-                        host=ollama_host,
-                        port=ollama_port,
+                        host=ollama_base_url,
                         output_language=output_language,
                         category=category,
                     )
@@ -182,24 +179,6 @@ def main():
         action="store_true",
         help="Also process transcript with local Ollama LLM",
     )
-    parser.add_argument(
-        "--ollama-model",
-        type=str,
-        default="gemma3:4b",
-        help="Model name to use with Ollama (default: gemma3:4b)",
-    )
-    parser.add_argument(
-        "--ollama-host",
-        type=str,
-        default="http://localhost",
-        help="Host address for Ollama API (default: http://localhost)",
-    )
-    parser.add_argument(
-        "--ollama-port",
-        type=int,
-        default=11434,
-        help="Port for Ollama API (default: 11434)",
-    )
     args = parser.parse_args()
 
     try:
@@ -227,9 +206,6 @@ def main():
                 output_language,
                 category,
                 use_ollama=args.ollama,
-                ollama_model=args.ollama_model,
-                ollama_host=args.ollama_host,
-                ollama_port=args.ollama_port,
             )
             return
 
@@ -275,9 +251,6 @@ def main():
                 channel.output_language,
                 channel.category,
                 use_ollama=args.ollama,
-                ollama_model=args.ollama_model,
-                ollama_host=args.ollama_host,
-                ollama_port=args.ollama_port,
             )
 
     except Exception as e:

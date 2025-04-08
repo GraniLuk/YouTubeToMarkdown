@@ -41,24 +41,6 @@ def create_parser():
         action="store_true",
         help="Also process transcript with local Ollama LLM",
     )
-    parser.add_argument(
-        "--ollama-model",
-        type=str,
-        default="gemma3:4b",
-        help="Model name to use with Ollama (default: gemma3:4b)",
-    )
-    parser.add_argument(
-        "--ollama-host",
-        type=str,
-        default="http://localhost",
-        help="Host address for Ollama API (default: http://localhost)",
-    )
-    parser.add_argument(
-        "--ollama-port",
-        type=int,
-        default=11434,
-        help="Port for Ollama API (default: 11434)",
-    )
 
     return parser
 
