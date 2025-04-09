@@ -87,7 +87,9 @@ def process_video(
             force_ollama=use_ollama,
         )
         execution_time = time.time() - start_time
-        print(f"Transcript analysis completed in {execution_time:.2f} seconds")
+        minutes = int(execution_time // 60)
+        seconds = execution_time % 60
+        print(f"Transcript analysis completed in {minutes} min {seconds:.2f} sec")
 
         # Save cloud LLM result if available
         if "cloud" in results:
