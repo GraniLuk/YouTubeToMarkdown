@@ -3,11 +3,7 @@ import os
 
 from dotenv import load_dotenv
 
-from yt2md.AI import (
-    analyze_transcript_by_length,
-    analyze_transcript_with_gemini,
-    analyze_transcript_with_ollama,
-)
+from yt2md.AI import analyze_transcript_by_length
 from yt2md.config import load_channels
 from yt2md.file_operations import get_script_dir, open_file, save_to_markdown
 from yt2md.youtube import (
