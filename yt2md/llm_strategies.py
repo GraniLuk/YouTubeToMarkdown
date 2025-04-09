@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 import google.generativeai as genai
 import requests
 
+from yt2md.chunking import ChunkingStrategyFactory
+
 # Category-specific prompt additions
 CATEGORY_PROMPTS = {
     "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax when it can help understand discussed subject",
@@ -79,6 +81,8 @@ class GeminiStrategy(LLMStrategy):
         model_name = kwargs.get("model_name", "gemini-1.5-pro")
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
+        chunking_strategy = kwargs.get("chunking_strategy", "word")
+        chunk_size = kwargs.get("chunk_size", 25000)
 
         if not api_key:
             raise ValueError("Gemini API key is required")
@@ -87,13 +91,11 @@ class GeminiStrategy(LLMStrategy):
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(model_name)
 
-        # Split transcript into chunks if it's too long
-        chunk_size = 25000  # Adjust chunk size as needed
-        words = transcript.split()
-        chunks = [
-            " ".join(words[i : i + chunk_size])
-            for i in range(0, len(words), chunk_size)
-        ]
+        # Get chunking strategy
+        chunker = ChunkingStrategyFactory.get_strategy(
+            chunking_strategy, chunk_size=chunk_size
+        )
+        chunks = chunker.chunk_text(transcript)
 
         # Process each chunk
         final_output = []
@@ -170,6 +172,8 @@ class PerplexityStrategy(LLMStrategy):
         category = kwargs.get("category", "IT")
         max_retries = kwargs.get("max_retries", 3)
         retry_delay = kwargs.get("retry_delay", 2)
+        chunking_strategy = kwargs.get("chunking_strategy", "word")
+        chunk_size = kwargs.get("chunk_size", 25000)
 
         if not api_key:
             raise ValueError("Perplexity API key is required")
@@ -191,13 +195,11 @@ class PerplexityStrategy(LLMStrategy):
             "Content-Type": "application/json",
         }
 
-        # Split transcript into chunks if it's too long
-        chunk_size = 25000  # Adjust chunk size as needed
-        words = transcript.split()
-        chunks = [
-            " ".join(words[i : i + chunk_size])
-            for i in range(0, len(words), chunk_size)
-        ]
+        # Get chunking strategy
+        chunker = ChunkingStrategyFactory.get_strategy(
+            chunking_strategy, chunk_size=chunk_size
+        )
+        chunks = chunker.chunk_text(transcript)
 
         # Process each chunk
         final_output = []
@@ -288,6 +290,8 @@ class OllamaStrategy(LLMStrategy):
         model_name = kwargs.get("model_name", os.getenv("OLLAMA_MODEL", "gemma3:4b"))
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
+        chunking_strategy = kwargs.get("chunking_strategy", "word")
+        chunk_size = kwargs.get("chunk_size", 2000)  # Default smaller for Ollama
 
         # For backward compatibility, check both host and base_url parameters
         base_url = kwargs.get(
@@ -308,13 +312,11 @@ class OllamaStrategy(LLMStrategy):
         # Prepare first chunk prompt with description request
         first_chunk_prompt = FIRST_CHUNK_TEMPLATE.format(base_prompt=base_prompt)
 
-        # Split transcript into chunks if it's too long
-        chunk_size = 2000  # Adjust chunk size as needed
-        words = transcript.split()
-        chunks = [
-            " ".join(words[i : i + chunk_size])
-            for i in range(0, len(words), chunk_size)
-        ]
+        # Get chunking strategy
+        chunker = ChunkingStrategyFactory.get_strategy(
+            chunking_strategy, chunk_size=chunk_size
+        )
+        chunks = chunker.chunk_text(transcript)
 
         # Process each chunk
         final_output = []
