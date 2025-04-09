@@ -186,7 +186,6 @@ def analyze_transcript_by_length(
     use_cloud = (transcript_length > 1000 or not use_ollama) and not force_ollama
 
     # Log the strategy being used
-    print(f"Transcript length: {transcript_length} characters")
     if use_ollama and use_cloud:
         print("Using both cloud and local LLM processing")
     elif use_ollama:

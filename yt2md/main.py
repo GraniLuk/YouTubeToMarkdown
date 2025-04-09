@@ -1,5 +1,6 @@
 import argparse
 import os
+import time  # Add time module import
 
 from dotenv import load_dotenv
 
@@ -66,12 +67,14 @@ def process_video(
 
         # Get transcript
         transcript = get_youtube_transcript(video_url, language_code=language_code)
+        print(f"Transcript length: {len(transcript)} characters")
 
         # Get API keys from environment
         api_key = os.getenv("GEMINI_API_KEY")
         perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
 
-        # Process transcript based on length
+        # Measure execution time for transcript analysis
+        start_time = time.time()
         results = analyze_transcript_by_length(
             transcript=transcript,
             api_key=api_key,
@@ -83,6 +86,8 @@ def process_video(
             category=category,
             force_ollama=use_ollama,
         )
+        execution_time = time.time() - start_time
+        print(f"Transcript analysis completed in {execution_time:.2f} seconds")
 
         # Save cloud LLM result if available
         if "cloud" in results:
