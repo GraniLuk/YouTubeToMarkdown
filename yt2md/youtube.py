@@ -37,7 +37,7 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
 
 
 def get_videos_from_channel(
-    channel_id: str, days: int = 8
+    channel_id: str, days: int = 8, skip_verification: bool = False
 ) -> list[tuple[str, str, str]]:
     """
     Get all unprocessed videos from a YouTube channel published in the last days.
@@ -45,6 +45,8 @@ def get_videos_from_channel(
 
     Args:
         channel_id (str): YouTube channel ID
+        days (int): Number of days to look back
+        skip_verification (bool): If True, skip checking if videos were already processed
 
     Returns:
         list[tuple[str, str]]: A list of tuples containing (video_url, video_title) for unprocessed videos
@@ -53,16 +55,17 @@ def get_videos_from_channel(
 
     # Get processed video IDs from index file
     processed_video_ids = set()
-    summaries_dir = os.getenv("SUMMARIES_PATH")
-    if not summaries_dir:
-        raise ValueError("SUMMARIES_PATH environment variable is not set")
+    if not skip_verification:
+        summaries_dir = os.getenv("SUMMARIES_PATH")
+        if not summaries_dir:
+            raise ValueError("SUMMARIES_PATH environment variable is not set")
 
-    index_file = os.path.join(summaries_dir, "video_index.txt")
-    if os.path.exists(index_file):
-        with open(index_file, "r", encoding="utf-8") as f:
-            processed_video_ids = {
-                line.split(" | ")[0].strip() for line in f if line.strip()
-            }
+        index_file = os.path.join(summaries_dir, "video_index.txt")
+        if os.path.exists(index_file):
+            with open(index_file, "r", encoding="utf-8") as f:
+                processed_video_ids = {
+                    line.split(" | ")[0].strip() for line in f if line.strip()
+                }
 
     # Calculate the datetime 24 hours ago
     end_date = datetime.now()
@@ -85,7 +88,7 @@ def get_videos_from_channel(
         if "items" in data:
             for item in data["items"]:
                 video_id = item["id"]["videoId"]
-                if video_id in processed_video_ids:
+                if not skip_verification and video_id in processed_video_ids:
                     print(
                         f"Video {item['snippet']['title']} was already processed. Skipping..."
                     )
@@ -113,12 +116,15 @@ def extract_video_id(url):
     return None
 
 
-def get_video_details_from_url(url: str) -> tuple[str, str, str, str]:
+def get_video_details_from_url(
+    url: str, skip_verification: bool = False
+) -> tuple[str, str, str, str]:
     """
     Get details for a YouTube video given its URL.
 
     Args:
         url (str): YouTube video URL
+        skip_verification (bool): If True, skip checking if video was already processed
 
     Returns:
         list[tuple[str, str]]: A list of tuples containing (video_url, video_title) for unprocessed videos
@@ -127,43 +133,43 @@ def get_video_details_from_url(url: str) -> tuple[str, str, str, str]:
 
     # Get processed video IDs from index file
     processed_video_ids = set()
-    summaries_dir = os.getenv("SUMMARIES_PATH")
-    if not summaries_dir:
-        raise ValueError("SUMMARIES_PATH environment variable is not set")
+    if not skip_verification:
+        summaries_dir = os.getenv("SUMMARIES_PATH")
+        if not summaries_dir:
+            raise ValueError("SUMMARIES_PATH environment variable is not set")
 
-    index_file = os.path.join(summaries_dir, "video_index.txt")
-    if os.path.exists(index_file):
-        with open(index_file, "r", encoding="utf-8") as f:
-            processed_video_ids = {
-                line.split(" | ")[0].strip() for line in f if line.strip()
-            }
+        index_file = os.path.join(summaries_dir, "video_index.txt")
+        if os.path.exists(index_file):
+            with open(index_file, "r", encoding="utf-8") as f:
+                processed_video_ids = {
+                    line.split(" | ")[0].strip() for line in f if line.strip()
+                }
 
-        # Extract video ID from URL
-        video_id = extract_video_id(url)
-        if not video_id:
-            return "Invalid YouTube URL"
+            # Extract video ID from URL
+            video_id = extract_video_id(url)
+            if not video_id:
+                return "Invalid YouTube URL"
 
-        # Check if the video ID is already processed
-        if video_id in processed_video_ids:
-            print(f"Video with ID {video_id} was already processed. Skipping...")
-            return None
+            # Check if the video ID is already processed
+            if video_id in processed_video_ids:
+                print(f"Video with ID {video_id} was already processed. Skipping...")
+                return None
 
-        # Initialize YouTube API client
-        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
+    # Initialize YouTube API client
+    youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
 
-        # Request video details
-        request = youtube.videos().list(part="snippet", id=video_id)
-        data = request.execute()
+    # Request video details
+    request = youtube.videos().list(part="snippet", id=video_id)
+    data = request.execute()
 
-        if "items" in data:
-            firstItem = data["items"][0]
-            if firstItem:
-                video_url = url
-                title = firstItem["snippet"]["title"]
-                published_date = firstItem["snippet"]["publishedAt"].split("T")[
-                    0
-                ]  # Get just the date part
-                channel_name = firstItem["snippet"]["channelTitle"]
-                return (video_url, title, published_date, channel_name)
-        return None
+    if "items" in data:
+        firstItem = data["items"][0]
+        if firstItem:
+            video_url = url
+            title = firstItem["snippet"]["title"]
+            published_date = firstItem["snippet"]["publishedAt"].split("T")[
+                0
+            ]  # Get just the date part
+            channel_name = firstItem["snippet"]["channelTitle"]
+            return (video_url, title, published_date, channel_name)
     return None

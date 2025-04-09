@@ -44,6 +44,7 @@ def process_video(
     output_language,
     category,
     use_ollama=False,
+    skip_verification=False,
 ):
     """
     Process a single video: get transcript, analyze with appropriate LLM based on transcript length, and save to markdown.
@@ -57,6 +58,7 @@ def process_video(
         output_language: Target language for the output
         category: Video category
         use_ollama: Whether to force using Ollama regardless of transcript length
+        skip_verification: If True, skip checking if video was already processed and don't update index
 
     Returns:
         list: Paths to the saved file(s) or None if processing failed
@@ -95,6 +97,11 @@ def process_video(
         if "cloud" in results:
             refined_text, description = results["cloud"]
 
+            # Extract model name for the suffix
+            model_suffix = "gemini-2.5-pro-exp-03-25".split("-")[
+                0
+            ]  # Get first part of the model name (e.g., "gemini")
+
             # Save cloud LLM result to markdown file
             saved_file_path = save_to_markdown(
                 video_title,
@@ -104,6 +111,8 @@ def process_video(
                 published_date,
                 description,
                 category,
+                suffix=model_suffix,
+                skip_verification=skip_verification,
             )
 
             if saved_file_path:
@@ -115,6 +124,9 @@ def process_video(
         if "ollama" in results:
             ollama_refined_text, ollama_description = results["ollama"]
 
+            # Use ollama model name as suffix, clean it up if needed
+            ollama_suffix = ollama_model.split(":")[0]  # Remove version tag if present
+
             # Save Ollama result to markdown with suffix
             ollama_file_path = save_to_markdown(
                 video_title,
@@ -124,7 +136,8 @@ def process_video(
                 published_date,
                 ollama_description,
                 category,
-                suffix="Ollama",
+                suffix=ollama_suffix,
+                skip_verification=skip_verification,
             )
 
             if ollama_file_path:
@@ -175,6 +188,11 @@ def main():
         action="store_true",
         help="Also process transcript with local Ollama LLM",
     )
+    parser.add_argument(
+        "--skip-verification",
+        action="store_true",
+        help="Skip checking if video was already processed and don't update index",
+    )
     args = parser.parse_args()
 
     try:
@@ -202,6 +220,7 @@ def main():
                 output_language,
                 category,
                 use_ollama=args.ollama,
+                skip_verification=args.skip_verification,
             )
             return
 
@@ -247,6 +266,7 @@ def main():
                 channel.output_language,
                 channel.category,
                 use_ollama=args.ollama,
+                skip_verification=args.skip_verification,
             )
 
     except Exception as e:

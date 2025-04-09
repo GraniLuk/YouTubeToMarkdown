@@ -1,8 +1,8 @@
 import os
 import re
 import sys
-from datetime import datetime
 import unicodedata
+from datetime import datetime
 
 
 def get_script_dir():
@@ -19,13 +19,13 @@ def sanitize_filename(filename):
     # Remove emojis and other special unicode characters
     try:
         # Try to normalize and remove non-ASCII characters
-        filename = unicodedata.normalize('NFKD', filename)
+        filename = unicodedata.normalize("NFKD", filename)
         # Remove remaining non-ASCII characters
-        filename = ''.join(c for c in filename if ord(c) < 128)
+        filename = "".join(c for c in filename if ord(c) < 128)
     except Exception:
         # Fallback for any unicode errors
-        filename = re.sub(r'[^\x00-\x7F]+', '', filename)
-    
+        filename = re.sub(r"[^\x00-\x7F]+", "", filename)
+
     # Replace invalid characters with underscores
     filename = re.sub(r'[\\/:*?"<>|#]', "_", filename)
     # Remove multiple spaces and replace with single space
@@ -61,6 +61,7 @@ def save_to_markdown(
     description,
     category,
     suffix=None,
+    skip_verification=False,
 ):
     """
     Save content to a markdown file in the Summaries directory.
@@ -74,6 +75,7 @@ def save_to_markdown(
         description: Brief description of the content
         category: Category of the content
         suffix: Optional suffix to add to the filename (e.g., "Ollama")
+        skip_verification: If True, don't update the index file
 
     Returns:
         str: Path to the saved file
@@ -82,7 +84,7 @@ def save_to_markdown(
     summaries_dir = os.getenv("SUMMARIES_PATH")
     if not summaries_dir:
         raise ValueError("SUMMARIES_PATH environment variable is not set")
-    
+
     # Create nested directory structure
     if category:
         # Clean up author name to make it filesystem-friendly
@@ -136,19 +138,21 @@ tags:
     with open(filepath, "w", encoding="utf-8") as file:
         file.write(full_content)
 
-    # Create index directory if it doesn't exist
-    os.makedirs(summaries_dir, exist_ok=True)
-    
-    try:
-        # Extract video ID from URL
-        video_id = video_url.split("?v=")[1].split("&")[0]
-        # Update index file inside the main summaries directory
-        index_file = os.path.join(summaries_dir, "video_index.txt")
-        with open(index_file, "a", encoding="utf-8") as f:
-            f.write(f"{video_id} | {filepath}\n")
-    except IndexError:
-        # Handle case where URL doesn't have expected format
-        print(f"Warning: Could not extract video ID from URL: {video_url}")
-        pass
+    # Only update the index if not skipping verification
+    if not skip_verification:
+        # Create index directory if it doesn't exist
+        os.makedirs(summaries_dir, exist_ok=True)
+
+        try:
+            # Extract video ID from URL
+            video_id = video_url.split("?v=")[1].split("&")[0]
+            # Update index file inside the main summaries directory
+            index_file = os.path.join(summaries_dir, "video_index.txt")
+            with open(index_file, "a", encoding="utf-8") as f:
+                f.write(f"{video_id} | {filepath}\n")
+        except IndexError:
+            # Handle case where URL doesn't have expected format
+            print(f"Warning: Could not extract video ID from URL: {video_url}")
+            pass
 
     return filepath
