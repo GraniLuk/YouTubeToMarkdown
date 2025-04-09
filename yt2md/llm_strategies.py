@@ -324,7 +324,10 @@ class OllamaStrategy(LLMStrategy):
         description = "No description available"
 
         url = f"{base_url}/api/generate"
-
+        if chunks.__len__() > 1:
+            print(
+                f"Transcript is too long, splitting into {chunks.__len__()} chunks for processing."
+            )
         for i, chunk in enumerate(chunks):
             # Prepare prompt with context if needed
             if previous_response:
