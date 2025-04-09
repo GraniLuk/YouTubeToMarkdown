@@ -6,6 +6,8 @@ import googleapiclient
 import requests
 from youtube_transcript_api import YouTubeTranscriptApi
 
+from yt2md.video_index import get_processed_video_ids
+
 
 def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
     """
@@ -54,18 +56,7 @@ def get_videos_from_channel(
     API_KEY = os.getenv("YOUTUBE_API_KEY")
 
     # Get processed video IDs from index file
-    processed_video_ids = set()
-    if not skip_verification:
-        summaries_dir = os.getenv("SUMMARIES_PATH")
-        if not summaries_dir:
-            raise ValueError("SUMMARIES_PATH environment variable is not set")
-
-        index_file = os.path.join(summaries_dir, "video_index.txt")
-        if os.path.exists(index_file):
-            with open(index_file, "r", encoding="utf-8") as f:
-                processed_video_ids = {
-                    line.split(" | ")[0].strip() for line in f if line.strip()
-                }
+    processed_video_ids = get_processed_video_ids(skip_verification)
 
     # Calculate the datetime 24 hours ago
     end_date = datetime.now()
@@ -131,29 +122,18 @@ def get_video_details_from_url(
     """
     API_KEY = os.getenv("YOUTUBE_API_KEY")
 
+    # Extract video ID from URL
+    video_id = extract_video_id(url)
+    if not video_id:
+        return "Invalid YouTube URL"
+
     # Get processed video IDs from index file
-    processed_video_ids = set()
-    if not skip_verification:
-        summaries_dir = os.getenv("SUMMARIES_PATH")
-        if not summaries_dir:
-            raise ValueError("SUMMARIES_PATH environment variable is not set")
+    processed_video_ids = get_processed_video_ids(skip_verification)
 
-        index_file = os.path.join(summaries_dir, "video_index.txt")
-        if os.path.exists(index_file):
-            with open(index_file, "r", encoding="utf-8") as f:
-                processed_video_ids = {
-                    line.split(" | ")[0].strip() for line in f if line.strip()
-                }
-
-            # Extract video ID from URL
-            video_id = extract_video_id(url)
-            if not video_id:
-                return "Invalid YouTube URL"
-
-            # Check if the video ID is already processed
-            if video_id in processed_video_ids:
-                print(f"Video with ID {video_id} was already processed. Skipping...")
-                return None
+    # Check if the video ID is already processed
+    if video_id in processed_video_ids:
+        print(f"Video with ID {video_id} was already processed. Skipping...")
+        return None
 
     # Initialize YouTube API client
     youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)

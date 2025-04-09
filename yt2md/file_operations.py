@@ -4,6 +4,8 @@ import sys
 import unicodedata
 from datetime import datetime
 
+from yt2md.video_index import update_video_index
+
 
 def get_script_dir():
     """Get the directory where the script is running from."""
@@ -138,21 +140,14 @@ tags:
     with open(filepath, "w", encoding="utf-8") as file:
         file.write(full_content)
 
-    # Only update the index if not skipping verification
-    if not skip_verification:
-        # Create index directory if it doesn't exist
-        os.makedirs(summaries_dir, exist_ok=True)
-
-        try:
-            # Extract video ID from URL
-            video_id = video_url.split("?v=")[1].split("&")[0]
-            # Update index file inside the main summaries directory
-            index_file = os.path.join(summaries_dir, "video_index.txt")
-            with open(index_file, "a", encoding="utf-8") as f:
-                f.write(f"{video_id} | {filepath}\n")
-        except IndexError:
-            # Handle case where URL doesn't have expected format
-            print(f"Warning: Could not extract video ID from URL: {video_url}")
-            pass
+    try:
+        # Extract video ID from URL
+        video_id = video_url.split("?v=")[1].split("&")[0]
+        # Update index file inside the main summaries directory
+        update_video_index(video_id, filepath, skip_verification)
+    except IndexError:
+        # Handle case where URL doesn't have expected format
+        print(f"Warning: Could not extract video ID from URL: {video_url}")
+        pass
 
     return filepath
