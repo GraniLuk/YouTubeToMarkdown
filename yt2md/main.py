@@ -198,7 +198,7 @@ def main():
     try:
         if args.url:
             # Process single video
-            video_details = get_video_details_from_url(args.url)
+            video_details = get_video_details_from_url(args.url, args.skip_verification)
             if not video_details:
                 print("Could not retrieve video details or video already processed")
                 return
