@@ -291,7 +291,7 @@ class OllamaStrategy(LLMStrategy):
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")
-        chunk_size = kwargs.get("chunk_size", 2000)  # Default smaller for Ollama
+        chunk_size = kwargs.get("chunk_size", 10000)  # Default smaller for Ollama
 
         # For backward compatibility, check both host and base_url parameters
         base_url = kwargs.get(
