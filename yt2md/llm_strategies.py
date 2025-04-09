@@ -88,7 +88,7 @@ class GeminiStrategy(LLMStrategy):
         model = genai.GenerativeModel(model_name)
 
         # Split transcript into chunks if it's too long
-        chunk_size = 6000  # Adjust chunk size as needed
+        chunk_size = 25000  # Adjust chunk size as needed
         words = transcript.split()
         chunks = [
             " ".join(words[i : i + chunk_size])
@@ -192,7 +192,7 @@ class PerplexityStrategy(LLMStrategy):
         }
 
         # Split transcript into chunks if it's too long
-        chunk_size = 6000  # Adjust chunk size as needed
+        chunk_size = 25000  # Adjust chunk size as needed
         words = transcript.split()
         chunks = [
             " ".join(words[i : i + chunk_size])
@@ -309,7 +309,7 @@ class OllamaStrategy(LLMStrategy):
         first_chunk_prompt = FIRST_CHUNK_TEMPLATE.format(base_prompt=base_prompt)
 
         # Split transcript into chunks if it's too long
-        chunk_size = 6000  # Adjust chunk size as needed
+        chunk_size = 20000  # Adjust chunk size as needed
         words = transcript.split()
         chunks = [
             " ".join(words[i : i + chunk_size])
