@@ -340,7 +340,6 @@ class OllamaStrategy(LLMStrategy):
 
             # Create full prompt
             full_prompt = f"{context_prompt}{template}\n\n{chunk}"
-            print(f"Full prompt: {full_prompt}")
 
             data = {"model": model_name, "prompt": full_prompt, "stream": False}
 
