@@ -2,6 +2,7 @@ import os
 import re
 import sys
 from datetime import datetime
+import unicodedata
 
 
 def get_script_dir():
@@ -15,12 +16,28 @@ def get_script_dir():
 
 def sanitize_filename(filename):
     """Clean up a filename to make it valid for all platforms."""
+    # Remove emojis and other special unicode characters
+    try:
+        # Try to normalize and remove non-ASCII characters
+        filename = unicodedata.normalize('NFKD', filename)
+        # Remove remaining non-ASCII characters
+        filename = ''.join(c for c in filename if ord(c) < 128)
+    except Exception:
+        # Fallback for any unicode errors
+        filename = re.sub(r'[^\x00-\x7F]+', '', filename)
+    
     # Replace invalid characters with underscores
-    filename = re.sub(r'[\\/:*?"<>|]', "_", filename)
-    # Remove multiple spaces
+    filename = re.sub(r'[\\/:*?"<>|#]', "_", filename)
+    # Remove multiple spaces and replace with single space
     filename = re.sub(r"\s+", " ", filename)
-    # Trim
+    # Trim spaces from the beginning and end
     filename = filename.strip()
+    # Limit filename length to prevent issues
+    if len(filename) > 200:
+        filename = filename[:197] + "..."
+    # Ensure filename isn't empty after sanitizing
+    if not filename or filename.isspace():
+        filename = "untitled_content"
     return filename
 
 
@@ -77,6 +94,9 @@ def save_to_markdown(
         # Fallback to main directory if no category
         file_dir = summaries_dir
 
+    # Make sure the directory exists
+    os.makedirs(file_dir, exist_ok=True)
+
     # Format the date
     date_prefix = ""
     if isinstance(published_date, datetime):
@@ -116,11 +136,19 @@ tags:
     with open(filepath, "w", encoding="utf-8") as file:
         file.write(full_content)
 
-    # Extract video ID from URL
-    video_id = video_url.split("?v=")[1].split("&")[0]
-    # Update index file inside the main summaries directory
-    index_file = os.path.join(summaries_dir, "video_index.txt")
-    with open(index_file, "a", encoding="utf-8") as f:
-        f.write(f"{video_id} | {filepath}\n")
+    # Create index directory if it doesn't exist
+    os.makedirs(summaries_dir, exist_ok=True)
+    
+    try:
+        # Extract video ID from URL
+        video_id = video_url.split("?v=")[1].split("&")[0]
+        # Update index file inside the main summaries directory
+        index_file = os.path.join(summaries_dir, "video_index.txt")
+        with open(index_file, "a", encoding="utf-8") as f:
+            f.write(f"{video_id} | {filepath}\n")
+    except IndexError:
+        # Handle case where URL doesn't have expected format
+        print(f"Warning: Could not extract video ID from URL: {video_url}")
+        pass
 
     return filepath
