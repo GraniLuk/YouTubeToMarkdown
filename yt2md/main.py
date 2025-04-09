@@ -123,6 +123,7 @@ def process_video(
             if ollama_file_path:
                 print(f"Saved Ollama result to: {ollama_file_path}")
                 saved_files.append(ollama_file_path)
+                open_file(ollama_file_path)
 
         return saved_files
 
