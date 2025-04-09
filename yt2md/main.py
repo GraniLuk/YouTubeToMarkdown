@@ -69,7 +69,7 @@ def process_video(
 
         # Get transcript
         transcript = get_youtube_transcript(video_url, language_code=language_code)
-        print(f"Transcript length: {len(transcript)} characters")
+        print(f"Transcript length: {len(transcript.split())} words")
 
         # Get API keys from environment
         api_key = os.getenv("GEMINI_API_KEY")
