@@ -183,7 +183,7 @@ def analyze_transcript_by_length(
     transcript_length = len(transcript)
     # Determine which strategies to use based on transcript length
     use_ollama = transcript_length < 3000 or force_ollama
-    use_cloud = transcript_length > 1000 or not use_ollama
+    use_cloud = (transcript_length > 1000 or not use_ollama) and not force_ollama
 
     # Log the strategy being used
     print(f"Transcript length: {transcript_length} characters")
