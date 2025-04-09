@@ -309,7 +309,7 @@ class OllamaStrategy(LLMStrategy):
         first_chunk_prompt = FIRST_CHUNK_TEMPLATE.format(base_prompt=base_prompt)
 
         # Split transcript into chunks if it's too long
-        chunk_size = 20000  # Adjust chunk size as needed
+        chunk_size = 2000  # Adjust chunk size as needed
         words = transcript.split()
         chunks = [
             " ".join(words[i : i + chunk_size])
@@ -338,6 +338,7 @@ class OllamaStrategy(LLMStrategy):
 
             # Create full prompt
             full_prompt = f"{context_prompt}{template}\n\n{chunk}"
+            print(f"Full prompt: {full_prompt}")
 
             data = {"model": model_name, "prompt": full_prompt, "stream": False}
 
