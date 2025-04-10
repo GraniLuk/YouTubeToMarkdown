@@ -128,7 +128,7 @@ author: "[[{author}]]"
 published: {published_date}
 created: {created_date}
 description: {description}
-tags:
+tags: #Summaries/ToRead
 ---
 
 """
