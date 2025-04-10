@@ -15,7 +15,7 @@ from yt2md.chunking import ChunkingStrategyFactory
 # Category-specific prompt additions
 CATEGORY_PROMPTS = {
     "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax when it can help understand discussed subject",
-    "Crypto": "- Adding TradingView chart links when price movements or technical analysis is discussed\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
+    "Crypto": "- Write diagram in mermaid syntax when it can help understand discussed subject\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
 }
 
 # Main prompt template shared across all strategies
