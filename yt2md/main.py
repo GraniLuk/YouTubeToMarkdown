@@ -105,6 +105,8 @@ def process_video(
                 model_suffix = "gemini-2.5-pro-exp-03-25".split("-")[
                     0
                 ]  # Get first part of the model name (e.g., "gemini")
+            else:
+                model_suffix = None  # Default to None if not skipping verification
 
             # Save cloud LLM result to markdown file
             saved_file_path = save_to_markdown(
