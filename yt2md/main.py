@@ -128,11 +128,8 @@ def process_video(
         if "ollama" in results:
             ollama_refined_text, ollama_description = results["ollama"]
 
-            if skip_verification:
-                # Use ollama model name as suffix, clean it up if needed
-                ollama_suffix = ollama_model.split(":")[
-                    0
-                ]  # Remove version tag if present
+            # Use ollama model name as suffix, clean it up if needed
+            ollama_suffix = ollama_model.split(":")[0]  # Remove version tag if present
 
             # Save Ollama result to markdown with suffix
             ollama_file_path = save_to_markdown(
