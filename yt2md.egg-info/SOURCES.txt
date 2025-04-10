@@ -9,6 +9,7 @@ yt2md/file_operations.py
 yt2md/google_drive.py
 yt2md/llm_strategies.py
 yt2md/main.py
+yt2md/video_index.py
 yt2md/youtube.py
 yt2md.egg-info/PKG-INFO
 yt2md.egg-info/SOURCES.txt
@@ -16,3 +17,5 @@ yt2md.egg-info/dependency_links.txt
 yt2md.egg-info/entry_points.txt
 yt2md.egg-info/requires.txt
 yt2md.egg-info/top_level.txt
+yt2md/chunking/__init__.py
+yt2md/chunking/strategies.py

@@ -43,6 +43,9 @@ yt2md --url "https://www.youtube.com/watch?v=..."
 
 # Process videos with Ollama (local LLM)
 yt2md --category IT --days 3 --ollama
+
+# Skip verification of already processed videos and don't update index
+yt2md --url "https://www.youtube.com/watch?v=..." --skip-verification
 ```
 
 Make sure to set up your environment variables in a .env file:
@@ -67,7 +70,18 @@ To use [Ollama](https://ollama.ai/) (local LLM) for processing videos:
    yt2md --url "https://www.youtube.com/watch?v=..." --ollama
    ```
 
-This will process the video with both cloud and local LLMs, generating two separate markdown files for comparison.
+This will process the video with both cloud and local LLMs, generating two separate markdown files for comparison. Each file will be suffixed with the model name used (e.g., "Title_gemini.md" and "Title_gemma3.md").
+
+### Skip Verification
+
+Use the `--skip-verification` flag when you want to:
+- Process a video that has already been processed before
+- Skip adding entries to the video index file
+- Generate multiple summaries of the same video with different parameters
+
+```bash
+yt2md --url "https://www.youtube.com/watch?v=..." --skip-verification
+```
 
 ## Channel Configuration
 
