@@ -101,9 +101,10 @@ def process_video(
             refined_text, description = results["cloud"]
 
             # Extract model name for the suffix
-            model_suffix = "gemini-2.5-pro-exp-03-25".split("-")[
-                0
-            ]  # Get first part of the model name (e.g., "gemini")
+            if skip_verification:
+                model_suffix = "gemini-2.5-pro-exp-03-25".split("-")[
+                    0
+                ]  # Get first part of the model name (e.g., "gemini")
 
             # Save cloud LLM result to markdown file
             saved_file_path = save_to_markdown(
@@ -127,8 +128,11 @@ def process_video(
         if "ollama" in results:
             ollama_refined_text, ollama_description = results["ollama"]
 
-            # Use ollama model name as suffix, clean it up if needed
-            ollama_suffix = ollama_model.split(":")[0]  # Remove version tag if present
+            if skip_verification:
+                # Use ollama model name as suffix, clean it up if needed
+                ollama_suffix = ollama_model.split(":")[
+                    0
+                ]  # Remove version tag if present
 
             # Save Ollama result to markdown with suffix
             ollama_file_path = save_to_markdown(
