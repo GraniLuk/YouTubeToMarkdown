@@ -153,15 +153,17 @@ def analyze_transcript_by_length(
     output_language: str = "English",
     category: str = "IT",
     force_ollama: bool = False,
+    force_cloud: bool = False,
 ) -> dict:
     """
     Analyze transcript using different strategies based on transcript length.
 
     Strategy:
+    - If force_cloud is True: Use only cloud (Gemini with Perplexity fallback)
+    - If force_ollama is True: Use only Ollama
     - If transcript length < 1000: Use Ollama only
     - If transcript length between 1000-3000: Use both Ollama and cloud (Gemini/Perplexity)
     - If transcript length > 3000: Use only cloud (Gemini with Perplexity fallback)
-    - If force_ollama is True, always include Ollama processing regardless of transcript length
 
     Args:
         transcript: Text transcript to analyze
@@ -173,6 +175,7 @@ def analyze_transcript_by_length(
         output_language: Desired output language
         category: Category of the content
         force_ollama: Whether to force using Ollama regardless of transcript length
+        force_cloud: Whether to force using cloud services only
 
     Returns:
         dict: Dictionary containing results from different LLMs with keys:
@@ -181,9 +184,18 @@ def analyze_transcript_by_length(
     """
     results = {}
     transcript_length = len(transcript)
-    # Determine which strategies to use based on transcript length
-    use_ollama = transcript_length < 3000 or force_ollama
-    use_cloud = (transcript_length > 1000 or not use_ollama) and not force_ollama
+    
+    # Handle force flags - force_cloud takes precedence over force_ollama
+    if force_cloud:
+        use_cloud = True
+        use_ollama = False
+    elif force_ollama:
+        use_cloud = False
+        use_ollama = True
+    else:
+        # Determine which strategies to use based on transcript length
+        use_ollama = transcript_length < 3000
+        use_cloud = transcript_length > 1000 or not use_ollama
 
     # Log the strategy being used
     if use_ollama and use_cloud:
@@ -224,15 +236,18 @@ def analyze_transcript_by_length(
             # If Ollama was the only strategy and it failed, try cloud as fallback
             if not use_cloud and "cloud" not in results:
                 print("Falling back to cloud LLM processing...")
-                cloud_result = analyze_transcript_with_gemini(
-                    transcript=transcript,
-                    api_key=api_key,
-                    perplexity_api_key=perplexity_api_key,
-                    model_name=cloud_model_name,
-                    output_language=output_language,
-                    category=category,
-                )
-                results["cloud"] = cloud_result
+                try:
+                    cloud_result = analyze_transcript_with_gemini(
+                        transcript=transcript,
+                        api_key=api_key,
+                        perplexity_api_key=perplexity_api_key,
+                        model_name=cloud_model_name,
+                        output_language=output_language,
+                        category=category,
+                    )
+                    results["cloud"] = cloud_result
+                except Exception as cloud_error:
+                    print(f"Cloud fallback also failed: {str(cloud_error)}")
 
     return results
 

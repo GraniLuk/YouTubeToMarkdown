@@ -44,6 +44,7 @@ def process_video(
     output_language,
     category,
     use_ollama=False,
+    use_cloud=False,
     skip_verification=False,
 ):
     """
@@ -58,6 +59,7 @@ def process_video(
         output_language: Target language for the output
         category: Video category
         use_ollama: Whether to force using Ollama regardless of transcript length
+        use_cloud: Whether to force using cloud services only for processing
         skip_verification: If True, skip checking if video was already processed and don't update index
 
     Returns:
@@ -87,6 +89,7 @@ def process_video(
             output_language=output_language,
             category=category,
             force_ollama=use_ollama,
+            force_cloud=use_cloud,
         )
         execution_time = time.time() - start_time
         minutes = int(execution_time // 60)
@@ -189,6 +192,11 @@ def main():
         help="Also process transcript with local Ollama LLM",
     )
     parser.add_argument(
+        "--cloud",
+        action="store_true",
+        help="Force using cloud services only for transcript processing",
+    )
+    parser.add_argument(
         "--skip-verification",
         action="store_true",
         help="Skip checking if video was already processed and don't update index",
@@ -220,6 +228,7 @@ def main():
                 output_language,
                 category,
                 use_ollama=args.ollama,
+                use_cloud=args.cloud,
                 skip_verification=args.skip_verification,
             )
             return
@@ -266,6 +275,7 @@ def main():
                 channel.output_language,
                 channel.category,
                 use_ollama=args.ollama,
+                use_cloud=args.cloud,
                 skip_verification=args.skip_verification,
             )
 
