@@ -44,6 +44,9 @@ yt2md --url "https://www.youtube.com/watch?v=..."
 # Process videos with Ollama (local LLM)
 yt2md --category IT --days 3 --ollama
 
+# Process videos with cloud services only
+yt2md --category IT --days 3 --cloud
+
 # Skip verification of already processed videos and don't update index
 yt2md --url "https://www.youtube.com/watch?v=..." --skip-verification
 ```
@@ -71,6 +74,18 @@ To use [Ollama](https://ollama.ai/) (local LLM) for processing videos:
    ```
 
 This will process the video with both cloud and local LLMs, generating two separate markdown files for comparison. Each file will be suffixed with the model name used (e.g., "Title_gemini.md" and "Title_gemma3.md").
+
+### Using Cloud Services Only
+
+Use the `--cloud` flag when you want to:
+- Force using only cloud services (Gemini or Perplexity) regardless of transcript length
+- Skip local LLM processing completely, even for short transcripts
+
+```bash
+yt2md --url "https://www.youtube.com/watch?v=..." --cloud
+```
+
+This parameter takes precedence over the `--ollama` parameter, so if both are specified, only cloud processing will be used.
 
 ### Skip Verification
 
