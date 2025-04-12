@@ -129,7 +129,7 @@ published: {published_date}
 created: {created_date}
 description: {description}
 category: {category}
-words count: {len(content.split())}
+length: {len(content.split())}
 tags: ["#Summaries/ToRead"]
 ---
 
