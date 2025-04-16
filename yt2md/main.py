@@ -181,7 +181,7 @@ def main():
         "--language",
         type=str,
         default="en",
-        choices=["en", "pl"],
+        choices=["en", "pl", "es"],
         help="Language code for the transcript (default: 'en' for English)",
     )
     parser.add_argument(
@@ -218,7 +218,7 @@ def main():
 
             # Use the specified language for single video processing
             language_code = args.language
-            output_language = "English" if language_code == "en" else "Polish"
+            output_language = "English" if language_code == "en" else "Spanish" if language_code == "es" else "Polish"
             category = args.category
 
             # Process the video using our common function
