@@ -1,0 +1,98 @@
+IT:
+  - id: UCrkPsvLGln62OMZRO6K-llg
+    name: Nick Chapsas
+    language_code: en
+    output_language: English
+    
+  - id: UCC_dVe-RI-vgCZfls06mDZQ
+    name: Milan Jovanovic
+    language_code: en
+    output_language: English
+    
+  - id: UCidgSn6WJ9Fv3kwUtoI7_Jg
+    name: Stefan Dokic
+    language_code: en
+    output_language: English
+
+  - id: UCX189tVw5L1E0uRpzJgj8mQ
+    name: DevMentors
+    language_code: pl
+    output_language: Polish
+    
+  - id: UCvtT19MZW8dq5Wwfu6B0oxw
+    name: dotnet
+    language_code: en
+    output_language: English
+
+  - id: UCTdw38Cw6jcm0atBPA39a0Q
+    name: NDC Conferences
+    language_code: en
+    output_language: English
+
+  - id: UC3RKA4vunFAfrfxiJhPEplw
+    name: CodeOpinion
+    language_code: en
+    output_language: English
+
+  - id: UCs5Y5_7XK8HLDX0SLNwkd3w
+    name: Visual Studio Code
+    language_code: en
+    output_language: English
+
+AI:
+  - id: UCWTpgi3bE5gIVfhEys-T12A
+    name: Mike Tomala
+    language_code: pl
+    output_language: Polish
+
+  - id: UCgfISCCaUB4zMyD8uvx56jw
+    name: Ben's Cyber Life
+    language_code: en
+    output_language: English
+
+  - id: UCXUPKJO5MZQN11PqgIvyuvQ
+    name: Andrej Karpathy
+    language_code: en
+    output_language: English
+
+  - id: UC55ODQSvARtgSyc8ThfiepQ
+    name: Sam Witteveen
+    language_code: en
+    output_language: English
+
+  - id: UChpleBmo18P08aKCIgti38g
+    name: Matt Wolfe
+    language_code: en
+    output_language: English
+
+  - id: UCsBjURrPoezykLs9EqgamOA
+    name: Fireship
+    language_code: en
+    output_language: English
+
+  - id: UCWyvI4f-uSI9ckp2ZNS9fYA
+    name: Krzysztof Tutak
+    language_code: pl
+    output_language: Polish
+
+Crypto:
+  - id: UCsaWU2rEXFkufFN_43jH2MA
+    name: Jarzombek
+    language_code: pl
+    output_language: Polish
+
+  - id: UCXasJkcS9vY8X4HgzReo10A
+    name: Ostapowicz
+    language_code: pl
+    output_language: Polish
+
+Fitness:
+  - id: UCsmNMaZjnz52DSooPamqpZQ
+    name: Michał Wrzosek
+    language_code: pl
+    output_language: Polish
+
+  - id: UCKg-TQUJv1XOVHErvD3vxVQ
+    name: Ugot2beStrong
+    language_code: pl
+    output_language: Polish

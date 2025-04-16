@@ -129,6 +129,7 @@ published: {published_date}
 created: {created_date}
 description: {description}
 category: {category}
+length: {len(content.split())}
 tags: ["#Summaries/ToRead"]
 ---
 

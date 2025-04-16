@@ -11,7 +11,7 @@ def load_channels(category: str) -> List[Channel]:
     Load channels from the configuration file for a specific category
     """
     config_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "config", "channels.yaml"
+        os.path.dirname(os.path.dirname(__file__)), "yt2md/config", "channels.yaml"
     )
 
     with open(config_path, "r", encoding="utf-8") as f:
