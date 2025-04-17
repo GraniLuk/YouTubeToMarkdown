@@ -124,7 +124,6 @@ def process_video(
             if saved_file_path:
                 print(f"Saved cloud LLM result to: {saved_file_path}")
                 saved_files.append(saved_file_path)
-                open_file(saved_file_path)
 
         # Save Ollama result if available
         if "ollama" in results:
@@ -149,7 +148,6 @@ def process_video(
             if ollama_file_path:
                 print(f"Saved Ollama result to: {ollama_file_path}")
                 saved_files.append(ollama_file_path)
-                open_file(ollama_file_path)
 
         return saved_files
 
