@@ -5,7 +5,7 @@ import time  # Add time module import
 from dotenv import load_dotenv
 
 from yt2md.AI import analyze_transcript_by_length
-from yt2md.config import load_channels
+from yt2md.config import load_channels_by_category
 from yt2md.file_operations import get_script_dir, open_file, save_to_markdown
 from yt2md.youtube import (
     get_video_details_from_url,
@@ -235,7 +235,7 @@ def main():
             return
 
         # Process videos from channels in a category
-        channels = load_channels(args.category)
+        channels = load_channels_by_category(args.category)
 
         if not channels:
             print(f"No channels found for category: {args.category}")
