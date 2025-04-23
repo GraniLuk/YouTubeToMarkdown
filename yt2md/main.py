@@ -204,11 +204,11 @@ def main():
     )
     args = parser.parse_args()
 
-    videos = []
+    videos_to_process = []  # List to hold all videos and their processing parameters
 
     try:
         if args.url:
-            # Process single video
+            # Add single video to processing list
             video_details = get_video_details_from_url(args.url, args.skip_verification)
             if not video_details:
                 print("Could not retrieve video details or video already processed")
@@ -221,21 +221,18 @@ def main():
             output_language = "English" if language_code == "en" else "Spanish" if language_code == "es" else "Polish"
             category = args.category
 
-            # Process the video using our common function
-            process_video(
+            # Add video to processing list
+            videos_to_process.append((
                 video_url,
                 video_title,
                 published_date,
                 channel_name,
                 language_code,
                 output_language,
-                category,
-                use_ollama=args.ollama,
-                use_cloud=args.cloud,
-                skip_verification=args.skip_verification,
-            )
-            return
-        if args.category:
+                category
+            ))
+            
+        elif args.category:
             # Process videos from channels in a category
             channels = load_channels_by_category(args.category)
 
@@ -257,29 +254,35 @@ def main():
             else:
                 print(f"Processing {args.category} channels...")
 
+            # Collect videos from all channels
             for channel in channels:
                 channel_videos = get_videos_from_channel(channel.id, args.days)
-                videos.extend(
-                    [
-                        (url, title, published_date, channel)
-                        for url, title, published_date in channel_videos
-                    ]
-                )
+                for url, title, published_date in channel_videos:
+                    videos_to_process.append((
+                        url,
+                        title,
+                        published_date,
+                        channel.name,
+                        channel.language_code,
+                        channel.output_language,
+                        channel.category
+                    ))
 
-            for video_url, video_title, published_date, channel in videos:
-                # Process the video using our common function
-                process_video(
-                    video_url,
-                    video_title,
-                    published_date,
-                    channel.name,
-                    channel.language_code,
-                    channel.output_language,
-                    channel.category,
-                    use_ollama=args.ollama,
-                    use_cloud=args.cloud,
-                    skip_verification=args.skip_verification,
-                )
+        # Process all collected videos
+        for (video_url, video_title, published_date, channel_name, 
+             language_code, output_language, category) in videos_to_process:
+            process_video(
+                video_url,
+                video_title,
+                published_date,
+                channel_name,
+                language_code,
+                output_language,
+                category,
+                use_ollama=args.ollama,
+                use_cloud=args.cloud,
+                skip_verification=args.skip_verification,
+            )
 
     except Exception as e:
         print(f"Error: {str(e)}")
