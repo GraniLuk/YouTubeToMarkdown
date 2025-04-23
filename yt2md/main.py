@@ -5,7 +5,7 @@ import time  # Add time module import
 from dotenv import load_dotenv
 
 from yt2md.AI import analyze_transcript_by_length
-from yt2md.config import load_channels_by_category
+from yt2md.config import load_all_channels, load_channels_by_category
 from yt2md.file_operations import get_script_dir, open_file, save_to_markdown
 from yt2md.youtube import (
     get_video_details_from_url,
@@ -166,7 +166,6 @@ def main():
     parser.add_argument(
         "--category",
         type=str,
-        default="IT",
         choices=["IT", "Crypto", "AI", "Fitness"],
         help="Category of channels to process (IT, Crypto, Fitness, or AI)",
     )
@@ -267,6 +266,21 @@ def main():
                         channel.output_language,
                         channel.category
                     ))
+        else:
+            channels = load_all_channels(args.category)
+            for channel in channels:
+                channel_videos = get_videos_from_channel(channel.id, args.days)
+                for url, title, published_date in channel_videos:
+                    videos_to_process.append((
+                        url,
+                        title,
+                        published_date,
+                        channel.name,
+                        channel.language_code,
+                        channel.output_language,
+                        channel.category
+                    ))
+        
 
         # Process all collected videos
         for (video_url, video_title, published_date, channel_name, 
