@@ -204,6 +204,8 @@ def main():
     )
     args = parser.parse_args()
 
+    videos = []
+
     try:
         if args.url:
             # Process single video
@@ -233,52 +235,51 @@ def main():
                 skip_verification=args.skip_verification,
             )
             return
+        if args.category:
+            # Process videos from channels in a category
+            channels = load_channels_by_category(args.category)
 
-        # Process videos from channels in a category
-        channels = load_channels_by_category(args.category)
-
-        if not channels:
-            print(f"No channels found for category: {args.category}")
-            return
-
-        # Filter by channel name if specified
-        if args.channel:
-            channels = [
-                ch for ch in channels if ch.name.lower() == args.channel.lower()
-            ]
             if not channels:
-                print(
-                    f"Channel '{args.channel}' not found in category '{args.category}'"
-                )
+                print(f"No channels found for category: {args.category}")
                 return
-            print(f"Processing channel: {args.channel} in {args.category} category...")
-        else:
-            print(f"Processing {args.category} channels...")
 
-        videos = []
-        for channel in channels:
-            channel_videos = get_videos_from_channel(channel.id, args.days)
-            videos.extend(
-                [
-                    (url, title, published_date, channel)
-                    for url, title, published_date in channel_videos
+            # Filter by channel name if specified
+            if args.channel:
+                channels = [
+                    ch for ch in channels if ch.name.lower() == args.channel.lower()
                 ]
-            )
+                if not channels:
+                    print(
+                        f"Channel '{args.channel}' not found in category '{args.category}'"
+                    )
+                    return
+                print(f"Processing channel: {args.channel} in {args.category} category...")
+            else:
+                print(f"Processing {args.category} channels...")
 
-        for video_url, video_title, published_date, channel in videos:
-            # Process the video using our common function
-            process_video(
-                video_url,
-                video_title,
-                published_date,
-                channel.name,
-                channel.language_code,
-                channel.output_language,
-                channel.category,
-                use_ollama=args.ollama,
-                use_cloud=args.cloud,
-                skip_verification=args.skip_verification,
-            )
+            for channel in channels:
+                channel_videos = get_videos_from_channel(channel.id, args.days)
+                videos.extend(
+                    [
+                        (url, title, published_date, channel)
+                        for url, title, published_date in channel_videos
+                    ]
+                )
+
+            for video_url, video_title, published_date, channel in videos:
+                # Process the video using our common function
+                process_video(
+                    video_url,
+                    video_title,
+                    published_date,
+                    channel.name,
+                    channel.language_code,
+                    channel.output_language,
+                    channel.category,
+                    use_ollama=args.ollama,
+                    use_cloud=args.cloud,
+                    skip_verification=args.skip_verification,
+                )
 
     except Exception as e:
         print(f"Error: {str(e)}")
