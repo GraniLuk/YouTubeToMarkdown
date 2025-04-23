@@ -267,7 +267,7 @@ def main():
                         channel.category
                     ))
         else:
-            channels = load_all_channels(args.category)
+            channels = load_all_channels()
             for channel in channels:
                 channel_videos = get_videos_from_channel(channel.id, args.days)
                 for url, title, published_date in channel_videos:
