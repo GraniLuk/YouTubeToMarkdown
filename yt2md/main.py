@@ -1,17 +1,22 @@
 import argparse
 import os
-import time  # Add time module import
+import time
+import logging
 
 from dotenv import load_dotenv
 
 from yt2md.AI import analyze_transcript_by_length
 from yt2md.config import load_all_channels, load_channels_by_category
 from yt2md.file_operations import get_script_dir, open_file, save_to_markdown
+from yt2md.logger import setup_logging, get_logger
 from yt2md.youtube import (
     get_video_details_from_url,
     get_videos_from_channel,
     get_youtube_transcript,
 )
+
+# Get logger for this module
+logger = get_logger('main')
 
 # Load environment variables
 env_path = os.path.join(get_script_dir(), ".env")
@@ -26,9 +31,7 @@ if not api_key:
 
 # Perplexity API key is optional but recommended for fallback
 if not perplexity_api_key:
-    print(
-        "Warning: PERPLEXITY_API_KEY not found. Fallback for rate limits won't be available."
-    )
+    logger.warning("PERPLEXITY_API_KEY not found. Fallback for rate limits won't be available.")
 
 # Load Ollama configuration from environment variables
 ollama_model = os.getenv("OLLAMA_MODEL", "gemma3:4b")
@@ -66,12 +69,12 @@ def process_video(
         list: Paths to the saved file(s) or None if processing failed
     """
     try:
-        print(f"Processing video: {video_title}")
+        logger.info(f"Processing video: {video_title}")
         saved_files = []
 
         # Get transcript
         transcript = get_youtube_transcript(video_url, language_code=language_code)
-        print(f"Transcript length: {len(transcript.split())} words")
+        logger.info(f"Transcript length: {len(transcript.split())} words")
 
         # Get API keys from environment
         api_key = os.getenv("GEMINI_API_KEY")
@@ -94,7 +97,7 @@ def process_video(
         execution_time = time.time() - start_time
         minutes = int(execution_time // 60)
         seconds = execution_time % 60
-        print(f"Transcript analysis completed in {minutes} min {seconds:.2f} sec")
+        logger.info(f"Transcript analysis completed in {minutes} min {seconds:.2f} sec")
 
         # Save cloud LLM result if available
         if "cloud" in results:
@@ -122,7 +125,7 @@ def process_video(
             )
 
             if saved_file_path:
-                print(f"Saved cloud LLM result to: {saved_file_path}")
+                logger.info(f"Saved cloud LLM result to: {saved_file_path}")
                 saved_files.append(saved_file_path)
 
         # Save Ollama result if available
@@ -146,13 +149,13 @@ def process_video(
             )
 
             if ollama_file_path:
-                print(f"Saved Ollama result to: {ollama_file_path}")
+                logger.info(f"Saved Ollama result to: {ollama_file_path}")
                 saved_files.append(ollama_file_path)
 
         return saved_files
 
     except Exception as e:
-        print(f"Error processing video {video_title}: {str(e)}")
+        logger.error(f"Error processing video {video_title}: {str(e)}", exc_info=True)
         return None
 
 
@@ -201,16 +204,42 @@ def main():
         action="store_true",
         help="Skip checking if video was already processed and don't update index",
     )
+    # Add logging related arguments
+    parser.add_argument(
+        "-v", "--verbose", 
+        action="store_true", 
+        help="Enable verbose output (DEBUG level)"
+    )
+    parser.add_argument(
+        "-q", "--quiet", 
+        action="store_true", 
+        help="Suppress all output except errors (ERROR level)"
+    )
+    parser.add_argument(
+        "--log-file", 
+        type=str,
+        help="Write logs to specified file"
+    )
     args = parser.parse_args()
-
+    
+    # Configure logging based on arguments
+    log_level = logging.INFO
+    if args.verbose:
+        log_level = logging.DEBUG
+    elif args.quiet:
+        log_level = logging.ERROR
+        
+    setup_logging(level=log_level, log_file=args.log_file)
+    
     videos_to_process = []  # List to hold all videos and their processing parameters
 
     try:
         if args.url:
             # Add single video to processing list
+            logger.info(f"Processing single video URL: {args.url}")
             video_details = get_video_details_from_url(args.url, args.skip_verification)
             if not video_details:
-                print("Could not retrieve video details or video already processed")
+                logger.warning("Could not retrieve video details or video already processed")
                 return
 
             video_url, video_title, published_date, channel_name = video_details
@@ -233,10 +262,11 @@ def main():
             
         elif args.category:
             # Process videos from channels in a category
+            logger.info(f"Processing videos from category: {args.category}")
             channels = load_channels_by_category(args.category)
 
             if not channels:
-                print(f"No channels found for category: {args.category}")
+                logger.warning(f"No channels found for category: {args.category}")
                 return
 
             # Filter by channel name if specified
@@ -245,17 +275,19 @@ def main():
                     ch for ch in channels if ch.name.lower() == args.channel.lower()
                 ]
                 if not channels:
-                    print(
+                    logger.warning(
                         f"Channel '{args.channel}' not found in category '{args.category}'"
                     )
                     return
-                print(f"Processing channel: {args.channel} in {args.category} category...")
+                logger.info(f"Processing channel: {args.channel} in {args.category} category...")
             else:
-                print(f"Processing {args.category} channels...")
+                logger.info(f"Processing {args.category} channels...")
 
             # Collect videos from all channels
             for channel in channels:
+                logger.debug(f"Getting videos from channel: {channel.name}")
                 channel_videos = get_videos_from_channel(channel.id, args.days)
+                logger.info(f"Found {len(channel_videos)} videos from {channel.name} in the last {args.days} days")
                 for url, title, published_date in channel_videos:
                     videos_to_process.append((
                         url,
@@ -267,9 +299,12 @@ def main():
                         channel.category
                     ))
         else:
+            logger.info("Processing videos from all channels")
             channels = load_all_channels()
             for channel in channels:
+                logger.debug(f"Getting videos from channel: {channel.name}")
                 channel_videos = get_videos_from_channel(channel.id, args.days)
+                logger.info(f"Found {len(channel_videos)} videos from {channel.name} in the last {args.days} days")
                 for url, title, published_date in channel_videos:
                     videos_to_process.append((
                         url,
@@ -281,6 +316,7 @@ def main():
                         channel.category
                     ))
         
+        logger.info(f"Total videos to process: {len(videos_to_process)}")
 
         # Process all collected videos
         for (video_url, video_title, published_date, channel_name, 
@@ -299,7 +335,7 @@ def main():
             )
 
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logger.error(f"Error in main process: {str(e)}", exc_info=True)
 
 
 if __name__ == "__main__":
