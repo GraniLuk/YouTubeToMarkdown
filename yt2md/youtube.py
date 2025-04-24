@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import googleapiclient
 import requests
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import VideoUnplayable
+from youtube_transcript_api._errors import VideoUnplayable, TranslationLanguageNotAvailable, TranscriptsDisabled, NoTranscriptFound
 
 from yt2md.video_index import get_processed_video_ids
 from yt2md.logger import get_logger
@@ -20,10 +20,10 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
 
     Args:
         video_url (str): YouTube video URL
-        language_code (str): Language code for the transcript (default: 'pl' for Polish)
+        language_code (str): Language code for the transcript (default: 'en' for English)
 
     Returns:
-        str: Video transcript as a single string
+        str: Video transcript as a single string or None if transcript is not available
     """
     try:
         # Extract video ID from URL
@@ -48,6 +48,18 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
         # Handle scheduled live videos or other unplayable videos without stack trace
         logger.error(f"No transcript available for {video_url}: Video is unplayable (possibly a scheduled live event)")
         return None
+    except TranslationLanguageNotAvailable as e:
+        # Handle when transcript is not available in the requested language
+        logger.error(f"No transcript found for {video_url} in language '{language_code}'. Try a different language.")
+        return None
+    except TranscriptsDisabled as e:
+        # Handle when transcripts are disabled for the video
+        logger.error(f"Transcripts are disabled for video {video_url}")
+        return None
+    except NoTranscriptFound as e:
+        # Handle when no transcripts are available at all
+        logger.error(f"No transcripts available for video {video_url}")
+        return None
     except Exception as e:
         logger.error(f"Transcript extraction error for {video_url}: {str(e)}")
         raise Exception(f"Transcript extraction error: {str(e)}")
@@ -66,7 +78,7 @@ def get_videos_from_channel(
         skip_verification (bool): If True, skip checking if videos were already processed
 
     Returns:
-        list[tuple[str, str]]: A list of tuples containing (video_url, video_title) for unprocessed videos
+        tuple[str, str, str, str]: A tuple containing (video_url, video_title, published_date, channel_name) for the video
     """
     API_KEY = os.getenv("YOUTUBE_API_KEY")
     logger.debug(f"Fetching videos from channel ID: {channel_id} for last {days} days")
