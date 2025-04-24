@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import googleapiclient
 import requests
 from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import VideoUnplayable
 
 from yt2md.video_index import get_processed_video_ids
 from yt2md.logger import get_logger
@@ -43,8 +44,12 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
         logger.debug(f"Transcript assembled with {len(transcript.split())} words")
         return transcript
 
+    except VideoUnplayable as e:
+        # Handle scheduled live videos or other unplayable videos without stack trace
+        logger.error(f"No transcript available for {video_url}: Video is unplayable (possibly a scheduled live event)")
+        return None
     except Exception as e:
-        logger.error(f"Transcript extraction error for {video_url}: {str(e)}", exc_info=True)
+        logger.error(f"Transcript extraction error for {video_url}: {str(e)}")
         raise Exception(f"Transcript extraction error: {str(e)}")
 
 

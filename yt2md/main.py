@@ -74,6 +74,9 @@ def process_video(
 
         # Get transcript
         transcript = get_youtube_transcript(video_url, language_code=language_code)
+        if transcript is None:
+            logger.warning(f"No transcript available for {video_url}. Skipping video.")
+            return None
         logger.info(f"Transcript length: {len(transcript.split())} words")
 
         # Get API keys from environment
