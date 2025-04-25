@@ -3,12 +3,13 @@ import logging
 import os
 import time
 
+import colorama
 from dotenv import load_dotenv
 
 from yt2md.AI import analyze_transcript_by_length
 from yt2md.config import load_all_channels, load_channels_by_category
 from yt2md.file_operations import get_script_dir, open_file, save_to_markdown
-from yt2md.logger import get_logger, setup_logging
+from yt2md.logger import colored_text, get_logger, setup_logging
 from yt2md.youtube import (
     get_video_details_from_url,
     get_videos_from_channel,
@@ -17,6 +18,19 @@ from yt2md.youtube import (
 
 # Get logger for this module
 logger = get_logger("main")
+
+# Add color constants
+BLUE = "\033[34m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+CYAN = "\033[36m"
+RESET = "\033[0m"
+
+
+def colorize(text, color):
+    """Add color to text for terminal output"""
+    return f"{color}{text}{RESET}"
+
 
 # Load environment variables
 env_path = os.path.join(get_script_dir(), ".env")
@@ -80,7 +94,13 @@ def process_video(
         transcript = get_youtube_transcript(video_url, language_code=language_code)
         if transcript is None:
             return None
-        logger.info(f"Transcript length: {len(transcript.split())} words")
+
+        transcript_length = len(transcript.split())
+        logger.info(
+            colored_text(
+                f"Transcript length: {transcript_length} words", colorama.Fore.CYAN
+            )
+        )
 
         # Get API keys from environment
         api_key = os.getenv("GEMINI_API_KEY")
@@ -103,7 +123,12 @@ def process_video(
         execution_time = time.time() - start_time
         minutes = int(execution_time // 60)
         seconds = execution_time % 60
-        logger.info(f"Transcript analysis completed in {minutes} min {seconds:.2f} sec")
+        logger.info(
+            colored_text(
+                f"Transcript analysis completed in {minutes} min {seconds:.2f} sec",
+                colorama.Fore.CYAN,
+            )
+        )
 
         # Save cloud LLM result if available
         if "cloud" in results:
