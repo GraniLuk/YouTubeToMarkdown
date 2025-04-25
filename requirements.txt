@@ -8,3 +8,4 @@ oauth2client
 google_auth_oauthlib
 setuptools
 pyyaml>=6.0
+colorama>=0.4.6
