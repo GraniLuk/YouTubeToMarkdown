@@ -1,5 +1,6 @@
 import os
 
+from yt2md import logger
 from yt2md.llm_strategies import LLMFactory
 
 
@@ -184,7 +185,7 @@ def analyze_transcript_by_length(
     """
     results = {}
     transcript_length = len(transcript)
-    
+
     # Handle force flags - force_cloud takes precedence over force_ollama
     if force_cloud:
         use_cloud = True
@@ -199,11 +200,11 @@ def analyze_transcript_by_length(
 
     # Log the strategy being used
     if use_ollama and use_cloud:
-        print("Using both cloud and local LLM processing")
+        logger.info("Using both cloud and local LLM processing")
     elif use_ollama:
-        print("Using only local LLM (Ollama) processing")
+        logger.info("Using only local LLM (Ollama) processing")
     else:
-        print("Using only cloud LLM processing")
+        logger.info("Using only cloud LLM processing")
 
     # Process with cloud LLM if needed
     if use_cloud:
