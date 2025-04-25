@@ -13,7 +13,7 @@ from youtube_transcript_api._errors import (
 )
 
 from yt2md.logger import get_logger
-from yt2md.video_index import get_processed_video_ids
+from yt2md.video_index import get_processed_video_ids, update_video_index
 
 # Get logger for this module
 logger = get_logger("youtube")
@@ -51,23 +51,32 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
         logger.debug(f"Transcript assembled with {len(transcript.split())} words")
         return transcript
 
-    except VideoUnplayable as e:
+    except VideoUnplayable:
         # Handle scheduled live videos or other unplayable videos without stack trace
         logger.error(
             f"No transcript available for {video_url}: Video is unplayable (possibly a scheduled live event)"
         )
         return None
-    except TranslationLanguageNotAvailable as e:
+    except TranslationLanguageNotAvailable:
         # Handle when transcript is not available in the requested language
         logger.error(
             f"No transcript found for {video_url} in language '{language_code}'. Try a different language."
         )
         return None
-    except TranscriptsDisabled as e:
+    except TranscriptsDisabled:
         # Handle when transcripts are disabled for the video
         logger.error(f"Transcripts are disabled for video {video_url}")
+
+        # Use the already extracted video_id to add to the index
+        try:
+            # Add to index with special marker to indicate transcripts are disabled
+            update_video_index(video_id, "TRANSCRIPTS_DISABLED", False)
+            logger.info(f"Added video {video_id} to index as TRANSCRIPTS_DISABLED")
+        except Exception as index_error:
+            logger.error(f"Failed to update video index: {str(index_error)}")
+
         return None
-    except NoTranscriptFound as e:
+    except NoTranscriptFound:
         # Handle when no transcripts are available at all
         logger.error(f"No transcripts available for video {video_url}")
         return None
@@ -182,7 +191,7 @@ def get_video_details_from_url(
         skip_verification (bool): If True, skip checking if video was already processed
 
     Returns:
-        list[tuple[str, str]]: A list of tuples containing (video_url, video_title) for unprocessed videos
+        tuple[str, str, str, str] or None: A tuple containing (video_url, video_title, published_date, channel_name) or None if an error occurs
     """
     API_KEY = os.getenv("YOUTUBE_API_KEY")
     logger.debug(f"Getting video details for URL: {url}")
@@ -191,7 +200,7 @@ def get_video_details_from_url(
     video_id = extract_video_id(url)
     if not video_id:
         logger.error(f"Invalid YouTube URL: {url}")
-        return "Invalid YouTube URL"
+        return None
 
     logger.debug(f"Extracted video ID: {video_id}")
 
