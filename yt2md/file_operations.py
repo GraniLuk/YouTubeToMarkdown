@@ -4,11 +4,11 @@ import sys
 import unicodedata
 from datetime import datetime
 
-from yt2md.video_index import update_video_index
 from yt2md.logger import get_logger
+from yt2md.video_index import update_video_index
 
 # Get logger for this module
-logger = get_logger('file_operations')
+logger = get_logger("file_operations")
 
 
 def get_script_dir():
@@ -24,7 +24,7 @@ def sanitize_filename(filename):
     """Clean up a filename to make it valid for all platforms."""
     logger.debug(f"Sanitizing filename: {filename[:50]}...")
     original_filename = filename
-    
+
     # Remove emojis and other special unicode characters
     try:
         # Try to normalize and remove non-ASCII characters
@@ -50,10 +50,10 @@ def sanitize_filename(filename):
     if not filename or filename.isspace():
         filename = "untitled_content"
         logger.warning("Empty filename after sanitization, using default")
-    
+
     if filename != original_filename:
         logger.debug(f"Sanitized filename: {filename[:50]}...")
-    
+
     return filename
 
 
@@ -97,9 +97,11 @@ def save_to_markdown(
     Returns:
         str: Path to the saved file
     """
-    logger.info(f"Saving markdown for: {title}")
-    logger.debug(f"Content length: {len(content)} characters, Author: {author}, Category: {category}")
-    
+    logger.debug(f"Saving markdown for: {title}")
+    logger.debug(
+        f"Content length: {len(content)} characters, Author: {author}, Category: {category}"
+    )
+
     # Get path from environment variable
     summaries_dir = os.getenv("SUMMARIES_PATH")
     if not summaries_dir:
@@ -144,7 +146,7 @@ def save_to_markdown(
     # Create the full filename
     filename = f"{date_prefix}{clean_title}.md"
     filepath = os.path.join(file_dir, filename)
-    logger.info(f"Writing to file: {filepath}")
+    logger.debug(f"Writing to file: {filepath}")
 
     # Get current date for 'created' field
     created_date = datetime.now().strftime("%Y-%m-%d")

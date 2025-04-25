@@ -1,14 +1,14 @@
 import argparse
+import logging
 import os
 import time
-import logging
 
 from dotenv import load_dotenv
 
 from yt2md.AI import analyze_transcript_by_length
 from yt2md.config import load_all_channels, load_channels_by_category
 from yt2md.file_operations import get_script_dir, open_file, save_to_markdown
-from yt2md.logger import setup_logging, get_logger
+from yt2md.logger import get_logger, setup_logging
 from yt2md.youtube import (
     get_video_details_from_url,
     get_videos_from_channel,
@@ -16,7 +16,7 @@ from yt2md.youtube import (
 )
 
 # Get logger for this module
-logger = get_logger('main')
+logger = get_logger("main")
 
 # Load environment variables
 env_path = os.path.join(get_script_dir(), ".env")
@@ -31,7 +31,9 @@ if not api_key:
 
 # Perplexity API key is optional but recommended for fallback
 if not perplexity_api_key:
-    logger.warning("PERPLEXITY_API_KEY not found. Fallback for rate limits won't be available.")
+    logger.warning(
+        "PERPLEXITY_API_KEY not found. Fallback for rate limits won't be available."
+    )
 
 # Load Ollama configuration from environment variables
 ollama_model = os.getenv("OLLAMA_MODEL", "gemma3:4b")
@@ -69,7 +71,7 @@ def process_video(
         list: Paths to the saved file(s) or None if processing failed
     """
     try:
-        logger.info(f"Processing video: {video_title}")
+        logger.info(f"Processing video: {video_title} by {author_name}")
         saved_files = []
 
         # Get transcript
@@ -208,31 +210,29 @@ def main():
     )
     # Add logging related arguments
     parser.add_argument(
-        "-v", "--verbose", 
-        action="store_true", 
-        help="Enable verbose output (DEBUG level)"
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output (DEBUG level)",
     )
     parser.add_argument(
-        "-q", "--quiet", 
-        action="store_true", 
-        help="Suppress all output except errors (ERROR level)"
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress all output except errors (ERROR level)",
     )
-    parser.add_argument(
-        "--log-file", 
-        type=str,
-        help="Write logs to specified file"
-    )
+    parser.add_argument("--log-file", type=str, help="Write logs to specified file")
     args = parser.parse_args()
-    
+
     # Configure logging based on arguments
     log_level = logging.INFO
     if args.verbose:
         log_level = logging.DEBUG
     elif args.quiet:
         log_level = logging.ERROR
-        
+
     setup_logging(level=log_level, log_file=args.log_file)
-    
+
     videos_to_process = []  # List to hold all videos and their processing parameters
 
     try:
@@ -241,27 +241,37 @@ def main():
             logger.info(f"Processing single video URL: {args.url}")
             video_details = get_video_details_from_url(args.url, args.skip_verification)
             if not video_details:
-                logger.warning("Could not retrieve video details or video already processed")
+                logger.warning(
+                    "Could not retrieve video details or video already processed"
+                )
                 return
 
             video_url, video_title, published_date, channel_name = video_details
 
             # Use the specified language for single video processing
             language_code = args.language
-            output_language = "English" if language_code == "en" else "Spanish" if language_code == "es" else "Polish"
+            output_language = (
+                "English"
+                if language_code == "en"
+                else "Spanish"
+                if language_code == "es"
+                else "Polish"
+            )
             category = args.category
 
             # Add video to processing list
-            videos_to_process.append((
-                video_url,
-                video_title,
-                published_date,
-                channel_name,
-                language_code,
-                output_language,
-                category
-            ))
-            
+            videos_to_process.append(
+                (
+                    video_url,
+                    video_title,
+                    published_date,
+                    channel_name,
+                    language_code,
+                    output_language,
+                    category,
+                )
+            )
+
         elif args.category:
             # Process videos from channels in a category
             logger.info(f"Processing videos from category: {args.category}")
@@ -281,7 +291,9 @@ def main():
                         f"Channel '{args.channel}' not found in category '{args.category}'"
                     )
                     return
-                logger.info(f"Processing channel: {args.channel} in {args.category} category...")
+                logger.info(
+                    f"Processing channel: {args.channel} in {args.category} category..."
+                )
             else:
                 logger.info(f"Processing {args.category} channels...")
 
@@ -289,40 +301,55 @@ def main():
             for channel in channels:
                 logger.debug(f"Getting videos from channel: {channel.name}")
                 channel_videos = get_videos_from_channel(channel.id, args.days)
-                logger.info(f"Found {len(channel_videos)} videos from {channel.name} in the last {args.days} days")
+                logger.info(
+                    f"Found {len(channel_videos)} videos from {channel.name} in the last {args.days} days"
+                )
                 for url, title, published_date in channel_videos:
-                    videos_to_process.append((
-                        url,
-                        title,
-                        published_date,
-                        channel.name,
-                        channel.language_code,
-                        channel.output_language,
-                        channel.category
-                    ))
+                    videos_to_process.append(
+                        (
+                            url,
+                            title,
+                            published_date,
+                            channel.name,
+                            channel.language_code,
+                            channel.output_language,
+                            channel.category,
+                        )
+                    )
         else:
             logger.info("Processing videos from all channels")
             channels = load_all_channels()
             for channel in channels:
                 logger.debug(f"Getting videos from channel: {channel.name}")
                 channel_videos = get_videos_from_channel(channel.id, args.days)
-                logger.info(f"Found {len(channel_videos)} videos from {channel.name} in the last {args.days} days")
+                logger.info(
+                    f"Found {len(channel_videos)} videos from {channel.name} in the last {args.days} days"
+                )
                 for url, title, published_date in channel_videos:
-                    videos_to_process.append((
-                        url,
-                        title,
-                        published_date,
-                        channel.name,
-                        channel.language_code,
-                        channel.output_language,
-                        channel.category
-                    ))
-        
+                    videos_to_process.append(
+                        (
+                            url,
+                            title,
+                            published_date,
+                            channel.name,
+                            channel.language_code,
+                            channel.output_language,
+                            channel.category,
+                        )
+                    )
+
         logger.info(f"Total videos to process: {len(videos_to_process)}")
 
         # Process all collected videos
-        for (video_url, video_title, published_date, channel_name, 
-             language_code, output_language, category) in videos_to_process:
+        for (
+            video_url,
+            video_title,
+            published_date,
+            channel_name,
+            language_code,
+            output_language,
+            category,
+        ) in videos_to_process:
             process_video(
                 video_url,
                 video_title,
