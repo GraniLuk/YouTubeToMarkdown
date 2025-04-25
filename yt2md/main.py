@@ -71,7 +71,9 @@ def process_video(
         list: Paths to the saved file(s) or None if processing failed
     """
     try:
-        logger.info(f"Processing video: {video_title} by {author_name}")
+        logger.info(
+            f"Processing video: {video_title} by {author_name} with URL: {video_url}"
+        )
         saved_files = []
 
         # Get transcript
