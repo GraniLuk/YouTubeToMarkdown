@@ -5,13 +5,18 @@ from datetime import datetime, timedelta
 import googleapiclient
 import requests
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import VideoUnplayable, TranslationLanguageNotAvailable, TranscriptsDisabled, NoTranscriptFound
+from youtube_transcript_api._errors import (
+    NoTranscriptFound,
+    TranscriptsDisabled,
+    TranslationLanguageNotAvailable,
+    VideoUnplayable,
+)
 
-from yt2md.video_index import get_processed_video_ids
 from yt2md.logger import get_logger
+from yt2md.video_index import get_processed_video_ids
 
 # Get logger for this module
-logger = get_logger('youtube')
+logger = get_logger("youtube")
 
 
 def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
@@ -28,29 +33,35 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
     try:
         # Extract video ID from URL
         video_id = video_url.split("?v=")[1].split("&")[0]
-        
-        logger.debug(f"Extracting transcript for video ID: {video_id} with language: {language_code}")
+
+        logger.debug(
+            f"Extracting transcript for video ID: {video_id} with language: {language_code}"
+        )
 
         # Get transcript with specified language
         transcript_list = YouTubeTranscriptApi.get_transcript(
             video_id, languages=[language_code]
         )
-        
+
         logger.debug(f"Retrieved {len(transcript_list)} transcript segments")
 
         # Combine all transcript pieces into one string
         transcript = " ".join([transcript["text"] for transcript in transcript_list])
-        
+
         logger.debug(f"Transcript assembled with {len(transcript.split())} words")
         return transcript
 
     except VideoUnplayable as e:
         # Handle scheduled live videos or other unplayable videos without stack trace
-        logger.error(f"No transcript available for {video_url}: Video is unplayable (possibly a scheduled live event)")
+        logger.error(
+            f"No transcript available for {video_url}: Video is unplayable (possibly a scheduled live event)"
+        )
         return None
     except TranslationLanguageNotAvailable as e:
         # Handle when transcript is not available in the requested language
-        logger.error(f"No transcript found for {video_url} in language '{language_code}'. Try a different language.")
+        logger.error(
+            f"No transcript found for {video_url} in language '{language_code}'. Try a different language."
+        )
         return None
     except TranscriptsDisabled as e:
         # Handle when transcripts are disabled for the video
@@ -116,7 +127,9 @@ def get_videos_from_channel(
                 break
 
             if "items" in data:
-                logger.debug(f"Retrieved {len(data['items'])} videos on page {page_count}")
+                logger.debug(
+                    f"Retrieved {len(data['items'])} videos on page {page_count}"
+                )
                 for item in data["items"]:
                     video_id = item["id"]["videoId"]
                     if not skip_verification and video_id in processed_video_ids:
@@ -140,10 +153,12 @@ def get_videos_from_channel(
                 logger.debug("No more pages to fetch")
                 break
         except Exception as e:
-            logger.error(f"Error fetching videos from channel {channel_id}: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error fetching videos from channel {channel_id}: {str(e)}",
+                exc_info=True,
+            )
             break
-            
-    logger.info(f"Found {len(videos)} unprocessed videos from channel {channel_id}")
+
     return videos
 
 
@@ -207,11 +222,13 @@ def get_video_details_from_url(
                     0
                 ]  # Get just the date part
                 channel_name = firstItem["snippet"]["channelTitle"]
-                logger.info(f"Retrieved details for video: {title} from channel {channel_name}")
+                logger.info(
+                    f"Retrieved details for video: {title} from channel {channel_name}"
+                )
                 return (video_url, title, published_date, channel_name)
         else:
             logger.warning(f"No video details found for ID: {video_id}")
     except Exception as e:
         logger.error(f"Error getting video details for {url}: {str(e)}", exc_info=True)
-        
+
     return None
