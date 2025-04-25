@@ -79,6 +79,15 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
     except NoTranscriptFound:
         # Handle when no transcripts are available at all
         logger.error(f"No transcripts available for video {video_url}")
+
+        # Use the already extracted video_id to add to the index
+        try:
+            # Add to index with special marker to indicate no transcripts found
+            update_video_index(video_id, "NO_TRANSCRIPT_FOUND", False)
+            logger.info(f"Added video {video_id} to index as NO_TRANSCRIPT_FOUND")
+        except Exception as index_error:
+            logger.error(f"Failed to update video index: {str(index_error)}")
+
         return None
     except Exception as e:
         logger.error(f"Transcript extraction error for {video_url}: {str(e)}")
