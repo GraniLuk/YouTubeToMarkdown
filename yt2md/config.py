@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 import yaml
 
@@ -7,7 +7,7 @@ from .channel import Channel
 from .logger import get_logger
 
 # Get logger for this module
-logger = get_logger('config')
+logger = get_logger("config")
 
 
 def _get_config_path() -> str:
@@ -46,7 +46,7 @@ def _create_channel(channel_data: Dict[str, Any], category: str) -> Channel:
 
 def load_channels_by_category(category: str) -> List[Channel]:
     """Load channels from the configuration file for a specific category"""
-    logger.info(f"Loading channels for category: {category}")
+    logger.debug(f"Loading channels for category: {category}")
     config = _load_config()
 
     if category not in config:
@@ -54,7 +54,7 @@ def load_channels_by_category(category: str) -> List[Channel]:
         return []
 
     channels = [_create_channel(channel, category) for channel in config[category]]
-    logger.info(f"Loaded {len(channels)} channels for category '{category}'")
+    logger.debug(f"Loaded {len(channels)} channels for category '{category}'")
     return channels
 
 
@@ -62,10 +62,12 @@ def load_all_channels() -> List[Channel]:
     """Load channels from the configuration file for all categories"""
     logger.info("Loading all channels from configuration")
     config = _load_config()
-    
+
     all_channels = []
     for category, channels_in_category in config.items():
-        logger.debug(f"Loading {len(channels_in_category)} channels from category '{category}'")
+        logger.debug(
+            f"Loading {len(channels_in_category)} channels from category '{category}'"
+        )
         for channel in channels_in_category:
             all_channels.append(_create_channel(channel, category))
     logger.info(f"Loaded {len(all_channels)} channels in total")
