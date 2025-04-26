@@ -1,7 +1,9 @@
 import os
 
-from yt2md import logger
 from yt2md.llm_strategies import LLMFactory
+from yt2md.logger import get_logger
+
+logger = get_logger("AI")
 
 
 def analyze_transcript_with_perplexity(
