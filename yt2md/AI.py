@@ -88,7 +88,7 @@ def analyze_transcript_with_gemini(
             if "429" in error_message or "too many requests" in error_message:
                 # Fallback to Perplexity API if Gemini returns a 429 error and a key is provided
                 if perplexity_api_key:
-                    print(
+                    logger.warning(
                         "Gemini API rate limit hit, falling back to Perplexity API..."
                     )
                     perplexity_strategy = LLMFactory.get_strategy("perplexity")
@@ -221,7 +221,7 @@ def analyze_transcript_by_length(
             )
             results["cloud"] = cloud_result
         except Exception as e:
-            print(f"Error with cloud LLM processing: {str(e)}")
+            logger.error(f"Error with cloud LLM processing: {str(e)}")
 
     # Process with Ollama if needed
     if use_ollama:
@@ -235,10 +235,10 @@ def analyze_transcript_by_length(
             )
             results["ollama"] = ollama_result
         except Exception as e:
-            print(f"Error with Ollama processing: {str(e)}")
+            logger.error(f"Error with Ollama processing: {str(e)}")
             # If Ollama was the only strategy and it failed, try cloud as fallback
             if not use_cloud and "cloud" not in results:
-                print("Falling back to cloud LLM processing...")
+                logger.info("Falling back to cloud LLM processing...")
                 try:
                     cloud_result = analyze_transcript_with_gemini(
                         transcript=transcript,
@@ -250,7 +250,7 @@ def analyze_transcript_by_length(
                     )
                     results["cloud"] = cloud_result
                 except Exception as cloud_error:
-                    print(f"Cloud fallback also failed: {str(cloud_error)}")
+                    logger.error(f"Cloud fallback also failed: {str(cloud_error)}")
 
     return results
 
