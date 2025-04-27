@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from yt2md.AI import analyze_transcript_by_length
 from yt2md.config import load_all_channels, load_channels_by_category
-from yt2md.file_operations import get_script_dir, open_file, save_to_markdown
+from yt2md.file_operations import get_script_dir, save_to_markdown
 from yt2md.logger import colored_text, get_logger, setup_logging
 from yt2md.youtube import (
     get_video_details_from_url,
@@ -18,19 +18,6 @@ from yt2md.youtube import (
 
 # Get logger for this module
 logger = get_logger("main")
-
-# Add color constants
-BLUE = "\033[34m"
-GREEN = "\033[32m"
-YELLOW = "\033[33m"
-CYAN = "\033[36m"
-RESET = "\033[0m"
-
-
-def colorize(text, color):
-    """Add color to text for terminal output"""
-    return f"{color}{text}{RESET}"
-
 
 # Load environment variables
 env_path = os.path.join(get_script_dir(), ".env")
