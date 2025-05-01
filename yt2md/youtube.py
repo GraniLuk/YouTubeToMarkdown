@@ -9,7 +9,7 @@ from youtube_transcript_api._errors import (
     NoTranscriptFound,
     TranscriptsDisabled,
     TranslationLanguageNotAvailable,
-    VideoUnplayable,
+    VideoUnavailable,
 )
 
 from yt2md.logger import get_logger
@@ -51,10 +51,10 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
         logger.debug(f"Transcript assembled with {len(transcript.split())} words")
         return transcript
 
-    except VideoUnplayable:
-        # Handle scheduled live videos or other unplayable videos without stack trace
+    except VideoUnavailable:
+        # Handle unavailable videos without stack trace
         logger.error(
-            f"No transcript available for {video_url}: Video is unplayable (possibly a scheduled live event)"
+            f"No transcript available for {video_url}: Video is unavailable (possibly a scheduled live event)"
         )
         return None
     except TranslationLanguageNotAvailable:
