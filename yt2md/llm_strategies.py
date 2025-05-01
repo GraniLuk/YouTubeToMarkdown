@@ -62,6 +62,40 @@ class LLMStrategy(ABC):
         """
         pass
 
+    @staticmethod
+    def process_model_response(text: str, is_first_chunk: bool) -> tuple[str, str]:
+        """
+        Process model response to extract description and clean up text.
+
+        Args:
+            text: The raw model response text
+            is_first_chunk: Whether this is the first chunk of the response
+
+        Returns:
+            tuple[str, str]: Processed text and extracted description (or empty string if not first chunk)
+        """
+        description = ""
+
+        # Only extract description from first chunk
+        if is_first_chunk:
+            lines = text.split("\n")
+            # Find the first occurrence of description line
+            description_index = -1
+            for idx, line in enumerate(lines):
+                if line.startswith("DESCRIPTION:") or line.startswith("OPIS:"):
+                    description_index = idx
+                    prefix = (
+                        "DESCRIPTION:" if line.startswith("DESCRIPTION:") else "OPIS:"
+                    )
+                    description = line.replace(prefix, "").strip()
+                    break
+
+            # Remove all text before and including the description line if found
+            if description_index != -1:
+                text = "\n".join(lines[description_index + 1 :])
+
+        return text, description
+
 
 class GeminiStrategy(LLMStrategy):
     """Gemini LLM implementation strategy."""
@@ -133,18 +167,17 @@ class GeminiStrategy(LLMStrategy):
                 response = model.generate_content(full_prompt)
                 text = response.text
 
-                # Extract description from first chunk
-                if i == 0:
-                    lines = text.split("\n")
-                    if lines[0].startswith("DESCRIPTION:"):
-                        description = lines[0].replace("DESCRIPTION:", "").strip()
-                        text = "\n".join(lines[1:])
-                    if lines[0].startswith("OPIS:"):
-                        description = lines[0].replace("OPIS:", "").strip()
-                        text = "\n".join(lines[1:])
+                # Process the response text
+                processed_text, chunk_description = self.process_model_response(
+                    text, i == 0
+                )
 
-                previous_response = text
-                final_output.append(text)
+                # Save description only from the first chunk
+                if i == 0 and chunk_description:
+                    description = chunk_description
+
+                previous_response = processed_text
+                final_output.append(processed_text)
 
             except Exception as e:
                 raise Exception(f"Gemini API error: {str(e)}")
@@ -237,15 +270,17 @@ class PerplexityStrategy(LLMStrategy):
                     result = response.json()
                     text = result["choices"][0]["message"]["content"]
 
-                    # Extract description from first chunk only
-                    if i == 0:
-                        lines = text.split("\n")
-                        if lines[0].startswith("DESCRIPTION:"):
-                            description = lines[0].replace("DESCRIPTION:", "").strip()
-                            text = "\n".join(lines[1:])
+                    # Process the response text
+                    processed_text, chunk_description = self.process_model_response(
+                        text, i == 0
+                    )
 
-                    previous_response = text
-                    final_output.append(text)
+                    # Save description only from the first chunk
+                    if i == 0 and chunk_description:
+                        description = chunk_description
+
+                    previous_response = processed_text
+                    final_output.append(processed_text)
                     break
 
                 except requests.exceptions.HTTPError as e:
@@ -354,15 +389,17 @@ class OllamaStrategy(LLMStrategy):
                     result = response.json()
                     text = result.get("response", "")
 
-                    # Extract description from first chunk only
-                    if i == 0:
-                        lines = text.split("\n")
-                        if lines[0].startswith("DESCRIPTION:"):
-                            description = lines[0].replace("DESCRIPTION:", "").strip()
-                            text = "\n".join(lines[1:])
+                    # Process the response text
+                    processed_text, chunk_description = self.process_model_response(
+                        text, i == 0
+                    )
 
-                    previous_response = text
-                    final_output.append(text)
+                    # Save description only from the first chunk
+                    if i == 0 and chunk_description:
+                        description = chunk_description
+
+                    previous_response = processed_text
+                    final_output.append(processed_text)
                     break
 
                 except requests.exceptions.RequestException as e:
