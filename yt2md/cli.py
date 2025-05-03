@@ -15,7 +15,6 @@ def create_parser():
     parser.add_argument(
         "--category",
         type=str,
-        default="IT",
         choices=["IT", "Crypto", "AI", "Fitness"],
         help="Category of channels to process (IT, Crypto, Fitness, or AI)",
     )
@@ -28,7 +27,7 @@ def create_parser():
         "--language",
         type=str,
         default="en",
-        choices=["en", "pl"],
+        choices=["en", "pl", "es"],
         help="Language code for the transcript (default: 'en' for English)",
     )
     parser.add_argument(
@@ -41,7 +40,30 @@ def create_parser():
         action="store_true",
         help="Also process transcript with local Ollama LLM",
     )
-
+    parser.add_argument(
+        "--cloud",
+        action="store_true",
+        help="Force using cloud services only for transcript processing",
+    )
+    parser.add_argument(
+        "--skip-verification",
+        action="store_true",
+        help="Skip checking if video was already processed and don't update index",
+    )
+    # Add logging related arguments
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output (DEBUG level)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress all output except errors (ERROR level)",
+    )
+    parser.add_argument("--log-file", type=str, help="Write logs to specified file")
     return parser
 
 
