@@ -73,7 +73,10 @@ def main():
     """Entry point for the CLI command.
     Parses arguments and delegates to main module for execution.
     """
-    from yt2md.main import run_main
+    from yt2md.main import display_logo, run_main
+
+    # Display the welcome logo
+    display_logo()
 
     args = parse_args()
     run_main(args)

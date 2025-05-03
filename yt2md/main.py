@@ -41,6 +41,21 @@ ollama_model = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 
+def display_logo():
+    """Display the YT2MD ASCII art logo."""
+    logo = """
+╱╱╱╱╱╱╱╱╱╱╱╱╭━━━┳━╮╱╭┳━━━╮
+╱╱╱╱╱╱╱╱╱╱╱╱┃╭━╮┃╭╯╱┃┃╭━╮┃
+╭╮╭┳━━┳━━━╮╱┃╰━╯┃╰╮╱┃┃╰━━╮
+┃╰╯┃╭╮┣━━┃┃╱┃╭━━┫╭╯╱┃┣━━╮┃
+┃┃┃┃╭╮┃┃━┫┃╱┃┃╱╱┃┃╱╱┃┃╰━╯┃
+╰┻┻┻╯╰┻━━╯╰╮╰╯╱╱╰╯╱╱╰┻━━━╯
+╱╱╱╱╱╱╱╱╱╱╱╯╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+    YouTube to Markdown Converter
+    """
+    print(logo)
+
+
 def run_main(args):
     # Configure logging based on arguments
     log_level = logging.INFO
@@ -111,6 +126,9 @@ def run_main(args):
 def main():
     """Main entry point for the application."""
     try:
+        # Display welcome logo
+        display_logo()
+
         # Parse command line arguments
         args = parse_args()
 
