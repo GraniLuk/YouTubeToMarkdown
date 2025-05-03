@@ -1,5 +1,4 @@
 import argparse
-import sys
 
 
 def create_parser():
@@ -68,3 +67,13 @@ def parse_args(args=None):
     """Parse command line arguments."""
     parser = create_parser()
     return parser.parse_args(args)
+
+
+def main():
+    """Entry point for the CLI command.
+    Parses arguments and delegates to main module for execution.
+    """
+    from yt2md.main import run_main
+
+    args = parse_args()
+    run_main(args)
