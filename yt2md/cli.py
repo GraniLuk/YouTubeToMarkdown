@@ -1,8 +1,6 @@
 import argparse
 import sys
 
-from yt2md.main import main as yt2md_main
-
 
 def create_parser():
     """Create the command line argument parser."""
@@ -50,7 +48,6 @@ def create_parser():
         action="store_true",
         help="Skip checking if video was already processed and don't update index",
     )
-    # Add logging related arguments
     parser.add_argument(
         "-v",
         "--verbose",
@@ -71,17 +68,3 @@ def parse_args(args=None):
     """Parse command line arguments."""
     parser = create_parser()
     return parser.parse_args(args)
-
-
-def main():
-    try:
-        yt2md_main()
-    except KeyboardInterrupt:
-        sys.exit(0)
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

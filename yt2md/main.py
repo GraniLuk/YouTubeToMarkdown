@@ -1,10 +1,11 @@
 import logging
 import os
+import sys
 import time
 
 from dotenv import load_dotenv
 
-from yt2md.cli import parse_arguments
+from yt2md.cli import parse_args  # Import parse_args directly
 from yt2md.file_operations import get_script_dir
 from yt2md.logger import get_logger, setup_logging
 from yt2md.processor import process_video
@@ -40,10 +41,7 @@ ollama_model = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 
-def main():
-    # Parse command line arguments using imported function
-    args = parse_arguments()
-
+def run_main(args):
     # Configure logging based on arguments
     log_level = logging.INFO
     if args.verbose:
@@ -108,6 +106,21 @@ def main():
 
     except Exception as e:
         logger.error(f"Error in main process: {str(e)}", exc_info=True)
+
+
+def main():
+    """Main entry point for the application."""
+    try:
+        # Parse command line arguments
+        args = parse_args()
+
+        # Run the application with parsed arguments
+        run_main(args)
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
