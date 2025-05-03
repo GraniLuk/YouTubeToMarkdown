@@ -63,6 +63,10 @@ def process_video(
         # Get transcript
         transcript = get_youtube_transcript(video_url, language_code=language_code)
         if transcript is None:
+            # The error has already been logged in get_youtube_transcript
+            logger.error(
+                f"Error processing video {video_title}: Transcript extraction failed"
+            )
             return None
 
         transcript_length = len(transcript.split())
@@ -156,5 +160,7 @@ def process_video(
         return saved_files
 
     except Exception as e:
-        logger.error(f"Error processing video {video_title}: {str(e)}", exc_info=True)
+        # Log error message without stack trace
+        error_msg = str(e).split("!")[0] if "!" in str(e) else str(e)
+        logger.error(f"Error processing video {video_title}: {error_msg}")
         return None

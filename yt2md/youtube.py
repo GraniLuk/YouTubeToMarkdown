@@ -10,6 +10,7 @@ from youtube_transcript_api._errors import (
     TranscriptsDisabled,
     TranslationLanguageNotAvailable,
     VideoUnavailable,
+    VideoUnplayable,
 )
 
 from yt2md.logger import get_logger
@@ -32,7 +33,10 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
     """
     try:
         # Extract video ID from URL
-        video_id = video_url.split("?v=")[1].split("&")[0]
+        video_id = extract_video_id(url=video_url)
+        if not video_id:
+            logger.error(f"Failed to extract video ID from URL: {video_url}")
+            return None
 
         logger.debug(
             f"Extracting transcript for video ID: {video_id} with language: {language_code}"
@@ -52,15 +56,33 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
         return transcript
 
     except VideoUnavailable:
-        # Handle unavailable videos without stack trace
-        logger.error(
-            f"No transcript available for {video_url}: Video is unavailable (possibly a scheduled live event)"
+        # Handle unavailable videos
+        logger.error(f"No transcript available: Video {video_url} is unavailable")
+        try:
+            update_video_index(video_id, "VIDEO_UNAVAILABLE", False)
+        except Exception as index_error:
+            logger.error(f"Failed to update video index: {str(index_error)}")
+        return None
+    except VideoUnplayable as e:
+        # Handle unplayable videos (like upcoming live events)
+        reason = (
+            str(e)
+            .split("The video is unplayable for the following reason:")[1]
+            .split("\n")[1]
+            .strip()
+            if "The video is unplayable for the following reason:" in str(e)
+            else "Video is unplayable"
         )
+        logger.error(f"No transcript available for {video_url}: {reason}")
+        try:
+            update_video_index(video_id, "VIDEO_UNPLAYABLE", False)
+        except Exception as index_error:
+            logger.error(f"Failed to update video index: {str(index_error)}")
         return None
     except TranslationLanguageNotAvailable:
         # Handle when transcript is not available in the requested language
         logger.error(
-            f"No transcript found for {video_url} in language '{language_code}'. Try a different language."
+            f"No transcript found for {video_url} in language '{language_code}'"
         )
         return None
     except TranscriptsDisabled:
@@ -90,8 +112,12 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
 
         return None
     except Exception as e:
-        logger.error(f"Transcript extraction error for {video_url}: {str(e)}")
-        raise Exception(f"Transcript extraction error: {str(e)}")
+        # General exception handler - log only a concise error message, no stack trace
+        logger.error(
+            f"Transcript extraction error for {video_url}: {str(e).split('!')[0]}"
+        )
+        # Don't re-raise the exception
+        return None
 
 
 def get_videos_from_channel(
