@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import time
+from collections import defaultdict
 
 import colorama
 from dotenv import load_dotenv
@@ -175,6 +176,43 @@ def process_video(
     except Exception as e:
         logger.error(f"Error processing video {video_title}: {str(e)}", exc_info=True)
         return None
+
+
+def display_video_processing_summary(videos_to_process):
+    """Display a summary of videos to be processed, grouped by category and author."""
+    if not videos_to_process:
+        logger.info("No videos to process.")
+        return
+
+    # Group videos by category and author
+    videos_by_category = defaultdict(lambda: defaultdict(list))
+
+    for video_url, video_title, _, channel_name, _, _, category in videos_to_process:
+        category = category or "Uncategorized"
+        videos_by_category[category][channel_name].append((video_title, video_url))
+
+    # Display summary
+    logger.info("=" * 60)
+    logger.info("SUMMARY OF VIDEOS TO PROCESS:")
+    logger.info("=" * 60)
+
+    total_videos = 0
+    for category, authors in sorted(videos_by_category.items()):
+        category_count = sum(len(videos) for videos in authors.values())
+        total_videos += category_count
+        logger.info(f"\nCategory: {category} ({category_count} videos)")
+        logger.info("-" * 50)
+
+        for author, videos in sorted(authors.items()):
+            logger.info(f"  Author: {author} ({len(videos)} videos)")
+
+            for idx, (title, url) in enumerate(videos, 1):
+                logger.info(f"    {idx}. {title}")
+                logger.info(f"       {url}")
+
+    logger.info("\n" + "=" * 60)
+    logger.info(f"Total videos to process: {total_videos}")
+    logger.info("=" * 60)
 
 
 def main():
@@ -351,6 +389,9 @@ def main():
                             channel.category,
                         )
                     )
+
+        # Display summary of videos to process
+        display_video_processing_summary(videos_to_process)
 
         logger.info(f"Total videos to process: {len(videos_to_process)}")
 
