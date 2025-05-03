@@ -315,7 +315,7 @@ def main():
             for channel in channels:
                 logger.debug(f"Getting videos from channel: {channel.name}")
                 channel_videos = get_videos_from_channel(channel.id, args.days)
-                logger.info(
+                logger.debug(
                     f"Found {len(channel_videos)} videos from {channel.name} in the last {args.days} days"
                 )
                 for url, title, published_date in channel_videos:
@@ -336,7 +336,7 @@ def main():
             for channel in channels:
                 logger.debug(f"Getting videos from channel: {channel.name}")
                 channel_videos = get_videos_from_channel(channel.id, args.days)
-                logger.info(
+                logger.debug(
                     f"Found {len(channel_videos)} videos from {channel.name} in the last {args.days} days"
                 )
                 for url, title, published_date in channel_videos:
