@@ -125,7 +125,8 @@ def run_main(args):
         seconds = execution_time % 60
         logger.info(f"All videos processed in {minutes} min {seconds:.2f} sec")
 
-        winsound.Beep(1000, 500)
+        if os.name == "nt":  # Check if the platform is Windows
+            winsound.Beep(1000, 500)
     except Exception as e:
         logger.error(f"Error in main process: {str(e)}", exc_info=True)
 
