@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import textwrap
 import time
 
 from dotenv import load_dotenv
@@ -42,17 +43,21 @@ ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 
 def display_logo():
-    """Display the YT2MD ASCII art logo."""
-    logo = """
-╱╱╱╱╱╱╱╱╱╱╱╱╭━━━┳━╮╱╭┳━━━╮
-╱╱╱╱╱╱╱╱╱╱╱╱┃╭━╮┃╭╯╱┃┃╭━╮┃
-╭╮╭┳━━┳━━━╮╱┃╰━╯┃╰╮╱┃┃╰━━╮
-┃╰╯┃╭╮┣━━┃┃╱┃╭━━┫╭╯╱┃┣━━╮┃
-┃┃┃┃╭╮┃┃━┫┃╱┃┃╱╱┃┃╱╱┃┃╰━╯┃
-╰┻┻┻╯╰┻━━╯╰╮╰╯╱╱╰╯╱╱╰┻━━━╯
-╱╱╱╱╱╱╱╱╱╱╱╯╱╱╱╱╱╱╱╱╱╱╱╱╱╱
-    YouTube to Markdown Converter
-    """
+    """Display the YT2MD ASCII art logo with color."""
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    RESET = "\033[0m"
+
+    logo = textwrap.dedent(f"""{RED}
+        
+ __   _______ ___ __  __ ___  
+ \ \ / /_   _|_  )  \/  |   \ 
+  \ V /  | |  / /| |\/| | |) |
+   |_|   |_| /___|_|  |_|___/ 
+                              
+
+        {YELLOW}YouTube to Markdown Converter{RESET}
+    """)
     print(logo)
 
 
