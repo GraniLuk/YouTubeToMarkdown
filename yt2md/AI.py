@@ -53,7 +53,7 @@ def analyze_transcript_with_gemini(
     transcript: str,
     api_key: str,
     perplexity_api_key: str = None,
-    model_name: str = "gemini-2.5-pro-preview-05-06",
+    model_name: str = "gemini-2.5-pro-exp-03-25",
     output_language: str = "English",
     category: str = "IT",
 ) -> tuple[str, str]:
@@ -176,7 +176,7 @@ def analyze_transcript_by_length(
     perplexity_api_key: str = None,
     ollama_model: str = None,
     ollama_base_url: str = None,
-    cloud_model_name: str = "gemini-2.5-pro-preview-05-06",
+    cloud_model_name: str = "gemini-2.5-pro-exp-03-25",
     output_language: str = "English",
     category: str = "IT",
     force_ollama: bool = False,
@@ -335,7 +335,7 @@ if __name__ == "__main__":
         transcript=transcript,
         api_key=api_key,
         perplexity_api_key=perplexity_key,
-        model_name="gemini-2.5-pro-preview-05-06",
+        model_name="gemini-2.5-pro-exp-03-25",
         output_language="English",
         category="IT",
     )

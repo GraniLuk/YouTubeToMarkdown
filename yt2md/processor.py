@@ -88,7 +88,7 @@ def process_video(
             perplexity_api_key=perplexity_api_key,
             ollama_model=ollama_model,
             ollama_base_url=ollama_base_url,
-            cloud_model_name="gemini-2.5-pro-preview-05-06",
+            cloud_model_name="gemini-2.5-pro-exp-03-25",
             output_language=output_language,
             category=category,
             force_ollama=use_ollama,
@@ -110,7 +110,7 @@ def process_video(
 
             # Extract model name for the suffix
             if skip_verification:
-                model_suffix = "gemini-2.5-pro-preview-05-06".split("-")[
+                model_suffix = "gemini-2.5-pro-exp-03-25".split("-")[
                     0
                 ]  # Get first part of the model name (e.g., "gemini")
             else:

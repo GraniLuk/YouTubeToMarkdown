@@ -21,7 +21,7 @@ llm_strategies:
     # Default model configurations
     model_configs:
       gemini:
-        model_name: "gemini-2.5-pro-preview-05-06"
+        model_name: "gemini-2.5-pro-exp-03-25"
       perplexity:
         model_name: "sonar-pro"
       ollama:
