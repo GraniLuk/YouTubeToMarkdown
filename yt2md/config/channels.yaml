@@ -1,3 +1,62 @@
+# LLM Strategy Configuration
+llm_strategies:
+  default:
+    # Strategy for selecting models based on transcript length
+    strategy_by_length:
+      short:  # Short transcripts (< 1000 characters)
+        primary: "ollama"
+        fallback: "gemini"
+      medium: # Medium transcripts (1000-3000 characters)
+        primary: "perplexity" 
+        fallback: "gemini"
+      long:   # Long transcripts (> 3000 characters)
+        primary: "gemini"
+        fallback: "perplexity"
+      
+    # Default thresholds for length categorization
+    length_thresholds:
+      short_max: 1000    # Max characters for short transcripts
+      medium_max: 3000   # Max characters for medium transcripts
+      
+    # Default model configurations
+    model_configs:
+      gemini:
+        model_name: "gemini-2.5-pro-preview-05-06"
+      perplexity:
+        model_name: "sonar-pro"
+      ollama:
+        model_name: "qwen3:14b"
+        base_url: "http://localhost:11434"
+        
+  # Category-specific overrides
+  IT:
+    strategy_by_length:
+      short:
+        primary: "ollama" 
+        fallback: "perplexity"
+      medium:
+        primary: "gemini"
+        fallback: "perplexity"
+      long:
+        primary: "gemini"
+        fallback: "perplexity"
+    model_configs:
+      ollama:
+        model_name: "qwen3:14b"  # Custom model for IT category
+        
+  AI:
+    strategy_by_length:
+      short:
+        primary: "ollama"  # Use cloud models for AI category
+        fallback: "perplexity"
+        
+  Crypto:
+    strategy_by_length:
+      long:
+        primary: "gemini"  # Always use cloud model for crypto
+        fallback: "perplexity"
+
+# Channel configurations
 IT:
   - id: UCrkPsvLGln62OMZRO6K-llg
     name: Nick Chapsas
