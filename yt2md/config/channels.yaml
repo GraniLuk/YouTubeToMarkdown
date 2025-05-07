@@ -101,3 +101,9 @@ Fitness:
     name: Policzona Szama
     language_code: pl
     output_language: Polish
+
+Trading:
+  - id: UCCbv0qixG-cyokxEY3kELtg
+    name: TradingLab
+    language_code: en
+    output_language: English
