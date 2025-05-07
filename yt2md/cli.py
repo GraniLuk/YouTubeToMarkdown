@@ -12,8 +12,8 @@ def create_parser():
     parser.add_argument(
         "--category",
         type=str,
-        choices=["IT", "Crypto", "AI", "Fitness"],
-        help="Category of channels to process (IT, Crypto, Fitness, or AI)",
+        choices=["IT", "Crypto", "AI", "Fitness", "Trading"],
+        help="Category of channels to process (IT, Crypto, Fitness, Trading or AI)",
     )
     parser.add_argument(
         "--url",
