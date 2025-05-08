@@ -57,7 +57,7 @@ def display_logo():
    |_|   |_| /___|_|  |_|___/ 
                               
 
-        {YELLOW}YouTube to Markdown Converter{RESET}
+{YELLOW}YouTube to Markdown Converter{RESET}
     """)
     print(logo)
 
