@@ -141,6 +141,16 @@ def _collect_videos_from_single_channel(channel, days: int) -> List[Tuple]:
     )
 
     for url, title, published_date in channel_videos:
+        # Apply title filter if specified
+        if channel.title_filters and not any(
+            filter_text.lower() in title.lower()
+            for filter_text in channel.title_filters
+        ):
+            logger.debug(
+                f"Skipping video '{title}' as it does not match any title filters: {channel.title_filters}"
+            )
+            continue
+
         videos_to_process.append(
             (
                 url,

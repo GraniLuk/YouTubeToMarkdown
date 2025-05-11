@@ -41,6 +41,7 @@ def _create_channel(channel_data: Dict[str, Any], category: str) -> Channel:
         output_language=channel_data["output_language"],
         category=category,
         name=channel_data["name"],
+        title_filters=channel_data.get("title_filters", []),
     )
 
 

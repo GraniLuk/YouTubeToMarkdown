@@ -129,6 +129,16 @@ AI:
     language_code: en
     output_language: English
 
+  # Example of a channel with title filters
+  - id: UCnz-ZXXER4jOvuED5trXfEA
+    name: TechLead
+    language_code: en
+    output_language: English
+    title_filters:
+      - "AI"
+      - "GPT"
+      - "LLM"
+
   - id: UCWyvI4f-uSI9ckp2ZNS9fYA
     name: Krzysztof Tutak
     language_code: pl
