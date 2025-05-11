@@ -129,16 +129,6 @@ AI:
     language_code: en
     output_language: English
 
-  # Example of a channel with title filters
-  - id: UCnz-ZXXER4jOvuED5trXfEA
-    name: TechLead
-    language_code: en
-    output_language: English
-    title_filters:
-      - "AI"
-      - "GPT"
-      - "LLM"
-
   - id: UCWyvI4f-uSI9ckp2ZNS9fYA
     name: Krzysztof Tutak
     language_code: pl
@@ -176,3 +166,11 @@ Trading:
     name: TradingLab
     language_code: en
     output_language: English
+
+News:
+  -id : UClhEl4bMD8_escGCCTmRAYg
+  name: Kanal Zero
+  language_code: pl
+  output_language: Polish
+  title_filters:
+    - "ŚWIAT OD ZERA"
