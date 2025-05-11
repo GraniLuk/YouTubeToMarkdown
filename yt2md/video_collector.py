@@ -68,7 +68,7 @@ def collect_videos_from_category(
     Collect videos from channels in a specified category.
 
     Args:
-        category: Category name (IT, Crypto, AI, Fitness, Trading)
+        category: Category name (IT, Crypto, AI, Fitness, Trading, News)
         days: Number of days to look back for videos
         channel_name: Optional specific channel name to filter within the category
 
