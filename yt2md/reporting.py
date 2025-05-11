@@ -32,7 +32,7 @@ def display_video_processing_summary(videos_to_process):
     for category, authors in sorted(videos_by_category.items()):
         category_count = sum(len(videos) for videos in authors.values())
         total_videos += category_count
-        logger.info(f"\nCategory: {category} ({category_count} videos)")
+        logger.info(f"Category: {category} ({category_count} videos)")
         logger.info("-" * 50)
 
         for author, videos in sorted(authors.items()):
