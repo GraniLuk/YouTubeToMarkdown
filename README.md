@@ -29,7 +29,12 @@ yt2md --category IT --days 3 --cloud
 
 # Skip verification of already processed videos and don't update index
 yt2md --url "https://www.youtube.com/watch?v=..." --skip-verification
+
+# Process videos from a specific channel
+yt2md --category IT --channel "Nick Chapsas" --days 7
 ```
+
+You can also filter videos by title for specific channels by adding `title_filters` to the channel configuration in `channels.yaml`. See the Channel Configuration section below for details.
 
 Make sure to set up your environment variables in a .env file:
 - GEMINI_API_KEY
@@ -86,6 +91,9 @@ The `channels.yaml` file in the `config` directory organizes YouTube channels in
 - `language_code`: Source language code (e.g., 'en' for English, 'pl' for Polish)
 - `output_language`: Target language for the output
 
+Optional configuration:
+- `title_filters`: List of strings to filter videos by title (only process videos containing at least one of these strings)
+
 Example configuration:
 ```yaml
 IT:
@@ -99,6 +107,16 @@ AI:
     name: Mike Tomala
     language_code: pl
     output_language: Polish
+    
+  # Example with title filters - only process videos with "AI", "GPT", or "LLM" in title
+  - id: UCnz-ZXXER4jOvuED5trXfEA
+    name: TechLead
+    language_code: en
+    output_language: English
+    title_filters:
+      - "AI"
+      - "GPT"
+      - "LLM"
 ```
 
 # YouTube Playlist Processor using Gemini API
