@@ -168,9 +168,10 @@ Trading:
     output_language: English
 
 News:
-  -id : UClhEl4bMD8_escGCCTmRAYg
-  name: Kanal Zero
-  language_code: pl
-  output_language: Polish
-  title_filters:
-    - "ŚWIAT OD ZERA"
+  - id: UClhEl4bMD8_escGCCTmRAYg
+    name: Kanal Zero
+    language_code: pl
+    output_language: Polish
+    title_filters:
+      - "ŚWIAT OD ZERA"
+      - "RAT KREDYTU"
