@@ -79,6 +79,14 @@ def load_all_channels() -> List[Channel]:
     return all_channels
 
 
+def get_category_colors() -> Dict[str, str]:
+    """Load and return the category color configurations."""
+    config = _load_config()
+    category_colors = config.get("category_colors", {})
+    logger.debug(f"Loaded category colors: {category_colors}")
+    return category_colors
+
+
 def get_llm_strategy_config(category: str = None) -> Dict[str, Any]:
     """
     Get LLM strategy configuration based on category.

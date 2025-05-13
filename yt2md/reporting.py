@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import colorama
 
+from yt2md.config import get_category_colors  # Added import
 from yt2md.logger import colored_text, get_logger
 
 # Get logger for this module
@@ -15,6 +16,13 @@ def display_video_processing_summary(videos_to_process):
     if not videos_to_process:
         logger.info("No videos to process.")
         return
+
+    category_colors = get_category_colors()  # Load category colors
+    default_color = getattr(
+        colorama.Fore,
+        category_colors.get("default", "WHITE").upper(),
+        colorama.Fore.WHITE,
+    )
 
     # Group videos by category and author
     videos_by_category = defaultdict(lambda: defaultdict(list))
@@ -32,7 +40,15 @@ def display_video_processing_summary(videos_to_process):
     for category, authors in sorted(videos_by_category.items()):
         category_count = sum(len(videos) for videos in authors.values())
         total_videos += category_count
-        logger.info(f"Category: {category} ({category_count} videos)")
+
+        color_name = category_colors.get(
+            category, category_colors.get("Uncategorized", "WHITE")
+        ).upper()
+        color = getattr(colorama.Fore, color_name, default_color)
+
+        logger.info(
+            colored_text(f"Category: {category} ({category_count} videos)", color)
+        )
         logger.info("-" * 50)
 
         for author, videos in sorted(authors.items()):

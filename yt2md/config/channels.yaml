@@ -175,3 +175,14 @@ News:
     title_filters:
       - "ŚWIAT OD ZERA"
       - "RAT KREDYTU"
+
+# Category Color Configuration
+category_colors:
+  default: "WHITE" # Default color if a category is not specified
+  IT: "BLUE"
+  AI: "GREEN"
+  Crypto: "YELLOW"
+  Fitness: "MAGENTA"
+  Trading: "CYAN"
+  News: "RED"
+  Uncategorized: "WHITE"
