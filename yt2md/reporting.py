@@ -49,14 +49,16 @@ def display_video_processing_summary(videos_to_process):
         logger.info(
             colored_text(f"Category: {category} ({category_count} videos)", color)
         )
-        logger.info("-" * 50)
+        logger.info(colored_text("-" * 50, color))
 
         for author, videos in sorted(authors.items()):
-            logger.info(f"  Author: {author} ({len(videos)} videos)")
+            logger.info(
+                colored_text(f"  Author: {author} ({len(videos)} videos)", color)
+            )
 
             for idx, (title, url) in enumerate(videos, 1):
-                logger.info(f"    {idx}. {title}")
-                logger.info(f"       {url}")
+                logger.info(colored_text(f"    {idx}. {title}", color))
+                logger.info(colored_text(f"       {url}", color))
 
     logger.info("\n" + "=" * 60)
     logger.info(f"Total videos to process: {total_videos}")
