@@ -5,7 +5,7 @@ llm_strategies:
     strategy_by_length:
       short:  # Short transcripts (< 1000 characters)
         primary: "ollama"
-        fallback: "gemini"
+        fallback: "perplexity"
       medium: # Medium transcripts (1000-3000 characters)
         primary: "perplexity" 
         fallback: "gemini"
@@ -43,18 +43,6 @@ llm_strategies:
     model_configs:
       ollama:
         model_name: "qwen3:14b"  # Custom model for IT category
-        
-  AI:
-    strategy_by_length:
-      short:
-        primary: "ollama"  # Use cloud models for AI category
-        fallback: "perplexity"
-        
-  Crypto:
-    strategy_by_length:
-      long:
-        primary: "gemini"  # Always use cloud model for crypto
-        fallback: "perplexity"
 
 # Channel configurations
 IT:
@@ -179,10 +167,10 @@ News:
 # Category Color Configuration
 category_colors:
   default: "WHITE" # Default color if a category is not specified
-  IT: "BLUE"
-  AI: "GREEN"
+  IT: "GREEN"
+  AI: "WHITE"
   Crypto: "YELLOW"
   Fitness: "MAGENTA"
   Trading: "CYAN"
   News: "RED"
-  Uncategorized: "WHITE"
+  Uncategorized: "BLUE"

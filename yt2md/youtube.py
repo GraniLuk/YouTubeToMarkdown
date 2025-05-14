@@ -74,10 +74,6 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
             else "Video is unplayable"
         )
         logger.error(f"No transcript available for {video_url}: {reason}")
-        try:
-            update_video_index(video_id, "VIDEO_UNPLAYABLE", False)
-        except Exception as index_error:
-            logger.error(f"Failed to update video index: {str(index_error)}")
         return None
     except TranslationLanguageNotAvailable:
         # Handle when transcript is not available in the requested language
