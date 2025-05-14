@@ -198,8 +198,9 @@ def analyze_transcript_by_length(
 
     # Determine primary and fallback models from strategy config
     strategy_config = get_llm_strategy_for_transcript(
-        len(transcript), category
-    )  # Assuming length is by characters
+        transcript,
+        category,  # Pass the transcript string directly
+    )
     primary_model_type = strategy_config.get("primary")
     # fallback_model_type = strategy_config.get("fallback") # Not directly used for selection here, but for info
 
