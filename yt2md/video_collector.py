@@ -135,7 +135,8 @@ def _collect_videos_from_single_channel(channel, days: int) -> List[Tuple]:
     """
     videos_to_process = []
     logger.debug(f"Getting videos from channel: {channel.name}")
-    channel_videos = get_videos_from_channel(channel.id, days)
+    # Limit API calls to 1 page per channel (max 10 videos)
+    channel_videos = get_videos_from_channel(channel.id, days, max_pages=1, max_videos=10)
     logger.debug(
         f"Found {len(channel_videos)} videos from {channel.name} in the last {days} days"
     )

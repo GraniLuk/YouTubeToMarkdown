@@ -117,7 +117,11 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
 
 
 def get_videos_from_channel(
-    channel_id: str, days: int = 8, skip_verification: bool = False
+    channel_id: str,
+    days: int = 8,
+    skip_verification: bool = False,
+    max_pages: int = 1,
+    max_videos: int = 10,
 ) -> list[tuple[str, str, str]]:
     """
     Get all unprocessed videos from a YouTube channel published in the last days.
@@ -127,12 +131,16 @@ def get_videos_from_channel(
         channel_id (str): YouTube channel ID
         days (int): Number of days to look back
         skip_verification (bool): If True, skip checking if videos were already processed
+        max_pages (int): Maximum number of API result pages to fetch (default: 1)
+        max_videos (int): Maximum number of videos to collect per channel (default: 10)
 
     Returns:
         tuple[str, str, str, str]: A tuple containing (video_url, video_title, published_date, channel_name) for the video
     """
     API_KEY = os.getenv("YOUTUBE_API_KEY")
-    logger.debug(f"Fetching videos from channel ID: {channel_id} for last {days} days")
+    logger.info(
+        f"Fetching videos from channel ID: {channel_id} for last {days} days (max {max_videos} videos, {max_pages} pages)"
+    )
 
     # Get processed video IDs from index file
     processed_video_ids = get_processed_video_ids(skip_verification)
@@ -148,9 +156,13 @@ def get_videos_from_channel(
     videos = []
     next_page_token = None
     page_count = 0
+    api_calls_count = 0
 
-    while True:
+    # Fetch pages up to max_pages limit or until we have max_videos
+    while page_count < max_pages and len(videos) < max_videos:
         page_count += 1
+        api_calls_count += 1
+
         if next_page_token:
             current_url = f"{url}&pageToken={next_page_token}"
             logger.debug(f"Fetching page {page_count} with token: {next_page_token}")
@@ -167,10 +179,17 @@ def get_videos_from_channel(
                 break
 
             if "items" in data:
-                logger.debug(
-                    f"Retrieved {len(data['items'])} videos on page {page_count}"
-                )
+                items_count = len(data["items"])
+                logger.debug(f"Retrieved {items_count} videos on page {page_count}")
+
                 for item in data["items"]:
+                    # Stop if we've reached the maximum videos limit
+                    if len(videos) >= max_videos:
+                        logger.info(
+                            f"Reached maximum videos limit ({max_videos}) for channel {channel_id}"
+                        )
+                        break
+
                     video_id = item["id"]["videoId"]
                     if not skip_verification and video_id in processed_video_ids:
                         logger.debug(
@@ -187,11 +206,19 @@ def get_videos_from_channel(
                     videos.append((video_url, title, published_date))
             else:
                 logger.warning("No items found in YouTube API response")
+                break  # Break if no items found to avoid unnecessary API calls
 
+            # Check if we need to fetch more pages
             next_page_token = data.get("nextPageToken")
             if not next_page_token:
                 logger.debug("No more pages to fetch")
                 break
+
+            # If we've collected enough videos, stop fetching more pages
+            if len(videos) >= max_videos:
+                logger.info(f"Collected {len(videos)} videos, stopping pagination")
+                break
+
         except Exception as e:
             logger.error(
                 f"Error fetching videos from channel {channel_id}: {str(e)}",
@@ -199,6 +226,9 @@ def get_videos_from_channel(
             )
             break
 
+    logger.info(
+        f"Made {api_calls_count} API calls for channel {channel_id}, collected {len(videos)} videos"
+    )
     return videos
 
 
