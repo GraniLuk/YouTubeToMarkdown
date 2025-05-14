@@ -30,6 +30,7 @@ def process_video(
 ):
     """
     Process a single video: get transcript, analyze with appropriate LLM based on transcript length, and save to markdown.
+    Cloud model names are determined by the configuration in channels.yaml.
 
     Args:
         video_url: YouTube video URL
@@ -88,7 +89,6 @@ def process_video(
             perplexity_api_key=perplexity_api_key,
             ollama_model=ollama_model,
             ollama_base_url=ollama_base_url,
-            cloud_model_name="gemini-2.5-pro-exp-03-25",
             output_language=output_language,
             category=category,
             force_ollama=use_ollama,
@@ -105,16 +105,24 @@ def process_video(
         )
 
         # Save cloud LLM result if available
-        if "cloud" in results:
-            refined_text, description = results["cloud"]
+        if "cloud" in results and results["cloud"]:
+            cloud_result = results["cloud"]
+            refined_text = cloud_result["text"]
+            description = cloud_result["description"]
+            model_name_for_suffix = cloud_result.get(
+                "model_name", "cloud_model"
+            )  # Get actual model name
 
-            # Extract model name for the suffix
-            if skip_verification:
-                model_suffix = "gemini-2.5-pro-exp-03-25".split("-")[
+            # Extract model provider for the suffix, or just the first part of model name
+            model_provider = cloud_result.get("provider")
+            if model_provider:
+                model_suffix = model_provider
+            elif model_name_for_suffix:
+                model_suffix = model_name_for_suffix.split("-")[
                     0
-                ]  # Get first part of the model name (e.g., "gemini")
+                ]  # e.g., "gemini" from "gemini-2.5-pro-exp-03-25"
             else:
-                model_suffix = None  # Default to None if not skipping verification
+                model_suffix = "cloud"  # Fallback suffix
 
             # Save cloud LLM result to markdown file
             saved_file_path = save_to_markdown(
@@ -134,11 +142,18 @@ def process_video(
                 saved_files.append(saved_file_path)
 
         # Save Ollama result if available
-        if "ollama" in results:
-            ollama_refined_text, ollama_description = results["ollama"]
+        if "ollama" in results and results["ollama"]:
+            ollama_result = results["ollama"]
+            ollama_refined_text = ollama_result["text"]
+            ollama_description = ollama_result["description"]
+            ollama_model_name_for_suffix = ollama_result.get(
+                "model_name", "ollama_model"
+            )
 
             # Use ollama model name as suffix, clean it up if needed
-            ollama_suffix = ollama_model.split(":")[0]  # Remove version tag if present
+            ollama_suffix = ollama_model_name_for_suffix.split(":")[
+                0
+            ]  # Remove version tag if present
 
             # Save Ollama result to markdown with suffix
             ollama_file_path = save_to_markdown(
