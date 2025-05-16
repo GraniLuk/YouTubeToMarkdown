@@ -51,7 +51,7 @@ def analyze_transcript_with_gemini(
     transcript: str,
     api_key: str,
     gemini_model_name: str,
-    perplexity_api_key: str = None,
+    perplexity_api_key: str,
     output_language: str = "English",
     category: str = "IT",
 ) -> tuple[str, str]:
@@ -112,8 +112,8 @@ def analyze_transcript_with_gemini(
 
 def analyze_transcript_with_ollama(
     transcript: str,
-    model_name: str = None,
-    host: str = None,
+    model_name: str,
+    host: str,
     output_language: str = "English",
     category: str = "IT",
 ) -> tuple[str, str]:
@@ -161,9 +161,9 @@ def analyze_transcript_with_ollama(
 def analyze_transcript_by_length(
     transcript: str,
     api_key: str,  # Gemini API Key
-    perplexity_api_key: str = None,
-    ollama_model: str = None,
-    ollama_base_url: str = None,
+    perplexity_api_key: str,
+    ollama_model: str,
+    ollama_base_url: str,
     output_language: str = "English",
     category: str = "IT",
     force_ollama: bool = False,
@@ -351,6 +351,11 @@ if __name__ == "__main__":
         transcript = file.read()
     api_key = os.getenv("GEMINI_API_KEY")
     perplexity_key = os.getenv("PERPLEXITY_API_KEY")
+
+    if not api_key or not perplexity_key:
+        raise ValueError(
+            "GEMINI_API_KEY environment variable not set.  An API key is required."
+        )
 
     newTranscript = analyze_transcript_with_gemini(
         transcript=transcript,
