@@ -87,7 +87,7 @@ def get_category_colors() -> Dict[str, str]:
     return category_colors
 
 
-def get_llm_strategy_config(category: str = None) -> Dict[str, Any]:
+def get_llm_strategy_config(category: str) -> Dict[str, Any]:
     """
     Get LLM strategy configuration based on category.
 
@@ -153,7 +153,7 @@ def get_llm_strategy_config(category: str = None) -> Dict[str, Any]:
     return merged_config
 
 
-def get_llm_model_config(model_type: str, category: str = None) -> Dict[str, Any]:
+def get_llm_model_config(model_type: str, category: str) -> Dict[str, Any]:
     """
     Get configuration for a specific LLM model type based on category.
 
@@ -170,7 +170,7 @@ def get_llm_model_config(model_type: str, category: str = None) -> Dict[str, Any
     return model_configs.get(model_type, {})
 
 
-def get_transcript_length_category(transcript_length: int, category: str = None) -> str:
+def get_transcript_length_category(transcript_length: int, category: str) -> str:
     """
     Determine length category of transcript based on its length and content category.
 
@@ -195,9 +195,7 @@ def get_transcript_length_category(transcript_length: int, category: str = None)
         return "long"
 
 
-def get_llm_strategy_for_transcript(
-    transcript: str, category: str = None
-) -> Dict[str, str]:
+def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str, str]:
     """
     Get recommended LLM strategy based on transcript length and category.
 
