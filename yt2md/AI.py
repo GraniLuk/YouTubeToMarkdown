@@ -312,6 +312,10 @@ def analyze_transcript_by_length(
     ):
         logger.info(f"Attempting to use Ollama model: {effective_ollama_model}")
         try:
+            if not effective_ollama_model or not effective_ollama_base_url:
+                raise ValueError(
+                    "Ollama model name is missing. Please provide a valid model name."
+                )
             ollama_refined_text, ollama_description = analyze_transcript_with_ollama(
                 transcript=transcript,
                 model_name=effective_ollama_model,
