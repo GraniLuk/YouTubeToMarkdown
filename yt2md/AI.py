@@ -51,7 +51,6 @@ def analyze_transcript_with_gemini(
     transcript: str,
     api_key: str,
     gemini_model_name: str,
-    perplexity_api_key: str,
     output_language: str = "English",
     category: str = "IT",
 ) -> tuple[str, str]:
@@ -63,7 +62,6 @@ def analyze_transcript_with_gemini(
         transcript (str): Text transcript to analyze
         api_key (str): Gemini API key
         gemini_model_name (str): Gemini model name to use.
-        perplexity_api_key (str): Perplexity API key for fallback (if strategy uses it)
         output_language (str): Desired output language
         category (str): Category of the content (default: 'IT')
 
@@ -84,6 +82,7 @@ def analyze_transcript_with_gemini(
         return refined_text, description
     except Exception as e:
         logger.error(f"Gemini API call failed: {e}")
+        perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
         if "429" in str(e) and perplexity_api_key:
             logger.info("Falling back to Perplexity API due to Gemini 429 error...")
             # Fetch perplexity model name from config for fallback
@@ -160,8 +159,6 @@ def analyze_transcript_with_ollama(
 
 def analyze_transcript_by_length(
     transcript: str,
-    api_key: str,  # Gemini API Key
-    perplexity_api_key: str,
     ollama_model: str,
     ollama_base_url: str,
     output_language: str = "English",
@@ -180,8 +177,6 @@ def analyze_transcript_by_length(
 
     Args:
         transcript: Text transcript to analyze
-        api_key: Gemini API key
-        perplexity_api_key: Perplexity API key for fallback (optional)
         ollama_model: Name of the Ollama model to use (overrides config)
         ollama_base_url: Base URL for Ollama API (overrides config)
         output_language: Desired output language
@@ -239,16 +234,16 @@ def analyze_transcript_by_length(
 
     # Process with Gemini
     if not force_ollama and (force_cloud or primary_model_type == "gemini"):
-        if api_key and gemini_model_name:
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if gemini_api_key and gemini_model_name:
             logger.info(
                 f"Attempting to use Gemini model: {gemini_model_name} for category: {category}"
             )
             try:
                 refined_text, description = analyze_transcript_with_gemini(
                     transcript=transcript,
-                    api_key=api_key,
+                    api_key=gemini_api_key,
                     gemini_model_name=gemini_model_name,
-                    perplexity_api_key=perplexity_api_key,  # For potential internal fallback
                     output_language=output_language,
                     category=category,
                 )
@@ -275,6 +270,12 @@ def analyze_transcript_by_length(
         and not force_ollama
         and (force_cloud or primary_model_type == "perplexity")
     ):
+        perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
+        if not perplexity_api_key:
+            logger.warning(
+                "Perplexity API key not configured. Skipping Perplexity processing."
+            )
+            return results
         if perplexity_api_key and perplexity_model_name:
             logger.info(
                 f"Attempting to use Perplexity model: {perplexity_model_name} for category: {category}"
@@ -353,18 +354,17 @@ if __name__ == "__main__":
     transcript_text_from_file = "C:\\Users\\5028lukgr\\Downloads\\Geeks Club-20250319_080718-Meeting Recording-en-US.txt"
     with open(transcript_text_from_file, "r") as file:
         transcript = file.read()
-    api_key = os.getenv("GEMINI_API_KEY")
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
     perplexity_key = os.getenv("PERPLEXITY_API_KEY")
 
-    if not api_key or not perplexity_key:
+    if not gemini_api_key or not perplexity_key:
         raise ValueError(
             "GEMINI_API_KEY environment variable not set.  An API key is required."
         )
 
     newTranscript = analyze_transcript_with_gemini(
         transcript=transcript,
-        api_key=api_key,
-        perplexity_api_key=perplexity_key,
+        api_key=gemini_api_key,
         gemini_model_name="gemini-2.5-pro-exp-03-25",
         output_language="English",
         category="IT",

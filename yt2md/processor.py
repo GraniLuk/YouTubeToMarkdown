@@ -77,16 +77,10 @@ def process_video(
             )
         )
 
-        # Get API keys from environment
-        api_key = os.getenv("GEMINI_API_KEY")
-        perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
-
         # Measure execution time for transcript analysis
         start_time = time.time()
         results = analyze_transcript_by_length(
             transcript=transcript,
-            api_key=api_key,
-            perplexity_api_key=perplexity_api_key,
             ollama_model=ollama_model,
             ollama_base_url=ollama_base_url,
             output_language=output_language,
