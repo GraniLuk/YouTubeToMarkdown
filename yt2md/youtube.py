@@ -11,7 +11,7 @@ from youtube_transcript_api._errors import (
     TranscriptsDisabled,
     TranslationLanguageNotAvailable,
     VideoUnavailable,
-    VideoUnplayable,
+    VideoUnplayable,  # type: ignore
 )
 
 from yt2md.logger import get_logger
