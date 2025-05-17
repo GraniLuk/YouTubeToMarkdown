@@ -250,7 +250,7 @@ def extract_video_id(url):
 
 def get_video_details_from_url(
     url: str, skip_verification: bool = False
-) -> tuple[str, str, str, str]:
+) -> Optional[tuple[str, str, str, str]]:
     """
     Get details for a YouTube video given its URL.
 
