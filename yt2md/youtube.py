@@ -3,8 +3,8 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional
 
-import googleapiclient
 import requests
+from googleapiclient import discovery
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import (
     NoTranscriptFound,
@@ -273,16 +273,16 @@ def get_video_details_from_url(
     logger.debug(f"Extracted video ID: {video_id}")
 
     # Get processed video IDs from index file
-    processed_video_ids = get_processed_video_ids(skip_verification)
-
-    # Check if the video ID is already processed
+    processed_video_ids = get_processed_video_ids(
+        skip_verification
+    )  # Check if the video ID is already processed
     if video_id in processed_video_ids:
         logger.debug(f"Video with ID {video_id} was already processed. Skipping...")
         return None
 
     try:
         # Initialize YouTube API client
-        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=API_KEY)
+        youtube = discovery.build("youtube", "v3", developerKey=API_KEY)
         logger.debug("YouTube API client initialized")
 
         # Request video details
