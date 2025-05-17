@@ -7,7 +7,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 
-def upload_to_drive(service, file_path: str, folder_id: str = None) -> str:
+def upload_to_drive(service, file_path: str, folder_id: str) -> str:
     """
     Upload a file to Google Drive
 
