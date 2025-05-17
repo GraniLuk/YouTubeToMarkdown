@@ -32,6 +32,9 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
     Returns:
         str: Video transcript as a single string or None if transcript is not available
     """
+    # Initialize video_id to None to ensure it's defined even if an exception occurs
+    video_id = None
+
     try:
         # Extract video ID from URL
         video_id = extract_video_id(url=video_url)
@@ -59,10 +62,11 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
     except VideoUnavailable:
         # Handle unavailable videos
         logger.error(f"No transcript available: Video {video_url} is unavailable")
-        try:
-            update_video_index(video_id, "VIDEO_UNAVAILABLE", False)
-        except Exception as index_error:
-            logger.error(f"Failed to update video index: {str(index_error)}")
+        if video_id:
+            try:
+                update_video_index(video_id, "VIDEO_UNAVAILABLE", False)
+            except Exception as index_error:
+                logger.error(f"Failed to update video index: {str(index_error)}")
         return None
     except VideoUnplayable as e:
         # Handle unplayable videos (like upcoming live events)
@@ -86,26 +90,28 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
         # Handle when transcripts are disabled for the video
         logger.error(f"Transcripts are disabled for video {video_url}")
 
-        # Use the already extracted video_id to add to the index
-        try:
-            # Add to index with special marker to indicate transcripts are disabled
-            update_video_index(video_id, "TRANSCRIPTS_DISABLED", False)
-            logger.info(f"Added video {video_id} to index as TRANSCRIPTS_DISABLED")
-        except Exception as index_error:
-            logger.error(f"Failed to update video index: {str(index_error)}")
+        # Use the already extracted video_id to add to the index if it exists
+        if video_id:
+            try:
+                # Add to index with special marker to indicate transcripts are disabled
+                update_video_index(video_id, "TRANSCRIPTS_DISABLED", False)
+                logger.info(f"Added video {video_id} to index as TRANSCRIPTS_DISABLED")
+            except Exception as index_error:
+                logger.error(f"Failed to update video index: {str(index_error)}")
 
         return None
     except NoTranscriptFound:
         # Handle when no transcripts are available at all
         logger.error(f"No transcripts available for video {video_url}")
 
-        # Use the already extracted video_id to add to the index
-        try:
-            # Add to index with special marker to indicate no transcripts found
-            update_video_index(video_id, "NO_TRANSCRIPT_FOUND", False)
-            logger.info(f"Added video {video_id} to index as NO_TRANSCRIPT_FOUND")
-        except Exception as index_error:
-            logger.error(f"Failed to update video index: {str(index_error)}")
+        # Use the already extracted video_id to add to the index if it exists
+        if video_id:
+            try:
+                # Add to index with special marker to indicate no transcripts found
+                update_video_index(video_id, "NO_TRANSCRIPT_FOUND", False)
+                logger.info(f"Added video {video_id} to index as NO_TRANSCRIPT_FOUND")
+            except Exception as index_error:
+                logger.error(f"Failed to update video index: {str(index_error)}")
 
         return None
     except Exception as e:
