@@ -1,6 +1,7 @@
 import os
 import re
 from datetime import datetime, timedelta
+from typing import Optional
 
 import googleapiclient
 import requests
@@ -20,7 +21,7 @@ from yt2md.video_index import get_processed_video_ids, update_video_index
 logger = get_logger("youtube")
 
 
-def get_youtube_transcript(video_url: str, language_code: str = "en") -> str:
+def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optional[str]:
     """
     Extract transcript from a YouTube video and return it as a string.
 
