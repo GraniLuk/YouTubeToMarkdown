@@ -154,6 +154,11 @@ Fitness:
     language_code: pl
     output_language: Polish
 
+  - id: UCa6wySbod5upZrvwZjnCwDQ
+    name: Jakub Mauricz
+    language_code: pl
+    output_language: Polish
+
 Trading:
   - id: UCCbv0qixG-cyokxEY3kELtg
     name: TradingLab
