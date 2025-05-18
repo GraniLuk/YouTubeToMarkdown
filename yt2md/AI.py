@@ -56,7 +56,7 @@ def analyze_transcript_with_gemini(
 ) -> tuple[str, str]:
     """
     Analyze transcript using Gemini API and return refined text.
-    Falls back to Perplexity API if Gemini returns a 429 error (handled by strategy or this func).
+    Falls back to Perplexity API if Gemini returns an error (handled by strategy or this func).
 
     Args:
         transcript (str): Text transcript to analyze
@@ -83,8 +83,19 @@ def analyze_transcript_with_gemini(
     except Exception as e:
         logger.error(f"Gemini API call failed: {e}")
         perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
-        if "429" in str(e) and perplexity_api_key:
-            logger.info("Falling back to Perplexity API due to Gemini 429 error...")
+
+        # Always try Perplexity fallback if API key exists (not just for 429 errors)
+        if perplexity_api_key:
+            error_code = (
+                "429"
+                if "429" in str(e)
+                else str(e).split(":")[0]
+                if ":" in str(e)
+                else "unknown"
+            )
+            logger.info(
+                f"Falling back to Perplexity API due to Gemini error {error_code}..."
+            )
             # Fetch perplexity model name from config for fallback
             perplexity_config = get_llm_model_config("perplexity", category)
             fallback_perplexity_model_name = (
@@ -106,7 +117,7 @@ def analyze_transcript_with_gemini(
                 output_language=output_language,
                 category=category,
             )
-        raise  # Re-raise original exception if not a 429 or no perplexity key
+        raise  # Re-raise original exception if no Perplexity API key available
 
 
 def analyze_transcript_with_ollama(
