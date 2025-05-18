@@ -223,8 +223,7 @@ def get_videos_from_channel(
                         0
                     ]  # Get just the date part
                     logger.debug(f"Adding video: {title} ({published_date})")
-                    channel_name = item["snippet"]["channelTitle"]
-                    videos.append((video_url, title, published_date, channel_name))
+                    videos.append((video_url, title, published_date))
             else:
                 logger.warning("No items found in YouTube API response")
                 break  # Break if no items found to avoid unnecessary API calls
