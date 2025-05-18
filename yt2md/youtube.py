@@ -121,8 +121,7 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
             return None
         except Exception as e:
             logger.error(
-                f"Transcript extraction error for {video_url} (attempt {attempt}): {str(e)}",
-                exc_info=True,
+                f"Transcript extraction error for {video_url} (attempt {attempt}): {str(e)}"
             )
             if attempt < max_retries:
                 logger.info(
