@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -35,92 +36,104 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
     # Initialize video_id to None to ensure it's defined even if an exception occurs
     video_id = None
 
-    try:
-        # Extract video ID from URL
-        video_id = extract_video_id(url=video_url)
-        if not video_id:
-            logger.error(f"Failed to extract video ID from URL: {video_url}")
+    max_retries = 3
+    delay_seconds = 2
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Extract video ID from URL
+            video_id = extract_video_id(url=video_url)
+            if not video_id:
+                logger.error(f"Failed to extract video ID from URL: {video_url}")
+                return None
+
+            logger.debug(
+                f"Extracting transcript for video ID: {video_id} with language: {language_code} (attempt {attempt})"
+            )
+
+            # Get transcript with specified language
+            transcript_list = YouTubeTranscriptApi.get_transcript(
+                video_id, languages=[language_code]
+            )
+
+            logger.debug(f"Retrieved {len(transcript_list)} transcript segments")
+
+            # Combine all transcript pieces into one string
+            transcript = " ".join(
+                [transcript["text"] for transcript in transcript_list]
+            )
+
+            logger.debug(f"Transcript assembled with {len(transcript.split())} words")
+            return transcript
+
+        except VideoUnavailable:
+            logger.error(
+                f"No transcript available: Video {video_url} is unavailable (attempt {attempt})"
+            )
+            if video_id:
+                try:
+                    update_video_index(video_id, "VIDEO_UNAVAILABLE", False)
+                except Exception as index_error:
+                    logger.error(f"Failed to update video index: {str(index_error)}")
             return None
-
-        logger.debug(
-            f"Extracting transcript for video ID: {video_id} with language: {language_code}"
-        )
-
-        # Get transcript with specified language
-        transcript_list = YouTubeTranscriptApi.get_transcript(
-            video_id, languages=[language_code]
-        )
-
-        logger.debug(f"Retrieved {len(transcript_list)} transcript segments")
-
-        # Combine all transcript pieces into one string
-        transcript = " ".join([transcript["text"] for transcript in transcript_list])
-
-        logger.debug(f"Transcript assembled with {len(transcript.split())} words")
-        return transcript
-
-    except VideoUnavailable:
-        # Handle unavailable videos
-        logger.error(f"No transcript available: Video {video_url} is unavailable")
-        if video_id:
-            try:
-                update_video_index(video_id, "VIDEO_UNAVAILABLE", False)
-            except Exception as index_error:
-                logger.error(f"Failed to update video index: {str(index_error)}")
-        return None
-    except VideoUnplayable as e:
-        # Handle unplayable videos (like upcoming live events)
-        reason = (
-            str(e)
-            .split("The video is unplayable for the following reason:")[1]
-            .split("\n")[1]
-            .strip()
-            if "The video is unplayable for the following reason:" in str(e)
-            else "Video is unplayable"
-        )
-        logger.error(f"No transcript available for {video_url}: {reason}")
-        return None
-    except TranslationLanguageNotAvailable:
-        # Handle when transcript is not available in the requested language
-        logger.error(
-            f"No transcript found for {video_url} in language '{language_code}'"
-        )
-        return None
-    except TranscriptsDisabled:
-        # Handle when transcripts are disabled for the video
-        logger.error(f"Transcripts are disabled for video {video_url}")
-
-        # Use the already extracted video_id to add to the index if it exists
-        if video_id:
-            try:
-                # Add to index with special marker to indicate transcripts are disabled
-                update_video_index(video_id, "TRANSCRIPTS_DISABLED", False)
-                logger.info(f"Added video {video_id} to index as TRANSCRIPTS_DISABLED")
-            except Exception as index_error:
-                logger.error(f"Failed to update video index: {str(index_error)}")
-
-        return None
-    except NoTranscriptFound:
-        # Handle when no transcripts are available at all
-        logger.error(f"No transcripts available for video {video_url}")
-
-        # Use the already extracted video_id to add to the index if it exists
-        if video_id:
-            try:
-                # Add to index with special marker to indicate no transcripts found
-                update_video_index(video_id, "NO_TRANSCRIPT_FOUND", False)
-                logger.info(f"Added video {video_id} to index as NO_TRANSCRIPT_FOUND")
-            except Exception as index_error:
-                logger.error(f"Failed to update video index: {str(index_error)}")
-
-        return None
-    except Exception as e:
-        # General exception handler - log only a concise error message, no stack trace
-        logger.error(
-            f"Transcript extraction error for {video_url}: {str(e).split('!')[0]}"
-        )
-        # Don't re-raise the exception
-        return None
+        except VideoUnplayable as e:
+            reason = (
+                str(e)
+                .split("The video is unplayable for the following reason:")[1]
+                .split("\n")[1]
+                .strip()
+                if "The video is unplayable for the following reason:" in str(e)
+                else "Video is unplayable"
+            )
+            logger.error(
+                f"No transcript available for {video_url}: {reason} (attempt {attempt})"
+            )
+            return None
+        except TranslationLanguageNotAvailable:
+            logger.error(
+                f"No transcript found for {video_url} in language '{language_code}' (attempt {attempt})"
+            )
+            return None
+        except TranscriptsDisabled:
+            logger.error(
+                f"Transcripts are disabled for video {video_url} (attempt {attempt})"
+            )
+            if video_id:
+                try:
+                    update_video_index(video_id, "TRANSCRIPTS_DISABLED", False)
+                    logger.info(
+                        f"Added video {video_id} to index as TRANSCRIPTS_DISABLED"
+                    )
+                except Exception as index_error:
+                    logger.error(f"Failed to update video index: {str(index_error)}")
+            return None
+        except NoTranscriptFound:
+            logger.error(
+                f"No transcripts available for video {video_url} (attempt {attempt})"
+            )
+            if video_id:
+                try:
+                    update_video_index(video_id, "NO_TRANSCRIPT_FOUND", False)
+                    logger.info(
+                        f"Added video {video_id} to index as NO_TRANSCRIPT_FOUND"
+                    )
+                except Exception as index_error:
+                    logger.error(f"Failed to update video index: {str(index_error)}")
+            return None
+        except Exception as e:
+            logger.error(
+                f"Transcript extraction error for {video_url} (attempt {attempt}): {str(e)}",
+                exc_info=True,
+            )
+            if attempt < max_retries:
+                logger.info(
+                    f"Retrying transcript extraction for {video_url} in {delay_seconds} seconds..."
+                )
+                time.sleep(delay_seconds)
+            else:
+                logger.error(
+                    f"All {max_retries} attempts failed for {video_url}. Last error: {str(e)}"
+                )
+                return None
 
 
 def get_videos_from_channel(
@@ -210,7 +223,8 @@ def get_videos_from_channel(
                         0
                     ]  # Get just the date part
                     logger.debug(f"Adding video: {title} ({published_date})")
-                    videos.append((video_url, title, published_date))
+                    channel_name = item["snippet"]["channelTitle"]
+                    videos.append((video_url, title, published_date, channel_name))
             else:
                 logger.warning("No items found in YouTube API response")
                 break  # Break if no items found to avoid unnecessary API calls
