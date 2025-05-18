@@ -187,7 +187,7 @@ def get_videos_from_channel(
             logger.debug(f"Fetching page {page_count} with token: {next_page_token}")
         else:
             current_url = url
-            logger.debug(f"Fetching first page of results")
+            logger.debug("Fetching first page of results")
 
         try:
             response = requests.get(current_url)

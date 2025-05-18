@@ -1,6 +1,5 @@
 """Module for collecting videos from various sources like URLs or YouTube channels."""
 
-import logging
 from typing import List, Optional, Tuple
 
 from yt2md.config import load_all_channels, load_channels_by_category
@@ -136,7 +135,9 @@ def _collect_videos_from_single_channel(channel, days: int) -> List[Tuple]:
     videos_to_process = []
     logger.debug(f"Getting videos from channel: {channel.name}")
     # Limit API calls to 1 page per channel (max 10 videos)
-    channel_videos = get_videos_from_channel(channel.id, days, max_pages=1, max_videos=10)
+    channel_videos = get_videos_from_channel(
+        channel.id, days, max_pages=1, max_videos=10
+    )
     logger.debug(
         f"Found {len(channel_videos)} videos from {channel.name} in the last {days} days"
     )
