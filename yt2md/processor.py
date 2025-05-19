@@ -1,5 +1,3 @@
-"""Video processing functionality for the YouTube to Markdown converter."""
-
 import os
 import time
 
@@ -12,6 +10,55 @@ from yt2md.youtube import get_youtube_transcript
 
 # Get logger for this module
 logger = get_logger("processor")
+
+
+# Batch processing function for a list of videos, with progress logging
+def process_videos(
+    videos_to_process,
+    use_ollama=False,
+    use_cloud=False,
+    skip_verification=False,
+    ollama_model=None,
+    ollama_base_url=None,
+):
+    """
+    Process a list of videos, logging progress count in the existing log about processing each video.
+    Args:
+        videos_to_process: list of tuples with video parameters
+        use_ollama, use_cloud, skip_verification, ollama_model, ollama_base_url: see process_video
+    """
+    total = len(videos_to_process)
+    start_time = time.time()
+    for idx, (
+        video_url,
+        video_title,
+        published_date,
+        channel_name,
+        language_code,
+        output_language,
+        category,
+    ) in enumerate(videos_to_process, 1):
+        logger.info(
+            f"Processing video {idx}/{total}: {video_title} by {channel_name} with URL: {video_url}"
+        )
+        process_video(
+            video_url,
+            video_title,
+            published_date,
+            channel_name,
+            language_code,
+            output_language,
+            category,
+            use_ollama=use_ollama,
+            use_cloud=use_cloud,
+            skip_verification=skip_verification,
+            ollama_model=ollama_model,
+            ollama_base_url=ollama_base_url,
+        )
+    execution_time = time.time() - start_time
+    minutes = int(execution_time // 60)
+    seconds = execution_time % 60
+    logger.info(f"All videos processed in {minutes} min {seconds:.2f} sec")
 
 
 def process_video(
@@ -56,9 +103,6 @@ def process_video(
         ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
     try:
-        logger.info(
-            f"Processing video: {video_title} by {author_name} with URL: {video_url}"
-        )
         saved_files = []
 
         # Get transcript

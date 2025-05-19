@@ -2,7 +2,6 @@ import logging
 import os
 import sys
 import textwrap
-import time
 import winsound
 
 from dotenv import load_dotenv
@@ -10,7 +9,6 @@ from dotenv import load_dotenv
 from yt2md.cli import parse_args  # Import parse_args directly
 from yt2md.file_operations import get_script_dir
 from yt2md.logger import get_logger, setup_logging
-from yt2md.processor import process_video
 from yt2md.reporting import display_video_processing_summary
 from yt2md.video_collector import (
     collect_videos_from_all_channels,
@@ -85,51 +83,30 @@ def run_main(args):
             )
         elif args.category:
             videos_to_process = collect_videos_from_category(
-                args.category, 
-                args.days, 
+                args.category,
+                args.days,
                 channel_name=args.channel,
-                max_videos=args.max_videos
+                max_videos=args.max_videos,
             )
         else:
             videos_to_process = collect_videos_from_all_channels(
-                args.days,
-                max_videos=args.max_videos
+                args.days, max_videos=args.max_videos
             )
 
         # Display summary of videos to process
         display_video_processing_summary(videos_to_process)
 
-        # Process all collected videos
-        start_time = time.time()
-        for (
-            video_url,
-            video_title,
-            published_date,
-            channel_name,
-            language_code,
-            output_language,
-            category,
-        ) in videos_to_process:
-            process_video(
-                video_url,
-                video_title,
-                published_date,
-                channel_name,
-                language_code,
-                output_language,
-                category,
-                use_ollama=args.ollama,
-                use_cloud=args.cloud,
-                skip_verification=args.skip_verification,
-                ollama_model=ollama_model,
-                ollama_base_url=ollama_base_url,
-            )
+        # Process all collected videos with progress
+        from yt2md.processor import process_videos
 
-        # Log total processing time
-        execution_time = time.time() - start_time
-        minutes = int(execution_time // 60)
-        seconds = execution_time % 60
-        logger.info(f"All videos processed in {minutes} min {seconds:.2f} sec")
+        process_videos(
+            videos_to_process,
+            use_ollama=args.ollama,
+            use_cloud=args.cloud,
+            skip_verification=args.skip_verification,
+            ollama_model=ollama_model,
+            ollama_base_url=ollama_base_url,
+        )
 
         if os.name == "nt":  # Check if the platform is Windows
             winsound.Beep(1000, 500)
