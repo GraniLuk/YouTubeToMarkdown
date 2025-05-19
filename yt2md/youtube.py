@@ -296,9 +296,7 @@ def get_video_details_from_url(
     logger.debug(f"Extracted video ID: {video_id}")
 
     # Get processed video IDs from index file
-    processed_video_ids = get_processed_video_ids(
-        skip_verification
-    )  # Check if the video ID is already processed
+    processed_video_ids = get_processed_video_ids(skip_verification)
     if video_id in processed_video_ids:
         logger.debug(f"Video with ID {video_id} was already processed. Skipping...")
         return None
@@ -316,19 +314,19 @@ def get_video_details_from_url(
         if "items" in data and data["items"]:
             firstItem = data["items"][0]
             if firstItem:
-                video_url = url
-                title = firstItem["snippet"]["title"]
-                published_date = firstItem["snippet"]["publishedAt"].split("T")[
+                snippet = firstItem["snippet"]
+                title = snippet["title"]
+                published_date = snippet["publishedAt"].split("T")[
                     0
-                ]  # Get just the date part
-                channel_name = firstItem["snippet"]["channelTitle"]
-                logger.info(
-                    f"Retrieved details for video: {title} from channel {channel_name}"
+                ]  # Get just the date
+                channel_name = snippet["channelTitle"]
+                logger.debug(
+                    f"Retrieved details for video '{title}' published on {published_date} by {channel_name}"
                 )
-                return (video_url, title, published_date, channel_name)
+                return (url, title, published_date, channel_name)
         else:
-            logger.warning(f"No video details found for ID: {video_id}")
+            logger.error(f"No video details found for URL: {url}")
     except Exception as e:
-        logger.error(f"Error getting video details for {url}: {str(e)}", exc_info=True)
+        logger.error(f"Error getting video details for URL {url}: {str(e)}")
 
     return None
