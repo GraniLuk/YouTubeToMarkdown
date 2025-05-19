@@ -176,7 +176,7 @@ def process_video(
             )
 
             if saved_file_path:
-                logger.info(f"Saved cloud LLM result to: {saved_file_path}")
+                logger.debug(f"Saved cloud LLM result to: {saved_file_path}")
                 saved_files.append(saved_file_path)
 
         # Save Ollama result if available
@@ -207,7 +207,7 @@ def process_video(
             )
 
             if ollama_file_path:
-                logger.info(f"Saved Ollama result to: {ollama_file_path}")
+                logger.debug(f"Saved Ollama result to: {ollama_file_path}")
                 saved_files.append(ollama_file_path)
 
         return saved_files
