@@ -61,7 +61,7 @@ def collect_videos_from_url(
 
 
 def collect_videos_from_category(
-    category: str, days: int, channel_name: Optional[str] = None
+    category: str, days: int, channel_name: Optional[str] = None, max_videos: int = 10
 ) -> List[Tuple]:
     """
     Collect videos from channels in a specified category.
@@ -70,6 +70,7 @@ def collect_videos_from_category(
         category: Category name (IT, Crypto, AI, Fitness, Trading, News)
         days: Number of days to look back for videos
         channel_name: Optional specific channel name to filter within the category
+        max_videos: Maximum number of videos to collect per channel
 
     Returns:
         List of tuples with video details
@@ -96,17 +97,22 @@ def collect_videos_from_category(
 
     # Collect videos from all channels in the category
     for channel in channels:
-        videos_to_process.extend(_collect_videos_from_single_channel(channel, days))
+        videos_to_process.extend(_collect_videos_from_single_channel(
+            channel, days, max_videos
+        ))
 
     return videos_to_process
 
 
-def collect_videos_from_all_channels(days: int) -> List[Tuple]:
+def collect_videos_from_all_channels(
+    days: int, max_videos: int = 10
+) -> List[Tuple]:
     """
     Collect videos from all configured channels.
 
     Args:
         days: Number of days to look back for videos
+        max_videos: Maximum number of videos to collect per channel
 
     Returns:
         List of tuples with video details
@@ -116,27 +122,32 @@ def collect_videos_from_all_channels(days: int) -> List[Tuple]:
     videos_to_process = []
 
     for channel in channels:
-        videos_to_process.extend(_collect_videos_from_single_channel(channel, days))
+        videos_to_process.extend(_collect_videos_from_single_channel(
+            channel, days, max_videos
+        ))
 
     return videos_to_process
 
 
-def _collect_videos_from_single_channel(channel, days: int) -> List[Tuple]:
+def _collect_videos_from_single_channel(
+    channel, days: int, max_videos: int = 10
+) -> List[Tuple]:
     """
     Helper function to collect videos from a single channel.
 
     Args:
         channel: Channel object with id, name, language_code, etc.
         days: Number of days to look back for videos
+        max_videos: Maximum number of videos to collect
 
     Returns:
         List of tuples with video details
     """
     videos_to_process = []
     logger.debug(f"Getting videos from channel: {channel.name}")
-    # Limit API calls to 1 page per channel (max 10 videos)
+    # We set max_pages to a large number (100) to effectively keep paginating until we hit max_videos
     channel_videos = get_videos_from_channel(
-        channel.id, days, max_pages=1, max_videos=10
+        channel.id, days, max_pages=100, max_videos=max_videos
     )
     logger.debug(
         f"Found {len(channel_videos)} videos from {channel.name} in the last {days} days"

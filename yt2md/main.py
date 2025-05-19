@@ -85,10 +85,16 @@ def run_main(args):
             )
         elif args.category:
             videos_to_process = collect_videos_from_category(
-                args.category, args.days, channel_name=args.channel
+                args.category, 
+                args.days, 
+                channel_name=args.channel,
+                max_videos=args.max_videos
             )
         else:
-            videos_to_process = collect_videos_from_all_channels(args.days)
+            videos_to_process = collect_videos_from_all_channels(
+                args.days,
+                max_videos=args.max_videos
+            )
 
         # Display summary of videos to process
         display_video_processing_summary(videos_to_process)

@@ -150,7 +150,7 @@ def get_videos_from_channel(
     channel_id: str,
     days: int = 8,
     skip_verification: bool = False,
-    max_pages: int = 1,
+    max_pages: int = 100,  # Default to a high number to keep paginating
     max_videos: int = 10,
 ) -> list[tuple[str, str, str]]:
     """
@@ -161,7 +161,7 @@ def get_videos_from_channel(
         channel_id (str): YouTube channel ID
         days (int): Number of days to look back
         skip_verification (bool): If True, skip checking if videos were already processed
-        max_pages (int): Maximum number of API result pages to fetch (default: 1)
+        max_pages (int): Maximum number of API result pages to fetch (default: 100)
         max_videos (int): Maximum number of videos to collect per channel (default: 10)
 
     Returns:
@@ -169,7 +169,7 @@ def get_videos_from_channel(
     """
     API_KEY = os.getenv("YOUTUBE_API_KEY")
     logger.info(
-        f"Fetching videos from channel ID: {channel_id} for last {days} days (max {max_videos} videos, {max_pages} pages)"
+        f"Fetching videos from channel ID: {channel_id} for last {days} days (max {max_videos} videos)"
     )
 
     # Get processed video IDs from index file

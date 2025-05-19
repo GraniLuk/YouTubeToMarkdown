@@ -48,6 +48,12 @@ def create_parser():
         help="Skip checking if video was already processed and don't update index",
     )
     parser.add_argument(
+        "--max-videos",
+        type=int,
+        default=10,
+        help="Maximum number of videos to collect per channel (default: 10)",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
