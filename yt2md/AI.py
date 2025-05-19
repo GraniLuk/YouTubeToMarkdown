@@ -262,7 +262,7 @@ def analyze_transcript_by_length(
                     "provider": "gemini",
                 }
                 processed_cloud = True
-                logger.info(f"Successfully processed with Gemini: {gemini_model_name}")
+                logger.debug(f"Successfully processed with Gemini: {gemini_model_name}")
             except Exception as e:
                 logger.error(
                     f"Error during Gemini processing with {gemini_model_name}: {e}"
@@ -303,7 +303,7 @@ def analyze_transcript_by_length(
                     "provider": "perplexity",
                 }
                 processed_cloud = True
-                logger.info(
+                logger.debug(
                     f"Successfully processed with Perplexity: {perplexity_model_name}"
                 )
             except Exception as e:
@@ -337,7 +337,9 @@ def analyze_transcript_by_length(
                 "description": ollama_description,
                 "model_name": effective_ollama_model,
             }
-            logger.info(f"Successfully processed with Ollama: {effective_ollama_model}")
+            logger.debug(
+                f"Successfully processed with Ollama: {effective_ollama_model}"
+            )
         except Exception as e:
             logger.error(
                 f"Error during Ollama processing with {effective_ollama_model}: {e}"
