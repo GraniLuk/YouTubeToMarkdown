@@ -12,7 +12,6 @@ from youtube_transcript_api._errors import (
     TranscriptsDisabled,
     TranslationLanguageNotAvailable,
     VideoUnavailable,
-    VideoUnplayable,  # type: ignore
 )
 
 from yt2md.logger import get_logger
@@ -75,24 +74,13 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
                 except Exception as index_error:
                     logger.error(f"Failed to update video index: {str(index_error)}")
             return None
-        except VideoUnplayable as e:
-            reason = (
-                str(e)
-                .split("The video is unplayable for the following reason:")[1]
-                .split("\n")[1]
-                .strip()
-                if "The video is unplayable for the following reason:" in str(e)
-                else "Video is unplayable"
-            )
-            logger.error(
-                f"No transcript available for {video_url}: {reason} (attempt {attempt})"
-            )
-            return None
+
         except TranslationLanguageNotAvailable:
             logger.error(
                 f"No transcript found for {video_url} in language '{language_code}' (attempt {attempt})"
             )
             return None
+
         except TranscriptsDisabled:
             logger.error(
                 f"Transcripts are disabled for video {video_url} (attempt {attempt})"
@@ -106,6 +94,7 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
                 except Exception as index_error:
                     logger.error(f"Failed to update video index: {str(index_error)}")
             return None
+
         except NoTranscriptFound:
             logger.error(
                 f"No transcripts available for video {video_url} (attempt {attempt})"
@@ -119,7 +108,29 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
                 except Exception as index_error:
                     logger.error(f"Failed to update video index: {str(index_error)}")
             return None
+
         except Exception as e:
+            # Check for VideoUnplayable error message pattern
+            if "The video is unplayable for the following reason:" in str(e):
+                reason = (
+                    str(e)
+                    .split("The video is unplayable for the following reason:")[1]
+                    .split("\n")[1]
+                    .strip()
+                )
+                logger.error(
+                    f"No transcript available for {video_url}: {reason} (attempt {attempt})"
+                )
+                if video_id:
+                    try:
+                        update_video_index(video_id, "VIDEO_UNPLAYABLE", False)
+                    except Exception as index_error:
+                        logger.error(
+                            f"Failed to update video index: {str(index_error)}"
+                        )
+                return None
+
+            # Handle other exceptions
             logger.error(
                 f"Transcript extraction error for {video_url} (attempt {attempt}): {str(e)}"
             )
