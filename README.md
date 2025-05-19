@@ -32,6 +32,9 @@ yt2md --url "https://www.youtube.com/watch?v=..." --skip-verification
 
 # Process videos from a specific channel
 yt2md --category IT --channel "Nick Chapsas" --days 7
+
+# Collect more videos per channel (default is 10)
+yt2md --category AI --max-videos 30
 ```
 
 You can also filter videos by title for specific channels by adding `title_filters` to the channel configuration in `channels.yaml`. See the Channel Configuration section below for details.
@@ -82,6 +85,16 @@ Use the `--skip-verification` flag when you want to:
 ```bash
 yt2md --url "https://www.youtube.com/watch?v=..." --skip-verification
 ```
+
+### Fetching More Videos
+
+By default, the tool collects up to 10 videos per channel. To retrieve more videos:
+
+```bash
+yt2md --category IT --max-videos 30
+```
+
+The tool automatically paginates through all available YouTube API results until it reaches the maximum number of videos specified by `--max-videos` or until all available videos within the specified time frame have been retrieved.
 
 ## Channel Configuration
 
