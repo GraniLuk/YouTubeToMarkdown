@@ -131,11 +131,11 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
                 return None
 
             # Handle other exceptions
-            logger.error(
+            logger.warning(
                 f"Transcript extraction error for {video_url} (attempt {attempt}): {str(e)}"
             )
             if attempt < max_retries:
-                logger.info(
+                logger.debug(
                     f"Retrying transcript extraction for {video_url} in {delay_seconds} seconds..."
                 )
                 time.sleep(delay_seconds)
