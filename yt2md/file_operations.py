@@ -15,7 +15,7 @@ def get_script_dir():
     """Get the directory where the script is running from."""
     # If packaged with PyInstaller, use the _MEIPASS attribute
     if hasattr(sys, "_MEIPASS"):
-        return sys._MEIPASS
+        return getattr(sys, "_MEIPASS")
     # Otherwise, use the directory of the script
     return os.path.abspath(os.path.dirname(__file__))
 
