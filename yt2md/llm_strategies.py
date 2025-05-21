@@ -171,12 +171,12 @@ class GeminiStrategy(LLMStrategy):
                     contents=full_prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.6,
-                        max_output_tokens=81920,
+                        max_output_tokens=60000,
                     )
                 )
                 
                 # Get text from response
-                text = response.text
+                text = response.text if response.text else ""
                 
                 # Process the response text
                 processed_text, chunk_description = self.process_model_response(
