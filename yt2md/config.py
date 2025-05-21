@@ -1,5 +1,6 @@
 import os
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, List
 
 import yaml
 
@@ -8,6 +9,14 @@ from .logger import get_logger
 
 # Get logger for this module
 logger = get_logger("config")
+
+# In-memory cache for configuration
+_config_cache = None
+_config_last_modified = 0
+_cache_max_age = 300  # Maximum age of cache in seconds (5 minutes)
+
+# Cache statistics
+_cache_stats = {"hits": 0, "misses": 0, "last_hit": None, "last_miss": None}
 
 
 def _get_config_path() -> str:
@@ -19,18 +28,69 @@ def _get_config_path() -> str:
     return config_path
 
 
+def _is_cache_valid() -> bool:
+    """Check if the cache is still valid based on file modification time and cache age."""
+    if _config_cache is None:
+        return False
+
+    config_path = _get_config_path()
+
+    try:
+        # Check if file was modified after our cache was created
+        current_mtime = os.path.getmtime(config_path)
+        if current_mtime > _config_last_modified:
+            logger.debug("Cache invalid: config file has been modified")
+            return False
+
+        # Check if cache has exceeded its maximum age (if max age is enabled)
+        if _cache_max_age > 0:
+            cache_age = time.time() - _config_last_modified
+            if cache_age > _cache_max_age:
+                logger.debug(
+                    f"Cache invalid: exceeded max age ({cache_age:.1f} > {_cache_max_age} seconds)"
+                )
+                return False
+
+        return True
+    except Exception as e:
+        logger.warning(f"Error checking cache validity: {str(e)}")
+        return False
+
+
 def _load_config() -> Dict[str, Any]:
     """Load and return the channels configuration."""
+    global _config_cache, _config_last_modified, _cache_stats
+
+    # Return cached config if available and valid
+    if _is_cache_valid() and _config_cache is not None:
+        # Update cache hit statistics
+        _cache_stats["hits"] += 1
+        _cache_stats["last_hit"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        return _config_cache
+
+    # Update cache miss statistics
+    _cache_stats["misses"] += 1
+    _cache_stats["last_miss"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
     config_path = _get_config_path()
     logger.debug(f"Loading configuration from {config_path}")
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
+            if not config:
+                logger.error("Loaded config is empty")
+                # Return empty dict instead of raising an error
+                return {}
+
             logger.debug(f"Loaded {len(config)} categories")
+            # Cache the loaded configuration and update last modified time
+            _config_cache = config
+            _config_last_modified = time.time()
             return config
     except Exception as e:
         logger.error(f"Failed to load config: {str(e)}")
-        raise
+        # Return empty dict instead of re-raising the exception
+        return {}
 
 
 def _create_channel(channel_data: Dict[str, Any], category: str) -> Channel:
@@ -87,7 +147,7 @@ def get_category_colors() -> Dict[str, str]:
     return category_colors
 
 
-def get_llm_strategy_config(category: str = None) -> Dict[str, Any]:
+def get_llm_strategy_config(category: str) -> Dict[str, Any]:
     """
     Get LLM strategy configuration based on category.
 
@@ -153,7 +213,7 @@ def get_llm_strategy_config(category: str = None) -> Dict[str, Any]:
     return merged_config
 
 
-def get_llm_model_config(model_type: str, category: str = None) -> Dict[str, Any]:
+def get_llm_model_config(model_type: str, category: str) -> Dict[str, Any]:
     """
     Get configuration for a specific LLM model type based on category.
 
@@ -170,7 +230,7 @@ def get_llm_model_config(model_type: str, category: str = None) -> Dict[str, Any
     return model_configs.get(model_type, {})
 
 
-def get_transcript_length_category(transcript_length: int, category: str = None) -> str:
+def get_transcript_length_category(transcript_length: int, category: str) -> str:
     """
     Determine length category of transcript based on its length and content category.
 
@@ -195,9 +255,7 @@ def get_transcript_length_category(transcript_length: int, category: str = None)
         return "long"
 
 
-def get_llm_strategy_for_transcript(
-    transcript: str, category: str = None
-) -> Dict[str, str]:
+def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str, str]:
     """
     Get recommended LLM strategy based on transcript length and category.
 
@@ -225,3 +283,58 @@ def get_llm_strategy_for_transcript(
         strategy = {"primary": "gemini", "fallback": "perplexity"}
 
     return strategy
+
+
+def reset_config_cache(reset_stats: bool = False) -> None:
+    """
+    Reset the configuration cache to force reloading from disk on next access.
+
+    Args:
+        reset_stats: If True, also reset cache statistics
+    """
+    global _config_cache, _config_last_modified, _cache_stats
+    _config_cache = None
+    _config_last_modified = 0
+
+    if reset_stats:
+        _cache_stats = {"hits": 0, "misses": 0, "last_hit": None, "last_miss": None}
+        logger.debug("Configuration cache and statistics have been reset")
+    else:
+        logger.debug("Configuration cache has been reset")
+
+
+def configure_config_cache(max_age_seconds: int = 300) -> None:
+    """
+    Configure cache parameters.
+
+    Args:
+        max_age_seconds: Maximum age of cache in seconds before forced refresh (default: 300s/5min)
+                         Set to 0 to disable age-based invalidation.
+    """
+    global _cache_max_age
+    _cache_max_age = max_age_seconds
+    logger.debug(f"Config cache max age set to {max_age_seconds} seconds")
+
+
+def get_config_cache_stats() -> Dict[str, Any]:
+    """
+    Get statistics about the configuration cache.
+
+    Returns:
+        Dict containing cache statistics: hits, misses, hit ratio, last hit time, last miss time
+    """
+    total = _cache_stats["hits"] + _cache_stats["misses"]
+    hit_ratio = _cache_stats["hits"] / total if total > 0 else 0
+
+    return {
+        "hits": _cache_stats["hits"],
+        "misses": _cache_stats["misses"],
+        "hit_ratio": f"{hit_ratio:.2f}",
+        "last_hit": _cache_stats["last_hit"],
+        "last_miss": _cache_stats["last_miss"],
+        "cache_age": time.time() - _config_last_modified
+        if _config_last_modified > 0
+        else None,
+        "max_age": _cache_max_age,
+        "is_cached": _config_cache is not None,
+    }
