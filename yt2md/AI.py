@@ -197,7 +197,8 @@ def analyze_transcript_by_length(
     primary_model_type = strategy_config.get("primary")
     # fallback_model_type = strategy_config.get("fallback") # Not directly used for selection here, but for info    # Fetch cloud model names from configuration
     gemini_config = get_llm_model_config("gemini", category)
-    gemini_model_name = gemini_config.get("model_name") if gemini_config else None    perplexity_config = get_llm_model_config("perplexity", category)
+    gemini_model_name = gemini_config.get("model_name") if gemini_config else None
+    perplexity_config = get_llm_model_config("perplexity", category)
     perplexity_model_name = (
         perplexity_config.get("model_name") if perplexity_config else None
     )
