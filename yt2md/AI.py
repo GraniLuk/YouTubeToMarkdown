@@ -70,6 +70,7 @@ def analyze_transcript_with_gemini(
     """
     try:
         # Use the strategy pattern implementation
+        perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
         strategy = LLMFactory.get_strategy("gemini")
         refined_text, description = strategy.analyze_transcript(
             transcript=transcript,
