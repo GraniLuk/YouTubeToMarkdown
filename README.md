@@ -6,6 +6,7 @@ A tool to automatically convert YouTube video transcripts into well-formatted ma
 
 1. Clone this repository
 2. Install the package in development mode:
+
 ```bash
 pip install -e .
 ```
@@ -40,6 +41,7 @@ yt2md --category AI --max-videos 30
 You can also filter videos by title for specific channels by adding `title_filters` to the channel configuration in `channels.yaml`. See the Channel Configuration section below for details.
 
 Make sure to set up your environment variables in a .env file:
+
 - GEMINI_API_KEY
 - YOUTUBE_API_KEY
 - SUMMARIES_PATH
@@ -52,11 +54,14 @@ To use [Ollama](https://ollama.ai/) (local LLM) for processing videos:
 
 1. Install Ollama on your system from [ollama.ai](https://ollama.ai/)
 2. Add the following environment variables to your .env file:
-   ```
+
+   ```text
    OLLAMA_MODEL=gemma3:4b  # or any model you have pulled
    OLLAMA_BASE_URL=http://localhost:11434  # default, change if running on another host/port
    ```
+
 3. Run the tool with the `--ollama` flag:
+
    ```bash
    yt2md --url "https://www.youtube.com/watch?v=..." --ollama
    ```
@@ -66,6 +71,7 @@ This will process the video with both cloud and local LLMs, generating two separ
 ### Using Cloud Services Only
 
 Use the `--cloud` flag when you want to:
+
 - Force using only cloud services (Gemini or Perplexity) regardless of transcript length
 - Skip local LLM processing completely, even for short transcripts
 
@@ -78,6 +84,7 @@ This parameter takes precedence over the `--ollama` parameter, so if both are sp
 ### Skip Verification
 
 Use the `--skip-verification` flag when you want to:
+
 - Process a video that has already been processed before
 - Skip adding entries to the video index file
 - Generate multiple summaries of the same video with different parameters
@@ -99,15 +106,18 @@ The tool automatically paginates through all available YouTube API results until
 ## Channel Configuration
 
 The `channels.yaml` file in the `config` directory organizes YouTube channels into categories. Each channel entry requires:
+
 - `id`: The YouTube channel ID (found in channel URL)
 - `name`: Display name for the channel
 - `language_code`: Source language code (e.g., 'en' for English, 'pl' for Polish)
 - `output_language`: Target language for the output
 
 Optional configuration:
+
 - `title_filters`: List of strings to filter videos by title (only process videos containing at least one of these strings)
 
 Example configuration:
+
 ```yaml
 IT:
   - id: UCrkPsvLGln62OMZRO6K-llg
@@ -132,7 +142,8 @@ AI:
       - "LLM"
 ```
 
-# YouTube Playlist Processor using Gemini API
+## YouTube Playlist Processor using Gemini API
+
 <br>
 <br>
 ✅ Added Language Support, now the output file is in the language of user's input.(might not be as good as english, test it yourself!)<br>
@@ -147,14 +158,15 @@ I personally use it to convert large YouTube playlists containing dozens of long
 
 <br><br>
 
-*   Batch processing of entire playlists
-*   Refine transcripts using Google Gemini API for improved formatting and readability.
-*   User-friendly PyQt5 graphical interface.
-*   Selectable Gemini models.
-*   Output to markdown file.
+- Batch processing of entire playlists
+- Refine transcripts using Google Gemini API for improved formatting and readability.
+- User-friendly PyQt5 graphical interface.
+- Selectable Gemini models.
+- Output to markdown file.
 <br><br><br><br>
 
 ## Features
+
 - 🎥 Automatic transcript extraction from YouTube playlists
 - 🧠 AI-powered text refinement using Gemini models
 - 📁 Configurable output file paths
@@ -162,28 +174,32 @@ I personally use it to convert large YouTube playlists containing dozens of long
 - 📄 Output to formatted markdown file.
 
 ## Requirements
+
 - Python 3.9+
 - Google Gemini API key
 - YouTube playlist URL
 
 ## Installation
+
 ```bash
 pip install -r requirements.txt
 ```
+
 ## How does it work?
-* First, the transcript of every video in the playlist is fetched.
-* since gemini api doesnt have unlimited context window for input and output, the text for each video gets divided into chunks(right now, chunk size is set to 3000 after testing, but it can be changed)
-* Each text chunk is then sent to the Gemini API, along with a context prompt that includes the previously refined text. This helps maintain consistency and coherence across chunks.
-* The refined output from Gemini for each chunk is appended to the final output file.
-* This process is repeated for every video in the playlist, resulting in a single, refined transcript output file for the entire playlist.
-    
+
+- First, the transcript of every video in the playlist is fetched.
+- since gemini api doesnt have unlimited context window for input and output, the text for each video gets divided into chunks(right now, chunk size is set to 3000 after testing, but it can be changed)
+- Each text chunk is then sent to the Gemini API, along with a context prompt that includes the previously refined text. This helps maintain consistency and coherence across chunks.
+- The refined output from Gemini for each chunk is appended to the final output file.
+- This process is repeated for every video in the playlist, resulting in a single, refined transcript output file for the entire playlist.
+
 ## Usage
 
-1.  **Get a Gemini API Key:** You need a Google Gemini API key. Obtain one from [Google AI Studio](https://ai.google.dev/gemini-api/docs/api-key).
-2.  **Run the Application:**
+1. **Get a Gemini API Key:** You need a Google Gemini API key. Obtain one from [Google AI Studio](https://ai.google.dev/gemini-api/docs/api-key).
+2. **Run the Application:**
+
     ```bash
     python main.py
     ```
 
-
-> YouTube playlist used for example files : https://www.youtube.com/playlist?list=PLmHVyfmcRKyx1KSoobwukzf1Nf-Y97Rw0
+> YouTube playlist used for example files : <https://www.youtube.com/playlist?list=PLmHVyfmcRKyx1KSoobwukzf1Nf-Y97Rw0>
