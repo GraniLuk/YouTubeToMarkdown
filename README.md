@@ -144,26 +144,20 @@ AI:
 
 ## YouTube Playlist Processor using Gemini API
 
-<br>
-<br>
-✅ Added Language Support, now the output file is in the language of user's input.(might not be as good as english, test it yourself!)<br>
+
+✅ Added Language Support, now the output file is in the language of user's input.(might not be as good as english, test it yourself!)
 ✅ Added single video url support, no need to put it in a playlist.
 
-<br>
-<br>
 This Python application extracts transcripts from YouTube playlists and refines them using the Google Gemini API(which is free). It takes a YouTube playlist URL as input, extracts transcripts for each video, and then uses Gemini to reformat and improve the readability of the combined transcript. The output is saved as a text file.
-<br><br>
-So you can have a neatly formatted book out of a YouTube playlist!
-I personally use it to convert large YouTube playlists containing dozens of long videos into a very large organized markdown file to give it as input to NotebookLM as one source.<br><br>
 
-<br><br>
+So you can have a neatly formatted book out of a YouTube playlist!
+I personally use it to convert large YouTube playlists containing dozens of long videos into a very large organized markdown file to give it as input to NotebookLM as one source.
 
 - Batch processing of entire playlists
 - Refine transcripts using Google Gemini API for improved formatting and readability.
 - User-friendly PyQt5 graphical interface.
 - Selectable Gemini models.
 - Output to markdown file.
-<br><br><br><br>
 
 ## Features
 
@@ -178,12 +172,6 @@ I personally use it to convert large YouTube playlists containing dozens of long
 - Python 3.9+
 - Google Gemini API key
 - YouTube playlist URL
-
-## Installation
-
-```bash
-pip install -r requirements.txt
-```
 
 ## How does it work?
 
