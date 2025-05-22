@@ -5,14 +5,15 @@ setup(
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
-        "google-generativeai",
+        "google-genai>=1.16.0",
         "requests",
         "python-dotenv",
         "google-auth-oauthlib",
         "google-api-python-client",
         "pytube",
         "youtube-transcript-api",
-        "pyyaml"
+        "pyyaml",
+        "colorama>=0.4.6"
     ],
     entry_points={
         "console_scripts": [

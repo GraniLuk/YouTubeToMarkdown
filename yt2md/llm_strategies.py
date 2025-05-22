@@ -7,8 +7,9 @@ import os
 import time
 from abc import ABC, abstractmethod
 
-import google.generativeai as genai
 import requests
+from google import genai
+from google.genai import types
 
 from yt2md.chunking import ChunkingStrategyFactory
 
@@ -121,9 +122,10 @@ class GeminiStrategy(LLMStrategy):
         if not api_key:
             raise ValueError("Gemini API key is required")
 
-        # Configure Gemini
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(model_name)
+        # Configure Gemini client
+        client = genai.Client(
+            api_key=api_key
+        )
 
         # Get chunking strategy
         chunker = ChunkingStrategyFactory.get_strategy(
@@ -164,9 +166,18 @@ class GeminiStrategy(LLMStrategy):
             full_prompt = f"{context_prompt}{template}\n\n{chunk}"
 
             try:
-                response = model.generate_content(full_prompt)
-                text = response.text
-
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=full_prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.6,
+                        max_output_tokens=60000,
+                    )
+                )
+                
+                # Get text from response
+                text = response.text if response.text else ""
+                
                 # Process the response text
                 processed_text, chunk_description = self.process_model_response(
                     text, i == 0
@@ -359,9 +370,9 @@ class OllamaStrategy(LLMStrategy):
         description = "No description available"
 
         url = f"{base_url}/api/generate"
-        if chunks.__len__() > 1:
+        if len(chunks) > 1:
             print(
-                f"Transcript is too long, splitting into {chunks.__len__()} chunks for processing."
+                f"Transcript is too long, splitting into {len(chunks)} chunks for processing."
             )
         for i, chunk in enumerate(chunks):
             # Prepare prompt with context if needed

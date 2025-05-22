@@ -70,6 +70,7 @@ def analyze_transcript_with_gemini(
     """
     try:
         # Use the strategy pattern implementation
+        perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
         strategy = LLMFactory.get_strategy("gemini")
         refined_text, description = strategy.analyze_transcript(
             transcript=transcript,
@@ -82,21 +83,8 @@ def analyze_transcript_with_gemini(
         return refined_text, description
     except Exception as e:
         logger.error(f"Gemini API call failed: {e}")
-        perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
-
-        # Always try Perplexity fallback if API key exists (not just for 429 errors)
-        if perplexity_api_key:
-            error_code = (
-                "429"
-                if "429" in str(e)
-                else str(e).split(":")[0]
-                if ":" in str(e)
-                else "unknown"
-            )
-            logger.info(
-                f"Falling back to Perplexity API due to Gemini error {error_code}..."
-            )
-            # Fetch perplexity model name from config for fallback
+        if "429" in str(e) and perplexity_api_key:
+            logger.info("Falling back to Perplexity API due to Gemini 429 error...")            # Fetch perplexity model name from config for fallback
             perplexity_config = get_llm_model_config("perplexity", category)
             fallback_perplexity_model_name = (
                 perplexity_config.get("model_name")
@@ -211,11 +199,11 @@ def analyze_transcript_by_length(
     # fallback_model_type = strategy_config.get("fallback") # Not directly used for selection here, but for info    # Fetch cloud model names from configuration
     gemini_config = get_llm_model_config("gemini", category)
     gemini_model_name = gemini_config.get("model_name") if gemini_config else None
-
     perplexity_config = get_llm_model_config("perplexity", category)
     perplexity_model_name = (
         perplexity_config.get("model_name") if perplexity_config else None
     )
+    
     # Ollama configuration
     ollama_config_from_file = get_llm_model_config("ollama", category)
     effective_ollama_model = ollama_model or (

@@ -1,3 +1,6 @@
+from typing import Optional
+
+
 class Channel:
     def __init__(
         self,
@@ -6,7 +9,7 @@ class Channel:
         output_language: str,
         category: str,
         name: str,
-        title_filters: list = None,
+        title_filters: Optional[list[str]] = None,
     ):
         self.id = id
         self.language_code = language_code
