@@ -15,8 +15,8 @@ llm_strategies:
       
     # Default thresholds for length categorization
     length_thresholds:
-      short_max: 1000    # Max characters for short transcripts
-      medium_max: 3000   # Max characters for medium transcripts
+      short_max: 250    # Max word counts for short transcripts
+      medium_max: 500   # Max word counts for medium transcripts
       
     # Default model configurations
     model_configs:
