@@ -266,8 +266,8 @@ def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str,
     Returns:
         Dict containing 'primary' and 'fallback' model names
     """
-    transcript_length = len(transcript)
-    length_category = get_transcript_length_category(transcript_length, category)
+    transcript_word_count = len(transcript.split())
+    length_category = get_transcript_length_category(transcript_word_count, category)
 
     strategy_config = get_llm_strategy_config(category)
     length_strategies = strategy_config.get("strategy_by_length", {})
