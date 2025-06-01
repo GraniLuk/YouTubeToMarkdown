@@ -133,6 +133,11 @@ Crypto:
     language_code: pl
     output_language: Polish
 
+  - id: UCEKPFXYkMvpWMbdYSB5QQkg
+    name: Crypto Stasiak
+    language_code: pl
+    output_language: Polish
+
 Fitness:
   - id: UCsmNMaZjnz52DSooPamqpZQ
     name: Michał Wrzosek
