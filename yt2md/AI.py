@@ -68,9 +68,10 @@ def analyze_transcript_with_gemini(
     Returns:
         tuple[str, str]: Refined and analyzed text, description
     """
+
+    perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
     try:
         # Use the strategy pattern implementation
-        perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
         strategy = LLMFactory.get_strategy("gemini")
         refined_text, description = strategy.analyze_transcript(
             transcript=transcript,
@@ -84,7 +85,9 @@ def analyze_transcript_with_gemini(
     except Exception as e:
         logger.error(f"Gemini API call failed: {e}")
         if "429" in str(e) and perplexity_api_key:
-            logger.info("Falling back to Perplexity API due to Gemini 429 error...")            # Fetch perplexity model name from config for fallback
+            logger.info(
+                "Falling back to Perplexity API due to Gemini 429 error..."
+            )  # Fetch perplexity model name from config for fallback
             perplexity_config = get_llm_model_config("perplexity", category)
             fallback_perplexity_model_name = (
                 perplexity_config.get("model_name")
@@ -203,7 +206,7 @@ def analyze_transcript_by_length(
     perplexity_model_name = (
         perplexity_config.get("model_name") if perplexity_config else None
     )
-    
+
     # Ollama configuration
     ollama_config_from_file = get_llm_model_config("ollama", category)
     effective_ollama_model = ollama_model or (
