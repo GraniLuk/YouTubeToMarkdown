@@ -271,6 +271,7 @@ class PerplexityStrategy(LLMStrategy):
                 "max_tokens": 4000,
             }
 
+            response = None
             for attempt in range(max_retries):
                 try:
                     response = requests.post(url, json=data, headers=headers)
@@ -293,7 +294,11 @@ class PerplexityStrategy(LLMStrategy):
                     break
 
                 except requests.exceptions.HTTPError as e:
-                    if response.status_code == 429 and attempt < max_retries - 1:
+                    if (
+                        response is not None
+                        and response.status_code == 429
+                        and attempt < max_retries - 1
+                    ):
                         # If rate limited, wait and retry
                         wait_time = retry_delay * (attempt + 1)
                         print(
@@ -302,8 +307,13 @@ class PerplexityStrategy(LLMStrategy):
                         time.sleep(wait_time)
                     else:
                         # Re-raise the exception if it's not a rate limit or we've exhausted retries
+                        response_text = (
+                            response.text
+                            if response is not None
+                            else "No response text"
+                        )
                         raise Exception(
-                            f"Perplexity API error: {str(e)}, Response: {response.text}"
+                            f"Perplexity API error: {str(e)}, Response: {response_text}"
                         )
 
                 except Exception as e:
