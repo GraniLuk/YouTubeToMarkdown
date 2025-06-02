@@ -19,7 +19,7 @@ LOG_COLORS = {
 class ColoredFormatter(logging.Formatter):
     """Custom formatter that adds colors based on log level"""
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord):
         levelname = record.levelname
         if levelname in LOG_COLORS:
             record.levelname = (
@@ -31,7 +31,7 @@ class ColoredFormatter(logging.Formatter):
         return super().format(record)
 
 
-def setup_logging(level=logging.INFO, log_file=None):
+def setup_logging(log_file: str, level: int = logging.INFO) -> logging.Logger:
     """Configure application logging with colored console output"""
     logger = logging.getLogger("yt2md")
     logger.setLevel(level)
