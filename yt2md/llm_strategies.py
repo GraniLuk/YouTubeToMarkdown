@@ -123,9 +123,7 @@ class GeminiStrategy(LLMStrategy):
             raise ValueError("Gemini API key is required")
 
         # Configure Gemini client
-        client = genai.Client(
-            api_key=api_key
-        )
+        client = genai.Client(api_key=api_key)
 
         # Get chunking strategy
         chunker = ChunkingStrategyFactory.get_strategy(
@@ -172,12 +170,12 @@ class GeminiStrategy(LLMStrategy):
                     config=types.GenerateContentConfig(
                         temperature=0.6,
                         max_output_tokens=60000,
-                    )
+                    ),
                 )
-                
+
                 # Get text from response
                 text = response.text if response.text else ""
-                
+
                 # Process the response text
                 processed_text, chunk_description = self.process_model_response(
                     text, i == 0
