@@ -1,6 +1,5 @@
 import logging
 import os
-from datetime import datetime
 
 import colorama
 
@@ -59,11 +58,11 @@ def setup_logging(level=logging.INFO, log_file=None):
     return logger
 
 
-def get_logger(name):
+def get_logger(name: str) -> logging.Logger:
     """Get a logger with the specified name"""
     return logging.getLogger(f"yt2md.{name}")
 
 
-def colored_text(text, color):
+def colored_text(text: str, color: str) -> str:
     """Format text with specified colorama color"""
     return f"{color}{text}{colorama.Style.RESET_ALL}"
