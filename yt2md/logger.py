@@ -31,8 +31,8 @@ class ColoredFormatter(logging.Formatter):
         return super().format(record)
 
 
-def setup_logging(log_file: str, level: int = logging.INFO) -> logging.Logger:
-    """Configure application logging with colored console output"""
+def setup_logging(level: int = logging.INFO) -> logging.Logger:
+    """Configure application logging with colored console output and file output"""
     logger = logging.getLogger("yt2md")
     logger.setLevel(level)
     logger.handlers = []  # Clear any existing handlers
@@ -44,16 +44,28 @@ def setup_logging(log_file: str, level: int = logging.INFO) -> logging.Logger:
     console_handler.setFormatter(ColoredFormatter(console_format, datefmt="%H:%M:%S"))
     logger.addHandler(console_handler)
 
-    # File handler if requested
-    if log_file:
+    # Use fixed log file path - no longer reading from environment variables
+    log_file = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs", "yt2md.log")
+    )
+
+    try:
+        # Ensure log directory exists
         log_dir = os.path.dirname(log_file)
-        if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(level)
+        os.makedirs(log_dir, exist_ok=True)
+        # Create file handler
+        file_handler = logging.FileHandler(
+            log_file, mode="w"
+        )  # 'w' mode to overwrite the file each run
+        file_handler.setLevel(logging.DEBUG)
         file_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
         file_handler.setFormatter(logging.Formatter(file_format))
         logger.addHandler(file_handler)
+        console_handler.setFormatter(ColoredFormatter(file_format, datefmt="%H:%M:%S"))
+        logger.info(f"Logging to file: {log_file}")
+    except Exception as e:
+        # Don't fail if logging setup has issues
+        print(f"Warning: Could not set up file logging: {str(e)}")
 
     return logger
 

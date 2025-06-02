@@ -65,7 +65,6 @@ def create_parser():
         action="store_true",
         help="Suppress all output except errors (ERROR level)",
     )
-    parser.add_argument("--log-file", type=str, help="Write logs to specified file")
     return parser
 
 

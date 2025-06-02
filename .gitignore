@@ -12,3 +12,4 @@ token.pickle
 credentials.json
 
 config/channels.yaml
+logs/yt2md.log

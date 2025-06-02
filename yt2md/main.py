@@ -68,7 +68,7 @@ def run_main(args):
     elif args.quiet:
         log_level = logging.ERROR
 
-    setup_logging(level=log_level, log_file=args.log_file)
+    setup_logging(level=log_level)
 
     videos_to_process = []  # List to hold all videos and their processing parameters
 
