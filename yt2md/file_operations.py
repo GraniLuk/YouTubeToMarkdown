@@ -74,7 +74,7 @@ def save_to_markdown(
     video_url: str,
     content: str,
     author: str,
-    published_date: datetime,
+    published_date: str,
     description: str,
     category: str,
     suffix: str = "",
@@ -129,9 +129,6 @@ def save_to_markdown(
         logger.error(f"Failed to create directory {file_dir}: {str(e)}")
         raise
 
-    # Format the date
-    date_prefix = published_date.strftime("%Y%m%d-")
-
     # Sanitize the title
     clean_title = sanitize_filename(title)
 
@@ -141,7 +138,7 @@ def save_to_markdown(
         logger.debug(f"Added suffix '{suffix}' to filename")
 
     # Create the full filename
-    filename = f"{date_prefix}{clean_title}.md"
+    filename = f"{clean_title}.md"
     filepath = os.path.join(file_dir, filename)
     logger.debug(f"Writing to file: {filepath}")
 
