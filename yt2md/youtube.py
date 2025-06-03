@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import requests
-from googleapiclient import discovery
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import (
+from googleapiclient import discovery  # type: ignore
+from youtube_transcript_api import YouTubeTranscriptApi  # type: ignore
+from youtube_transcript_api._errors import (  # type: ignore
     NoTranscriptFound,
     TranscriptsDisabled,
     TranslationLanguageNotAvailable,
@@ -44,21 +44,20 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
             if not video_id:
                 logger.error(f"Failed to extract video ID from URL: {video_url}")
                 return None
-
             logger.debug(
                 f"Extracting transcript for video ID: {video_id} with language: {language_code} (attempt {attempt})"
             )
 
             # Get transcript with specified language
-            transcript_list = YouTubeTranscriptApi.get_transcript(
+            transcript_list = YouTubeTranscriptApi.get_transcript(  # type: ignore
                 video_id, languages=[language_code]
             )
 
-            logger.debug(f"Retrieved {len(transcript_list)} transcript segments")
+            logger.debug(f"Retrieved {len(transcript_list)} transcript segments")  # type: ignore
 
             # Combine all transcript pieces into one string
             transcript = " ".join(
-                [transcript["text"] for transcript in transcript_list]
+                [transcript["text"] for transcript in transcript_list]  # type: ignore
             )
 
             logger.debug(f"Transcript assembled with {len(transcript.split())} words")
@@ -165,7 +164,7 @@ def get_videos_from_channel(
         max_videos (int): Maximum number of videos to collect per channel (default: 10)
 
     Returns:
-        tuple[str, str, str, str]: A tuple containing (video_url, video_title, published_date, channel_name) for the video
+        list[tuple[str, str, str]]: A list of tuples containing (video_url, video_title, published_date) for each video
     """
     API_KEY = os.getenv("YOUTUBE_API_KEY")
     logger.debug(
@@ -176,14 +175,13 @@ def get_videos_from_channel(
     processed_video_ids = get_processed_video_ids(skip_verification)
     logger.debug(f"Found {len(processed_video_ids)} already processed videos")
 
-    # Calculate the datetime 24 hours ago
     end_date = datetime.now()
     start_date = (end_date - timedelta(days=days)).isoformat("T") + "Z"
     logger.debug(f"Searching for videos published after {start_date}")
 
     url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={channel_id}&type=video&order=date&publishedAfter={start_date}&key={API_KEY}&maxResults=50"
 
-    videos = []
+    videos: list[tuple[str, str, str]] = []
     next_page_token = None
     page_count = 0
     api_calls_count = 0
@@ -262,7 +260,7 @@ def get_videos_from_channel(
     return videos
 
 
-def extract_video_id(url):
+def extract_video_id(url: str) -> Optional[str]:
     # Extract video ID from different YouTube URL formats
     pattern = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
     match = re.search(pattern, url)
@@ -303,27 +301,27 @@ def get_video_details_from_url(
 
     try:
         # Initialize YouTube API client
-        youtube = discovery.build("youtube", "v3", developerKey=API_KEY)
+        youtube = discovery.build("youtube", "v3", developerKey=API_KEY)  # type: ignore
         logger.debug("YouTube API client initialized")
 
         # Request video details
-        request = youtube.videos().list(part="snippet", id=video_id)
-        data = request.execute()
+        request = youtube.videos().list(part="snippet", id=video_id)  # type: ignore
+        data = request.execute()  # type: ignore
         logger.debug("YouTube API request executed")
 
         if "items" in data and data["items"]:
-            firstItem = data["items"][0]
+            firstItem = data["items"][0]  # type: ignore
             if firstItem:
-                snippet = firstItem["snippet"]
-                title = snippet["title"]
-                published_date = snippet["publishedAt"].split("T")[
+                snippet = firstItem["snippet"]  # type: ignore
+                title = snippet["title"]  # type: ignore
+                published_date = snippet["publishedAt"].split("T")[  # type: ignore
                     0
                 ]  # Get just the date
-                channel_name = snippet["channelTitle"]
+                channel_name = snippet["channelTitle"]  # type: ignore
                 logger.debug(
                     f"Retrieved details for video '{title}' published on {published_date} by {channel_name}"
                 )
-                return (url, title, published_date, channel_name)
+                return (url, title, published_date, channel_name)  # type: ignore
         else:
             logger.error(f"No video details found for URL: {url}")
     except Exception as e:
