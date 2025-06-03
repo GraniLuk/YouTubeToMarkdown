@@ -2,6 +2,7 @@
 
 from typing import List, Optional, Tuple
 
+from yt2md.channel import Channel
 from yt2md.config import load_all_channels, load_channels_by_category
 from yt2md.logger import get_logger
 from yt2md.youtube import get_video_details_from_url, get_videos_from_channel
@@ -97,16 +98,14 @@ def collect_videos_from_category(
 
     # Collect videos from all channels in the category
     for channel in channels:
-        videos_to_process.extend(_collect_videos_from_single_channel(
-            channel, days, max_videos
-        ))
+        videos_to_process.extend(
+            _collect_videos_from_single_channel(channel, days, max_videos)
+        )
 
     return videos_to_process
 
 
-def collect_videos_from_all_channels(
-    days: int, max_videos: int = 10
-) -> List[Tuple]:
+def collect_videos_from_all_channels(days: int, max_videos: int = 10) -> List[Tuple]:
     """
     Collect videos from all configured channels.
 
@@ -122,15 +121,15 @@ def collect_videos_from_all_channels(
     videos_to_process = []
 
     for channel in channels:
-        videos_to_process.extend(_collect_videos_from_single_channel(
-            channel, days, max_videos
-        ))
+        videos_to_process.extend(
+            _collect_videos_from_single_channel(channel, days, max_videos)
+        )
 
     return videos_to_process
 
 
 def _collect_videos_from_single_channel(
-    channel, days: int, max_videos: int = 10
+    channel: Channel, days: int, max_videos: int = 10
 ) -> List[Tuple]:
     """
     Helper function to collect videos from a single channel.
