@@ -20,7 +20,7 @@ def get_script_dir():
     return os.path.abspath(os.path.dirname(__file__))
 
 
-def sanitize_filename(filename):
+def sanitize_filename(filename: str) -> str:
     """Clean up a filename to make it valid for all platforms."""
     logger.debug(f"Sanitizing filename: {filename[:50]}...")
     original_filename = filename
@@ -57,7 +57,7 @@ def sanitize_filename(filename):
     return filename
 
 
-def open_file(filepath):
+def open_file(filepath: str) -> bool:
     """Open a file with the default system application."""
     try:
         logger.info(f"Opening file: {filepath}")
@@ -70,15 +70,15 @@ def open_file(filepath):
 
 
 def save_to_markdown(
-    title,
-    video_url,
-    content,
-    author,
-    published_date,
-    description,
-    category,
-    suffix=None,
-    skip_verification=False,
+    title: str,
+    video_url: str,
+    content: str,
+    author: str,
+    published_date: datetime,
+    description: str,
+    category: str,
+    suffix: str = "",
+    skip_verification: bool = False,
 ):
     """
     Save content to a markdown file in the Summaries directory.
@@ -130,10 +130,7 @@ def save_to_markdown(
         raise
 
     # Format the date
-    date_prefix = ""
-    if isinstance(published_date, datetime):
-        date_prefix = published_date.strftime("%Y%m%d-")
-        logger.debug(f"Using formatted date prefix: {date_prefix}")
+    date_prefix = published_date.strftime("%Y%m%d-")
 
     # Sanitize the title
     clean_title = sanitize_filename(title)

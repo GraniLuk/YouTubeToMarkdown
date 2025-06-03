@@ -167,7 +167,7 @@ def analyze_transcript_by_length(
     category: str = "IT",
     force_ollama: bool = False,
     force_cloud: bool = False,
-) -> dict:
+) -> dict[str, dict[str, str]]:
     """
     Analyze transcript using different strategies based on transcript length and category.
     Cloud model names are fetched from configuration (channels.yaml).

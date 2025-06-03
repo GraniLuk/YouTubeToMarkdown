@@ -1,7 +1,7 @@
 import os
 
 
-def get_processed_video_ids(skip_verification=False):
+def get_processed_video_ids(skip_verification: bool = False) -> set[str]:
     """
     Get set of already processed video IDs from the index file.
 
@@ -14,7 +14,7 @@ def get_processed_video_ids(skip_verification=False):
     if skip_verification:
         return set()
 
-    processed_video_ids = set()
+    processed_video_ids = set[str]()
     summaries_dir = os.getenv("SUMMARIES_PATH")
     if not summaries_dir:
         raise ValueError("SUMMARIES_PATH environment variable is not set")
@@ -29,7 +29,9 @@ def get_processed_video_ids(skip_verification=False):
     return processed_video_ids
 
 
-def update_video_index(video_id, filepath, skip_verification=False):
+def update_video_index(
+    video_id: str, filepath: str, skip_verification: bool = False
+) -> bool:
     """
     Update the video index with new processed video.
 
