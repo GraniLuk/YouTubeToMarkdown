@@ -168,7 +168,7 @@ def get_videos_from_channel(
         tuple[str, str, str, str]: A tuple containing (video_url, video_title, published_date, channel_name) for the video
     """
     API_KEY = os.getenv("YOUTUBE_API_KEY")
-    logger.info(
+    logger.debug(
         f"Fetching videos from channel ID: {channel_id} for last {days} days (max {max_videos} videos)"
     )
 
@@ -256,7 +256,7 @@ def get_videos_from_channel(
             )
             break
 
-    logger.info(
+    logger.debug(
         f"Made {api_calls_count} API calls for channel {channel_id}, collected {len(videos)} videos"
     )
     return videos
