@@ -199,7 +199,7 @@ def analyze_transcript_by_length(
         category,  # Pass the transcript string directly
     )
     primary_model_type = strategy_config.get("primary")
-    # fallback_model_type = strategy_config.get("fallback") # Not directly used for selection here, but for info    # Fetch cloud model names from configuration
+    fallback_model_type = strategy_config.get("fallback")
     gemini_config = get_llm_model_config("gemini", category)
     gemini_model_name = gemini_config.get("model_name") if gemini_config else None
     perplexity_config = get_llm_model_config("perplexity", category)
@@ -267,7 +267,11 @@ def analyze_transcript_by_length(
     if (
         not processed_cloud
         and not force_ollama
-        and (force_cloud or primary_model_type == "perplexity")
+        and (
+            force_cloud
+            or primary_model_type == "perplexity"
+            or fallback_model_type == "perplexity"
+        )
     ):
         perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
         if not perplexity_api_key:
@@ -276,9 +280,15 @@ def analyze_transcript_by_length(
             )
             return results
         if perplexity_api_key and perplexity_model_name:
-            logger.info(
-                f"Attempting to use Perplexity model: {perplexity_model_name} for category: {category}"
+            # Determine if this is a fallback attempt
+            is_fallback = (
+                primary_model_type != "perplexity"
+                and fallback_model_type == "perplexity"
             )
+            log_message = f"Attempting to use Perplexity model: {perplexity_model_name} for category: {category}"
+            if is_fallback:
+                log_message += " (fallback from failed primary model)"
+            logger.info(log_message)
             try:
                 refined_text, description = analyze_transcript_with_perplexity(
                     transcript=transcript,
