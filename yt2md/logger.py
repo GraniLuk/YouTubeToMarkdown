@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 
 import colorama
 
@@ -17,7 +18,7 @@ LOG_COLORS = {
 
 
 class ColoredFormatter(logging.Formatter):
-    """Custom formatter that adds colors based on log level"""
+    """Custom formatter that adds colors based on log level and handles Unicode encoding"""
 
     def format(self, record: logging.LogRecord):
         levelname = record.levelname
@@ -25,8 +26,17 @@ class ColoredFormatter(logging.Formatter):
             record.levelname = (
                 f"{LOG_COLORS[levelname]}{levelname}{colorama.Style.RESET_ALL}"
             )
+            # Handle Unicode encoding issues by safely encoding the message
+            msg = str(record.msg)
+            try:
+                # Test if the message can be encoded
+                msg.encode(sys.stdout.encoding or 'utf-8', errors='strict')
+            except (UnicodeEncodeError, AttributeError):
+                # If encoding fails, replace problematic characters
+                msg = msg.encode('ascii', errors='replace').decode('ascii')
+            
             record.msg = (
-                f"{LOG_COLORS[levelname]}{record.msg}{colorama.Style.RESET_ALL}"
+                f"{LOG_COLORS[levelname]}{msg}{colorama.Style.RESET_ALL}"
             )
         return super().format(record)
 
@@ -37,7 +47,7 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
     logger.setLevel(level)
     logger.handlers = []  # Clear any existing handlers
 
-    # Console handler with colors
+    # Console handler with colors - the ColoredFormatter will handle Unicode issues
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level)
     console_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -48,14 +58,14 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
     log_file = os.path.abspath(
         os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs", "yt2md.log")
     )
-
+    
     try:
         # Ensure log directory exists
         log_dir = os.path.dirname(log_file)
         os.makedirs(log_dir, exist_ok=True)
-        # Create file handler
+        # Create file handler with UTF-8 encoding
         file_handler = logging.FileHandler(
-            log_file, mode="w"
+            log_file, mode="w", encoding="utf-8"
         )  # 'w' mode to overwrite the file each run
         file_handler.setLevel(logging.DEBUG)
         file_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -76,5 +86,14 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def colored_text(text: str, color: str) -> str:
-    """Format text with specified colorama color"""
+    """Format text with specified colorama color, handling Unicode encoding issues"""
+    # Handle Unicode encoding issues by safely encoding the text
+    try:
+        # Test if the text can be encoded to the console encoding
+        console_encoding = sys.stdout.encoding or 'utf-8'
+        text.encode(console_encoding, errors='strict')
+    except (UnicodeEncodeError, AttributeError):
+        # If encoding fails, replace problematic characters
+        text = text.encode('ascii', errors='replace').decode('ascii')
+    
     return f"{color}{text}{colorama.Style.RESET_ALL}"
