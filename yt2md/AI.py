@@ -187,11 +187,11 @@ def analyze_transcript_by_length(
         force_cloud: Whether to force using cloud services only (overrides force_ollama)
 
     Returns:
-        dict: Dictionary containing results from different LLMs with keys:
-              'cloud': {'text': refined_text, 'description': description, 'model_name': str, 'provider': str} if used
+        dict: Dictionary containing results from different LLMs with keys:              'cloud': {'text': refined_text, 'description': description, 'model_name': str, 'provider': str} if used
               'ollama': {'text': refined_text, 'description': description, 'model_name': str} if used
     """
     results = {}
+    primary_model_failed = False  # Track if primary model failed
 
     # Determine primary and fallback models from strategy config
     strategy_config = get_llm_strategy_for_transcript(
@@ -257,11 +257,16 @@ def analyze_transcript_by_length(
             except Exception as e:
                 logger.error(
                     f"Error during Gemini processing with {gemini_model_name}: {e}"
-                )
+                )                # Mark primary as failed if Gemini was the primary model
+                if primary_model_type == "gemini":
+                    primary_model_failed = True
         else:
             logger.warning(
                 "Gemini API key or model name not configured/found. Skipping Gemini."
             )
+            # Mark primary as failed if Gemini was the primary model but not configured
+            if primary_model_type == "gemini":
+                primary_model_failed = True
 
     # Process with Perplexity if not already processed by Gemini and conditions met
     if (
@@ -270,7 +275,7 @@ def analyze_transcript_by_length(
         and (
             force_cloud
             or primary_model_type == "perplexity"
-            or fallback_model_type == "perplexity"
+            or (primary_model_failed and fallback_model_type == "perplexity")
         )
     ):
         perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
@@ -310,17 +315,34 @@ def analyze_transcript_by_length(
             except Exception as e:
                 logger.error(
                     f"Error during Perplexity processing with {perplexity_model_name}: {e}"
-                )
+                )                # Mark primary as failed if Perplexity was the primary model
+                if primary_model_type == "perplexity":
+                    primary_model_failed = True
         else:
             logger.warning(
                 "Perplexity API key or model name not configured/found. Skipping Perplexity."
             )
+            # Mark primary as failed if Perplexity was the primary model but not configured
+            if primary_model_type == "perplexity":
+                primary_model_failed = True
 
-    # Process with Ollama if forced, or primary, or no cloud result yet (and ollama is usable)
+    # Process with Ollama if forced, or primary, or fallback when primary failed
     if use_ollama and (
-        force_ollama or primary_model_type == "ollama" or not processed_cloud
-    ):
-        logger.info(f"Attempting to use Ollama model: {effective_ollama_model}")
+        force_ollama 
+        or primary_model_type == "ollama" 
+        or (primary_model_failed and fallback_model_type == "ollama")
+        or (not processed_cloud and primary_model_type in ["gemini", "perplexity"] and fallback_model_type == "ollama")    ):
+        # Determine if Ollama is running as a fallback
+        is_ollama_fallback = (
+            primary_model_failed and fallback_model_type == "ollama"
+        ) or (
+            not processed_cloud and primary_model_type in ["gemini", "perplexity"] and fallback_model_type == "ollama"
+        )
+        
+        log_message = f"Attempting to use Ollama model: {effective_ollama_model}"
+        if is_ollama_fallback:
+            log_message += " (fallback from failed primary model)"
+        logger.info(log_message)
         try:
             if not effective_ollama_model or not effective_ollama_base_url:
                 raise ValueError(
@@ -345,6 +367,10 @@ def analyze_transcript_by_length(
             logger.error(
                 f"Error during Ollama processing with {effective_ollama_model}: {e}"
             )
+            # Mark primary as failed if Ollama was the primary model
+            if primary_model_type == "ollama":
+                primary_model_failed = True
+            
             if (
                 "ollama" not in results and not processed_cloud
             ):  # if ollama was the only hope and failed
