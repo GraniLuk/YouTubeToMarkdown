@@ -182,7 +182,7 @@ News:
 # Category Color Configuration
 category_colors:
   default: "WHITE" # Default color if a category is not specified
-  IT: "GREEN"
+  IT: "DARKGREEN"
   AI: "WHITE"
   Crypto: "YELLOW"
   Fitness: "MAGENTA"
