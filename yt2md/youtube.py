@@ -36,7 +36,7 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
     video_id = None
 
     max_retries = 3
-    delay_seconds = 2
+    delay_seconds = 4
     for attempt in range(1, max_retries + 1):
         try:
             # Extract video ID from URL
