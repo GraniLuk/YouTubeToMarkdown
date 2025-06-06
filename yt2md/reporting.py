@@ -2,9 +2,7 @@
 
 from collections import defaultdict
 
-import colorama
-
-from yt2md.config import get_category_colors  # Added import
+from yt2md.config import get_category_color_style  # Updated import
 from yt2md.logger import colored_text, get_logger
 
 # Get logger for this module
@@ -16,13 +14,6 @@ def display_video_processing_summary(videos_to_process):
     if not videos_to_process:
         logger.info("No videos to process.")
         return
-
-    category_colors = get_category_colors()  # Load category colors
-    default_color = getattr(
-        colorama.Fore,
-        category_colors.get("default", "WHITE").upper(),
-        colorama.Fore.WHITE,
-    )
 
     # Group videos by category and author
     videos_by_category = defaultdict(lambda: defaultdict(list))
@@ -41,24 +32,22 @@ def display_video_processing_summary(videos_to_process):
         category_count = sum(len(videos) for videos in authors.values())
         total_videos += category_count
 
-        color_name = category_colors.get(
-            category, category_colors.get("Uncategorized", "WHITE")
-        ).upper()
-        color = getattr(colorama.Fore, color_name, default_color)
+        # Get combined color and style for this category
+        color_style = get_category_color_style(category)
 
         logger.info(
-            colored_text(f"Category: {category} ({category_count} videos)", color)
+            colored_text(f"Category: {category} ({category_count} videos)", color_style)
         )
-        logger.info(colored_text("-" * 50, color))
+        logger.info(colored_text("-" * 50, color_style))
 
         for author, videos in sorted(authors.items()):
             logger.info(
-                colored_text(f"  Author: {author} ({len(videos)} videos)", color)
+                colored_text(f"  Author: {author} ({len(videos)} videos)", color_style)
             )
 
             for idx, (title, url) in enumerate(videos, 1):
-                logger.info(colored_text(f"    {idx}. {title}", color))
-                logger.info(colored_text(f"       {url}", color))
+                logger.info(colored_text(f"    {idx}. {title}", color_style))
+                logger.info(colored_text(f"       {url}", color_style))
 
     logger.info("\n" + "=" * 60)
     logger.info(f"Total videos to process: {total_videos}")
@@ -69,6 +58,7 @@ def display_video_processing_summary(videos_to_process):
 
 def log_processing_time(execution_time):
     """Log the execution time in a formatted way."""
+    import colorama
     minutes = int(execution_time // 60)
     seconds = execution_time % 60
     logger.info(

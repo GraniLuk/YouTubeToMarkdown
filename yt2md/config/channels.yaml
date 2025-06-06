@@ -181,11 +181,27 @@ News:
 
 # Category Color Configuration
 category_colors:
-  default: "WHITE" # Default color if a category is not specified
-  IT: "DARKGREEN"
-  AI: "WHITE"
-  Crypto: "YELLOW"
-  Fitness: "MAGENTA"
-  Trading: "CYAN"
-  News: "RED"
-  Uncategorized: "BLUE"
+  default: 
+    color: "WHITE" # Default color if a category is not specified
+    style: "NORMAL"
+  IT: 
+    color: "GREEN"
+    style: "BRIGHT"
+  AI: 
+    color: "CYAN"
+    style: "BRIGHT"
+  Crypto: 
+    color: "YELLOW"
+    style: "BRIGHT"
+  Fitness: 
+    color: "MAGENTA"
+    style: "NORMAL"
+  Trading: 
+    color: "CYAN"
+    style: "DIM"
+  News: 
+    color: "RED"
+    style: "BRIGHT"
+  Uncategorized: 
+    color: "BLUE"
+    style: "NORMAL"

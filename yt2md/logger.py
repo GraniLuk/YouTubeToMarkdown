@@ -85,8 +85,8 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(f"yt2md.{name}")
 
 
-def colored_text(text: str, color: str) -> str:
-    """Format text with specified colorama color, handling Unicode encoding issues"""
+def colored_text(text: str, color_style: str) -> str:
+    """Format text with specified colorama color and style combination, handling Unicode encoding issues"""
     # Handle Unicode encoding issues by safely encoding the text
     try:
         # Test if the text can be encoded to the console encoding
@@ -96,4 +96,4 @@ def colored_text(text: str, color: str) -> str:
         # If encoding fails, replace problematic characters
         text = text.encode('ascii', errors='replace').decode('ascii')
     
-    return f"{color}{text}{colorama.Style.RESET_ALL}"
+    return f"{color_style}{text}{colorama.Style.RESET_ALL}"

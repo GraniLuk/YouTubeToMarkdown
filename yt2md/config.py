@@ -139,12 +139,29 @@ def load_all_channels() -> List[Channel]:
     return all_channels
 
 
-def get_category_colors() -> Dict[str, str]:
-    """Load and return the category color configurations."""
+def get_category_colors() -> Dict[str, Dict[str, str]]:
+    """Load and return the category color configurations with support for colors and styles."""
     config = _load_config()
     category_colors = config.get("category_colors", {})
-    logger.debug(f"Loaded category colors: {category_colors}")
-    return category_colors
+    
+    # Convert old format to new format for backward compatibility
+    processed_colors = {}
+    for category, color_config in category_colors.items():
+        if isinstance(color_config, str):
+            # Old format: just a color string
+            processed_colors[category] = {"color": color_config, "style": "NORMAL"}
+        elif isinstance(color_config, dict):
+            # New format: dict with color and style
+            processed_colors[category] = {
+                "color": color_config.get("color", "WHITE"),
+                "style": color_config.get("style", "NORMAL")
+            }
+        else:
+            # Fallback
+            processed_colors[category] = {"color": "WHITE", "style": "NORMAL"}
+    
+    logger.debug(f"Loaded category colors: {processed_colors}")
+    return processed_colors
 
 
 def get_llm_strategy_config(category: str) -> Dict[str, Any]:
@@ -338,3 +355,30 @@ def get_config_cache_stats() -> Dict[str, Any]:
         "max_age": _cache_max_age,
         "is_cached": _config_cache is not None,
     }
+
+
+def get_category_color_style(category: str) -> str:
+    """Get the combined colorama color and style for a specific category.
+    
+    Args:
+        category: The category name to get color/style for
+        
+    Returns:
+        str: Combined colorama color and style codes
+    """
+    import colorama
+    
+    category_colors = get_category_colors()
+    default_config = category_colors.get("default", {"color": "WHITE", "style": "NORMAL"})
+    
+    # Get config for the specific category, fallback to Uncategorized, then default
+    color_config = category_colors.get(
+        category, 
+        category_colors.get("Uncategorized", default_config)
+    )
+    
+    # Get colorama attributes
+    color = getattr(colorama.Fore, color_config["color"].upper(), colorama.Fore.WHITE)
+    style = getattr(colorama.Style, color_config["style"].upper(), colorama.Style.NORMAL)
+    
+    return color + style
