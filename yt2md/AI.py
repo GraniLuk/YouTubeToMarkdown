@@ -257,7 +257,7 @@ def analyze_transcript_by_length(
             except Exception as e:
                 logger.error(
                     f"Error during Gemini processing with {gemini_model_name}: {e}"
-                )                # Mark primary as failed if Gemini was the primary model
+                )  # Mark primary as failed if Gemini was the primary model
                 if primary_model_type == "gemini":
                     primary_model_failed = True
         else:
@@ -315,7 +315,7 @@ def analyze_transcript_by_length(
             except Exception as e:
                 logger.error(
                     f"Error during Perplexity processing with {perplexity_model_name}: {e}"
-                )                # Mark primary as failed if Perplexity was the primary model
+                )  # Mark primary as failed if Perplexity was the primary model
                 if primary_model_type == "perplexity":
                     primary_model_failed = True
         else:
@@ -328,17 +328,24 @@ def analyze_transcript_by_length(
 
     # Process with Ollama if forced, or primary, or fallback when primary failed
     if use_ollama and (
-        force_ollama 
-        or primary_model_type == "ollama" 
+        force_ollama
+        or primary_model_type == "ollama"
         or (primary_model_failed and fallback_model_type == "ollama")
-        or (not processed_cloud and primary_model_type in ["gemini", "perplexity"] and fallback_model_type == "ollama")    ):
+        or (
+            not processed_cloud
+            and primary_model_type in ["gemini", "perplexity"]
+            and fallback_model_type == "ollama"
+        )
+    ):
         # Determine if Ollama is running as a fallback
         is_ollama_fallback = (
             primary_model_failed and fallback_model_type == "ollama"
         ) or (
-            not processed_cloud and primary_model_type in ["gemini", "perplexity"] and fallback_model_type == "ollama"
+            not processed_cloud
+            and primary_model_type in ["gemini", "perplexity"]
+            and fallback_model_type == "ollama"
         )
-        
+
         log_message = f"Attempting to use Ollama model: {effective_ollama_model}"
         if is_ollama_fallback:
             log_message += " (fallback from failed primary model)"
@@ -370,7 +377,7 @@ def analyze_transcript_by_length(
             # Mark primary as failed if Ollama was the primary model
             if primary_model_type == "ollama":
                 primary_model_failed = True
-            
+
             if (
                 "ollama" not in results and not processed_cloud
             ):  # if ollama was the only hope and failed
