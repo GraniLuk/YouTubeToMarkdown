@@ -156,9 +156,7 @@ def process_video(
             if model_provider:
                 model_suffix = model_provider
             elif model_name_for_suffix:
-                model_suffix = model_name_for_suffix.split("-")[
-                    0
-                ]  # e.g., "gemini" from "gemini-2.5-pro-exp-03-25"
+                model_suffix = model_name_for_suffix.split("-")[0]
             else:
                 model_suffix = "cloud"  # Fallback suffix
 
