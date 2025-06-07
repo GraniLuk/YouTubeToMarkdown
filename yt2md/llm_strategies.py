@@ -113,7 +113,7 @@ class GeminiStrategy(LLMStrategy):
             tuple[str, str]: Refined text and description
         """
         api_key = kwargs.get("api_key")
-        model_name = kwargs.get("model_name", "gemini-2.5-pro-exp-03-25")
+        model_name = kwargs.get("model_name")
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")
