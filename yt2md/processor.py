@@ -151,12 +151,12 @@ def process_video(
                 "model_name", "cloud_model"
             )  # Get actual model name
 
-            # Extract model provider for the suffix, or just the first part of model name
+            # Extract model provider for the suffix, or use the model name
             model_provider = cloud_result.get("provider")
             if model_provider:
                 model_suffix = model_provider
             elif model_name_for_suffix:
-                model_suffix = model_name_for_suffix.split("-")[0]
+                model_suffix = model_name_for_suffix
             else:
                 model_suffix = "cloud"  # Fallback suffix
 
@@ -184,12 +184,8 @@ def process_video(
             ollama_description = ollama_result["description"]
             ollama_model_name_for_suffix = ollama_result.get(
                 "model_name", "ollama_model"
-            )
-
-            # Use ollama model name as suffix, clean it up if needed
-            ollama_suffix = ollama_model_name_for_suffix.split(":")[
-                0
-            ]  # Remove version tag if present
+            )  # Use ollama model name as suffix (will be sanitized in save_to_markdown)
+            ollama_suffix = ollama_model_name_for_suffix
 
             # Save Ollama result to markdown with suffix
             ollama_file_path = save_to_markdown(

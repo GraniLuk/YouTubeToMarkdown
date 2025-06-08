@@ -127,15 +127,16 @@ def save_to_markdown(
         logger.debug(f"Ensured directory exists: {file_dir}")
     except Exception as e:
         logger.error(f"Failed to create directory {file_dir}: {str(e)}")
-        raise
-
-    # Sanitize the title
+        raise  # Sanitize the title
     clean_title = sanitize_filename(title)
 
-    # Add suffix if provided
+    # Add suffix if provided, sanitize it first
     if suffix:
-        clean_title = f"{clean_title}_{suffix}"
-        logger.debug(f"Added suffix '{suffix}' to filename")
+        clean_suffix = sanitize_model_name_for_suffix(suffix)
+        clean_title = f"{clean_title}_{clean_suffix}"
+        logger.debug(
+            f"Added sanitized suffix '{clean_suffix}' to filename (original: '{suffix}')"
+        )
 
     # Create the full filename
     filename = f"{clean_title}.md"
@@ -187,3 +188,45 @@ tags: ["#Summaries/ToRead"]
         logger.error(f"Error updating video index: {str(e)}")
 
     return filepath
+
+
+def sanitize_model_name_for_suffix(model_name: str) -> str:
+    """
+    Sanitize a model name to create a valid filename suffix.
+
+    Args:
+        model_name: The original model name
+
+    Returns:
+        str: A sanitized suffix suitable for filenames
+    """
+    if not model_name:
+        return "model"
+
+    # Remove version/tag part after colon
+    model_name = model_name.split(":")[0]
+
+    # For HuggingFace models like "hf.co/unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF"
+    # Extract the actual model name part
+    if "/" in model_name:
+        # Take the last part after the last slash
+        model_name = model_name.split("/")[-1]
+
+    # Replace invalid characters with underscores or remove them
+    model_name = re.sub(r'[\\/:*?"<>|#.]', "_", model_name)
+
+    # Remove multiple underscores and replace with single
+    model_name = re.sub(r"_+", "_", model_name)
+
+    # Remove leading/trailing underscores
+    model_name = model_name.strip("_")
+
+    # Limit length to keep filename reasonable
+    if len(model_name) > 30:
+        model_name = model_name[:30]
+
+    # Ensure we have something valid
+    if not model_name or model_name.isspace():
+        model_name = "model"
+
+    return model_name
