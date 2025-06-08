@@ -35,8 +35,8 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
     # Initialize video_id to None to ensure it's defined even if an exception occurs
     video_id = None
 
-    max_retries = 6
-    delay_seconds = 15
+    max_retries = 10
+    delay_seconds = 20
     for attempt in range(1, max_retries + 1):
         try:
             # Extract video ID from URL
