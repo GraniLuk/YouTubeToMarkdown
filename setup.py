@@ -11,7 +11,7 @@ setup(
         "google-auth-oauthlib",
         "google-api-python-client",
         "pytube",
-        "youtube-transcript-api",
+        "youtube-transcript-api>=1.1.0",
         "pyyaml",
         "colorama>=0.4.6"
     ],
