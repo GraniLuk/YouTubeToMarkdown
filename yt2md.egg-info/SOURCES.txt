@@ -1,5 +1,7 @@
 README.md
 setup.py
+tests/__init__.py
+tests/test_llm_strategies.py
 yt2md/AI.py
 yt2md/__init__.py
 yt2md/channel.py
@@ -7,10 +9,12 @@ yt2md/cli.py
 yt2md/config.py
 yt2md/file_operations.py
 yt2md/google_drive.py
-yt2md/kindle.py
 yt2md/llm_strategies.py
 yt2md/logger.py
 yt2md/main.py
+yt2md/processor.py
+yt2md/reporting.py
+yt2md/video_collector.py
 yt2md/video_index.py
 yt2md/youtube.py
 yt2md.egg-info/PKG-INFO
