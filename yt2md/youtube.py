@@ -120,7 +120,7 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
                 logger.error(
                     f"No transcript available for {video_url}: {reason} (attempt {attempt})"
                 )
-                if video_id:
+                if video_id and not reason.strip():
                     try:
                         update_video_index(video_id, "VIDEO_UNPLAYABLE", False)
                     except Exception as index_error:
