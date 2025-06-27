@@ -86,6 +86,11 @@ IT:
     language_code: en
     output_language: English
 
+  - id: UCuE6iwZKgGz8s6kznBRI9LQ
+    name: Developers Digest
+    language_code: en
+    output_language: English
+
 AI:
   - id: UCWTpgi3bE5gIVfhEys-T12A
     name: Mike Tomala
