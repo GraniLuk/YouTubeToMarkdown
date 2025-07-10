@@ -91,6 +91,11 @@ IT:
     language_code: en
     output_language: English
 
+  - id: UCGd8ACZ918e3EjbWxiuyK-A
+    name: Gui Ferreira
+    language_code: en
+    output_language: English
+
 AI:
   - id: UCWTpgi3bE5gIVfhEys-T12A
     name: Mike Tomala
