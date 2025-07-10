@@ -184,7 +184,7 @@ def process_video(
             ollama_description = ollama_result["description"]
             ollama_model_name_for_suffix = ollama_result.get(
                 "model_name", "ollama_model"
-            )  # Use ollama model name as suffix (will be sanitized in save_to_markdown)
+            )  
             ollama_suffix = ollama_model_name_for_suffix
 
             # Save Ollama result to markdown with suffix

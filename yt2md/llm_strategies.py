@@ -83,10 +83,10 @@ class LLMStrategy(ABC):
             # Find the first occurrence of description line
             description_index = -1
             for idx, line in enumerate(lines):
-                if line.startswith("DESCRIPTION:") or line.startswith("OPIS:"):
+                if line.upper().startswith("DESCRIPTION:") or line.upper().startswith("OPIS:"):
                     description_index = idx
                     prefix = (
-                        "DESCRIPTION:" if line.startswith("DESCRIPTION:") else "OPIS:"
+                        "DESCRIPTION:" if line.upper().startswith("DESCRIPTION:") else "OPIS:"
                     )
                     description = line.replace(prefix, "").strip()
                     break
