@@ -15,8 +15,8 @@ from yt2md.chunking import ChunkingStrategyFactory
 
 # Category-specific prompt additions
 CATEGORY_PROMPTS = {
-    "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax when it can help understand discussed subject. Do not use quotes in node labels.",
-    "Crypto": "- Write diagram in mermaid syntax when it can help understand discussed subject. Do not use quotes in node labels.\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
+    "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax or create table when it can help understand discussed subject. Do not use quotes in node labels.",
+    "Crypto": "- Write diagram in mermaid syntax or create table when it can help understand discussed subject. Do not use quotes in node labels.\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
 }
 
 # Main prompt template shared across all strategies
