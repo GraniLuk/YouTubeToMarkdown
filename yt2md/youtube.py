@@ -49,9 +49,10 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
             )
 
             # Get transcript with specified language
-            transcript_list = YouTubeTranscriptApi.get_transcript(  # type: ignore
+            ytt_api = YouTubeTranscriptApi()
+            transcript_list = ytt_api.fetch(  # type: ignore
                 video_id, languages=[language_code]
-            )
+            ).to_raw_data()
 
             logger.debug(f"Retrieved {len(transcript_list)} transcript segments")  # type: ignore
 
