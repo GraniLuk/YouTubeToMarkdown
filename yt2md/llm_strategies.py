@@ -12,6 +12,9 @@ from google import genai
 from google.genai import types
 
 from yt2md.chunking import ChunkingStrategyFactory
+from yt2md.logger import get_logger
+
+logger = get_logger("llm_strategies")
 
 # Category-specific prompt additions
 CATEGORY_PROMPTS = {
@@ -117,7 +120,8 @@ class GeminiStrategy(LLMStrategy):
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")
-        chunk_size = kwargs.get("chunk_size", 25000)
+        chunk_size = kwargs.get("chunk_size", 5000)
+        logger.debug(f"Using Gemini strategy with model: {model_name}, output language: {output_language}, category: {category}, chunking strategy: {chunking_strategy}, chunk size: {chunk_size}")
 
         if not api_key:
             raise ValueError("Gemini API key is required")
@@ -215,7 +219,7 @@ class PerplexityStrategy(LLMStrategy):
         max_retries = kwargs.get("max_retries", 3)
         retry_delay = kwargs.get("retry_delay", 2)
         chunking_strategy = kwargs.get("chunking_strategy", "word")
-        chunk_size = kwargs.get("chunk_size", 25000)
+        chunk_size = kwargs.get("chunk_size", 5000)
 
         if not api_key:
             raise ValueError("Perplexity API key is required")
@@ -345,7 +349,7 @@ class OllamaStrategy(LLMStrategy):
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")
-        chunk_size = kwargs.get("chunk_size", 10000)  # Default smaller for Ollama
+        chunk_size = kwargs.get("chunk_size", 1000)  # Default chunk size for consistency
 
         # For backward compatibility, check both host and base_url parameters
         base_url = kwargs.get(

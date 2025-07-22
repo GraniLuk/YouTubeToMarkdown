@@ -77,7 +77,7 @@ class ChunkingStrategyFactory:
             ChunkingStrategy: The corresponding strategy implementation
         """
         if strategy_type.lower() == "word":
-            chunk_size = kwargs.get("chunk_size", 25000)
+            chunk_size = kwargs.get("chunk_size", 5000)
             return WordChunkingStrategy(chunk_size=chunk_size)
         else:
             raise ValueError(f"Unknown chunking strategy: {strategy_type}")
