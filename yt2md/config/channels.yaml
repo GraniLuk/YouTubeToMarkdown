@@ -148,6 +148,11 @@ Crypto:
     language_code: pl
     output_language: Polish
 
+  - id: UCxBUeyObDhjqVXJgGv_BqWg
+    name: EXCAVO
+    language_code: en
+    output_language: English
+
 Fitness:
   - id: UCsmNMaZjnz52DSooPamqpZQ
     name: Michał Wrzosek
