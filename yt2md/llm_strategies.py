@@ -21,11 +21,13 @@ CATEGORY_PROMPTS = {
     "IT": {
         "- Add code examples in C# when possible.",
         "- For diagrams (e.g., flowcharts, sequences, timelines, or entity relationships), use Mermaid syntax. Do not use quotes in node labels.",
+        "- For node labels in Mermaid diagrams: Enclose the label in double quotes inside the brackets if it contains special characters such as parentheses ( ), brackets [ ], curly braces { }, semicolons ;, or any punctuation/symbols that might break the syntax. Otherwise, do not use quotes to keep the syntax simple. Example: Use A[Simple Label] for basic text, but B[""Complex (with parens)""] for labels with special characters."
         "- For tables (e.g., data grids or comparisons), use standard Markdown table syntax with proper headers and filled cells.",
         "- Only create a table or diagram if it genuinely helps explain the subject; keep it concise and relevant.",
     },
     "Crypto": {
         "- Write diagram in mermaid syntax when it can help understand discussed subject. Do not use quotes in node labels.",
+        "- For node labels in Mermaid diagrams: Enclose the label in double quotes inside the brackets if it contains special characters such as parentheses ( ), brackets [ ], curly braces { }, semicolons ;, or any punctuation/symbols that might break the syntax. Otherwise, do not use quotes to keep the syntax simple. Example: Use A[Simple Label] for basic text, but B[""Complex (with parens)""] for labels with special characters."
         "- Highlighting key price levels and market indicators mentioned.",
         "- Including links to relevant blockchain explorers when specific transactions or contracts are discussed.",
     },
