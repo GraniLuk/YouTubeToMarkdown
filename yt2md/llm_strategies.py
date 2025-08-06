@@ -18,8 +18,17 @@ logger = get_logger("llm_strategies")
 
 # Category-specific prompt additions
 CATEGORY_PROMPTS = {
-    "IT": "- Adding code examples in C# when it's possible\n - Write diagram in mermaid syntax or create table when it can help understand discussed subject. Do not use quotes in node labels.",
-    "Crypto": "- Write diagram in mermaid syntax or create table when it can help understand discussed subject. Do not use quotes in node labels.\n- Highlighting key price levels and market indicators mentioned\n- Including links to relevant blockchain explorers when specific transactions or contracts are discussed",
+    "IT": {
+        "- Add code examples in C# when possible.",
+        "- For diagrams (e.g., flowcharts, sequences, timelines, or entity relationships), use Mermaid syntax. Do not use quotes in node labels.",
+        "- For tables (e.g., data grids or comparisons), use standard Markdown table syntax with proper headers and filled cells.",
+        "- Only create a table or diagram if it genuinely helps explain the subject; keep it concise and relevant.",
+    },
+    "Crypto": {
+        "- Write diagram in mermaid syntax when it can help understand discussed subject. Do not use quotes in node labels.",
+        "- Highlighting key price levels and market indicators mentioned.",
+        "- Including links to relevant blockchain explorers when specific transactions or contracts are discussed.",
+    },
 }
 
 # Main prompt template shared across all strategies
