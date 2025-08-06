@@ -158,8 +158,6 @@ class GeminiStrategy(LLMStrategy):
             category_prompts=category_prompt, output_language=output_language
         )
 
-        logger.debug(f"Base prompt prepared: {base_prompt}")
-
         # Prepare first chunk prompt with description request
         first_chunk_prompt = FIRST_CHUNK_TEMPLATE.format(base_prompt=base_prompt)
 
