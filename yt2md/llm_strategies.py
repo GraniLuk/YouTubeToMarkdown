@@ -36,10 +36,6 @@ The goal is to make the content easier to read and process by:
 - Highlighting key terms, names, or headings with bold text for emphasis.
 - Preserving the original tone, humor, and narrative style while ensuring readability.
 - Adding clear separators or headings for topic shifts to improve navigation.
-- For diagrams (e.g., flowcharts, sequences, timelines, or entity relationships), use Mermaid syntax. Do not use quotes in node labels.
-- For node labels in Mermaid diagrams: Enclose the label in double quotes inside the brackets if it contains special characters such as parentheses ( ), brackets [ ], curly braces {{ }}, semicolons ;, or any punctuation/symbols that might break the syntax. Otherwise, do not use quotes to keep the syntax simple. Example: Use A[Simple Label] for basic text, but B[""Complex (with parens)""] for labels with special characters.
-- For tables (e.g., data grids or comparisons), use standard Markdown table syntax with proper headers and filled cells.
-- Only create a table or diagram if it genuinely helps explain the subject; keep it concise and relevant.
 {category_prompts}
 
 Ensure the text remains informative, capturing the original intent, tone,
