@@ -415,10 +415,7 @@ class OllamaStrategy(LLMStrategy):
             data = {
                 "model": model_name, 
                 "prompt": full_prompt, 
-                "stream": False,
-                "options": {
-                    "num_ctx": 4096  # Set context size to 4096 to ensure GPU usage
-                }
+                "stream": False
             }
 
             for attempt in range(max_retries):
