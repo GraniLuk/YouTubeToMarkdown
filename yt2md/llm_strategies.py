@@ -359,7 +359,7 @@ class OllamaStrategy(LLMStrategy):
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")
-        chunk_size = kwargs.get("chunk_size", 1000)  # Default chunk size for consistency
+        chunk_size = kwargs.get("chunk_size", 2500)  # Increased chunk size to better utilize 4096 context
 
         # For backward compatibility, check both host and base_url parameters
         base_url = kwargs.get(
@@ -412,7 +412,14 @@ class OllamaStrategy(LLMStrategy):
             # Create full prompt
             full_prompt = f"{context_prompt}{template}\n\n{chunk}"
 
-            data = {"model": model_name, "prompt": full_prompt, "stream": False}
+            data = {
+                "model": model_name, 
+                "prompt": full_prompt, 
+                "stream": False,
+                "options": {
+                    "num_ctx": 4096  # Set context size to 4096 to ensure GPU usage
+                }
+            }
 
             for attempt in range(max_retries):
                 try:
