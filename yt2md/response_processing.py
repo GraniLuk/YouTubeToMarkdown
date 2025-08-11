@@ -40,15 +40,33 @@ def process_model_response(text: str, is_first_chunk: bool) -> Tuple[str, str]:
     pattern = re.compile(r"^\s*(description|opis)\s*:\s*(.*)$", re.IGNORECASE)
 
     description_index = -1
+    inline_found = False
     for idx, line in enumerate(lines):
         m = pattern.match(line)
         if m:
-            description = m.group(2).strip()
             description_index = idx
+            inline_value = m.group(2).strip()
+            if inline_value:
+                description = inline_value
+                inline_found = True
             break
 
     if description_index != -1:
-        text = "\n".join(lines[description_index + 1 :])
+        # If description is not inline, find the first non-empty line after the marker
+        if not inline_found:
+            for j in range(description_index + 1, len(lines)):
+                candidate = lines[j].strip()
+                if candidate:
+                    description = candidate
+                    # Exclude this candidate line as part of the description from the remaining text
+                    text = "\n".join(lines[j + 1 :])
+                    break
+            else:
+                # No non-empty lines after the marker
+                text = "\n".join(lines[description_index + 1 :])
+        else:
+            # Inline description; keep the remainder after the marker line as content
+            text = "\n".join(lines[description_index + 1 :])
 
     return text, description
 

@@ -23,7 +23,10 @@ class TestResponseProcessing(unittest.TestCase):
                 To jedno z największych kłamstw dietetycznego świata: problem nie leży w kaloriach, lecz w tym, czego nie widzisz."""
         processed_text, description = process_model_response(text, True)
         self.assertEqual(description, "Kolacja ze śmiesznym zaskoczeniem: jak Cola Zero, choć zerowa kaloryczność, potrafi w pełni zburzyć Twój mikrobiom, podrażnić żołądek i podważyć odporność, a jej skuteczniejszym zamiennikiem okazała się bezpłatna woda.")
-        # self.assertEqual(processed_text, "")
+        self.assertEqual(processed_text, """
+                1. Wstęp
+                Cola Zero jest często postrzegana jako bezpieczny przekąski – „zero kalorii, więc mogę pić bez końca”.
+                To jedno z największych kłamstw dietetycznego świata: problem nie leży w kaloriach, lecz w tym, czego nie widzisz.""")
 
     def test_no_description_first_chunk(self):
         text = "Some content here\nMore content"
