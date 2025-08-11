@@ -12,6 +12,7 @@ from google import genai
 from google.genai import types
 
 from yt2md.chunking import ChunkingStrategyFactory
+from yt2md import response_processing
 from yt2md.logger import get_logger
 
 logger = get_logger("llm_strategies")
@@ -75,37 +76,8 @@ class LLMStrategy(ABC):
 
     @staticmethod
     def process_model_response(text: str, is_first_chunk: bool) -> tuple[str, str]:
-        """
-        Process model response to extract description and clean up text.
-
-        Args:
-            text: The raw model response text
-            is_first_chunk: Whether this is the first chunk of the response
-
-        Returns:
-            tuple[str, str]: Processed text and extracted description (or empty string if not first chunk)
-        """
-        description = ""
-
-        # Only extract description from first chunk
-        if is_first_chunk:
-            lines = text.split("\n")
-            # Find the first occurrence of description line
-            description_index = -1
-            for idx, line in enumerate(lines):
-                if line.upper().startswith("DESCRIPTION:") or line.upper().startswith("OPIS:"):
-                    description_index = idx
-                    prefix = (
-                        "DESCRIPTION:" if line.upper().startswith("DESCRIPTION:") else "OPIS:"
-                    )
-                    description = line.replace(prefix, "").strip()
-                    break
-
-            # Remove all text before and including the description line if found
-            if description_index != -1:
-                text = "\n".join(lines[description_index + 1 :])
-
-        return text, description
+        """Backward-compatible wrapper delegating to yt2md.response_processing.process_model_response."""
+        return response_processing.process_model_response(text, is_first_chunk)
 
 
 class GeminiStrategy(LLMStrategy):
