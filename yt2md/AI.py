@@ -258,14 +258,14 @@ def analyze_transcript_by_length(
                 logger.error(
                     f"Error during Gemini processing with {gemini_model_name}: {e}"
                 )  # Mark primary as failed if Gemini was the primary model
-                if primary_model_type == "gemini":
+                if primary_model_type == "gemini" or force_cloud:
                     primary_model_failed = True
         else:
             logger.warning(
                 "Gemini API key or model name not configured/found. Skipping Gemini."
             )
             # Mark primary as failed if Gemini was the primary model but not configured
-            if primary_model_type == "gemini":
+            if primary_model_type == "gemini" or force_cloud:
                 primary_model_failed = True
 
     # Process with Perplexity if not already processed by Gemini and conditions met
@@ -276,6 +276,7 @@ def analyze_transcript_by_length(
             force_cloud
             or primary_model_type == "perplexity"
             or (primary_model_failed and fallback_model_type == "perplexity")
+            or (force_cloud and primary_model_failed)  # Try Perplexity as fallback when force_cloud and primary failed
         )
     ):
         perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
@@ -283,13 +284,15 @@ def analyze_transcript_by_length(
             logger.warning(
                 "Perplexity API key not configured. Skipping Perplexity processing."
             )
+            if force_cloud:
+                logger.error("Force cloud mode enabled but no working cloud providers available.")
             return results
         if perplexity_api_key and perplexity_model_name:
             # Determine if this is a fallback attempt
             is_fallback = (
                 primary_model_type != "perplexity"
                 and fallback_model_type == "perplexity"
-            )
+            ) or (force_cloud and primary_model_failed)
             log_message = f"Attempting to use Perplexity model: {perplexity_model_name} for category: {category}"
             if is_fallback:
                 log_message += " (fallback from failed primary model)"
@@ -327,7 +330,8 @@ def analyze_transcript_by_length(
                 primary_model_failed = True
 
     # Process with Ollama if forced, or primary, or fallback when primary failed
-    if use_ollama and (
+    # But never if force_cloud is True
+    if use_ollama and not force_cloud and (
         force_ollama
         or primary_model_type == "ollama"
         or (primary_model_failed and fallback_model_type == "ollama")
