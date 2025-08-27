@@ -36,8 +36,10 @@ def process_model_response(text: str, is_first_chunk: bool) -> Tuple[str, str]:
 
     lines = text.splitlines()
 
-    # Regex: optional leading spaces, then DESCRIPTION or OPIS, optional spaces, colon, optional spaces, capture rest
-    pattern = re.compile(r"^\s*(description|opis)\s*:\s*(.*)$", re.IGNORECASE)
+    # Regex: optional leading spaces, optional markdown formatting (**), 
+    # then DESCRIPTION or OPIS, optional markdown formatting (**), optional spaces, colon, optional spaces, capture rest
+    # But be more careful about the markdown - only match ** at the start and end, not in between
+    pattern = re.compile(r"^\s*\**(description|opis)\**\s*:\s*(.*)$", re.IGNORECASE)
 
     description_index = -1
     inline_found = False
@@ -46,7 +48,8 @@ def process_model_response(text: str, is_first_chunk: bool) -> Tuple[str, str]:
         if m:
             description_index = idx
             inline_value = m.group(2).strip()
-            if inline_value:
+            # Only consider it inline if there's meaningful content (not just whitespace, asterisks, or empty)
+            if inline_value and not re.match(r'^[\s\*]*$', inline_value):
                 description = inline_value
                 inline_found = True
             break

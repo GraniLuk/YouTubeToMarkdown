@@ -73,6 +73,33 @@ class TestResponseProcessing(unittest.TestCase):
             self.assertEqual(description, d)
             self.assertEqual(processed_text, "Content")
 
+    def test_description_with_markdown_formatting(self):
+        text = """**DESCRIPTION:**  
+A step‑by‑step guide (with code) on how to create and animate one or more progress bars in a C# console app using Spectre.Console, covering both synchronous and asynchronous patterns, conditional task start‑ups, and optional auto‑clearing.
+
+---
+
+## 🎬 Overview
+
+- **Series Purpose:** Quickly learn how to leverage Spectre.Console to make console apps *visually appealing* and *informative* in 10‑minute chunks.  
+- **Source Code:** Link in the description (copy‑and‑paste into your project).  
+- **What You'll Build:** A simple simulation that updates three progress bars—`Downloading Data`, `Installing Application`, and `Data Cleanup`—showing how to start tasks at different times, use random progress increments, and optionally clear completed bars.
+
+---"""
+        processed_text, description = process_model_response(text, True)
+        self.assertEqual(description, "A step‑by‑step guide (with code) on how to create and animate one or more progress bars in a C# console app using Spectre.Console, covering both synchronous and asynchronous patterns, conditional task start‑ups, and optional auto‑clearing.")
+        expected_content = """
+---
+
+## 🎬 Overview
+
+- **Series Purpose:** Quickly learn how to leverage Spectre.Console to make console apps *visually appealing* and *informative* in 10‑minute chunks.  
+- **Source Code:** Link in the description (copy‑and‑paste into your project).  
+- **What You'll Build:** A simple simulation that updates three progress bars—`Downloading Data`, `Installing Application`, and `Data Cleanup`—showing how to start tasks at different times, use random progress increments, and optionally clear completed bars.
+
+---"""
+        self.assertEqual(processed_text, expected_content)
+
 
 if __name__ == "__main__":
     unittest.main()
