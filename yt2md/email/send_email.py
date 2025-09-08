@@ -1,16 +1,17 @@
 """Production-ready email sending utilities for yt2md.
 
 Features:
-  * Secrets only via environment (.env already in .gitignore)
-  * Retry & backoff
-  * Plain text / HTML
-  * Minimal functional helper
+    * Secrets only via environment (.env already in .gitignore)
+    * Retry & backoff
+    * Plain text / HTML bodies
+    * Optional file attachments (including EPUB: *application/epub+zip*)
+    * Minimal functional helper
 
 Environment variables (either UPPERCASE or lowercase accepted):
-  EMAIL_ADDRESS / email_address       -> sender (required)
-  EMAIL_PASSWORD / email_password     -> app password (required)
-  EMAIL_SMTP_SERVER                   -> default smtp.gmail.com
-  EMAIL_SMTP_PORT                     -> default 587
+    EMAIL_ADDRESS / email_address       -> sender (required)
+    EMAIL_PASSWORD / email_password     -> app password (required)
+    EMAIL_SMTP_SERVER                   -> default smtp.gmail.com
+    EMAIL_SMTP_PORT                     -> default 587
 """
 
 from __future__ import annotations
@@ -18,8 +19,12 @@ from __future__ import annotations
 import os
 import smtplib
 import time
+import mimetypes
+from pathlib import Path
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 from typing import List, Sequence, Union
 
 from dotenv import load_dotenv
@@ -81,6 +86,38 @@ class EmailSender:
             return [r.strip() for r in recipients.split(",") if r.strip()]
         return [r.strip() for r in recipients if r and r.strip()]
 
+    def _attach_files(self, msg: MIMEMultipart, attachments: Sequence[os.PathLike | str]):
+        """Attach files to the email message.
+
+        Each path must exist; if any attachment fails to read, we raise to abort the send
+        rather than sending a partial email silently.
+        """
+        for raw_path in attachments:
+            path = Path(raw_path)
+            if not path.is_file():
+                raise FileNotFoundError(f"Attachment not found: {path}")
+
+            ctype, encoding = mimetypes.guess_type(path.name)
+            if ctype is None or encoding is not None:
+                # Fallback for unknown types or encoded types
+                if path.suffix.lower() == ".epub":
+                    ctype = "application/epub+zip"
+                else:
+                    ctype = "application/octet-stream"
+            maintype, subtype = ctype.split("/", 1)
+
+            with path.open("rb") as f:
+                payload = MIMEBase(maintype, subtype)
+                payload.set_payload(f.read())
+            encoders.encode_base64(payload)
+            payload.add_header(
+                "Content-Disposition",
+                "attachment",
+                filename=path.name,
+            )
+            msg.attach(payload)
+            logger.debug(f"Attached file {path} ({ctype}, {path.stat().st_size} bytes)")
+
     def send(
         self,
         subject: str,
@@ -90,6 +127,7 @@ class EmailSender:
         cc: Union[str, Sequence[str] | None] = None,
         bcc: Union[str, Sequence[str] | None] = None,
         is_html: bool = False,
+        attachments: Sequence[os.PathLike | str] | None = None,
     ) -> bool:
         to_list = self._normalize_recipients(recipients)
         cc_list = self._normalize_recipients(cc) if cc else []
@@ -105,6 +143,14 @@ class EmailSender:
         if cc_list:
             msg["Cc"] = ", ".join(cc_list)
         msg.attach(MIMEText(body, "html" if is_html else "plain", _charset="utf-8"))
+
+        # Handle attachments (if any) before sending
+        if attachments:
+            try:
+                self._attach_files(msg, attachments)
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"Failed preparing attachments: {e}")
+                return False
 
         attempt = 0
         while True:
@@ -138,7 +184,11 @@ def send_email(
     recipients: Union[str, Sequence[str] | None],
     **kwargs,
 ) -> bool:
-    """Functional helper creating a transient EmailSender."""
+    """Functional helper creating a transient EmailSender.
+
+    Supports all keyword arguments of :meth:`EmailSender.send`, including
+    `attachments=[...]`.
+    """
     return EmailSender().send(subject=subject, body=body, recipients=recipients, **kwargs)
 
 
