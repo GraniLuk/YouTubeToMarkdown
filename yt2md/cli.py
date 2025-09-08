@@ -65,6 +65,11 @@ def create_parser():
         action="store_true",
         help="Suppress all output except errors (ERROR level)",
     )
+    parser.add_argument(
+        "--kindle",
+        action="store_true",
+        help="After generating a note, convert latest markdown to EPUB and email it as attachment",
+    )
     return parser
 
 
