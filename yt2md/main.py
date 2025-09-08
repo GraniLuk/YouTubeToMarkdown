@@ -155,7 +155,7 @@ def run_main(args):
                     logger.error("No Kindle recipient email set (KINDLE_EMAIL)")
                     return
 
-                subject = f"Kindle Delivery: {os.path.splitext(os.path.basename(latest_md))[0]}"
+                subject = "Kindle Delivery"
                 body = "Automated delivery from yt2md --kindle workflow."
 
                 try:
