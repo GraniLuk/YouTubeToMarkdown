@@ -99,7 +99,7 @@ def run_main(args):
         # Process all collected videos with progress
         from yt2md.processor import process_videos
 
-        process_videos(
+        results = process_videos(
             videos_to_process,
             use_ollama=args.ollama,
             use_cloud=args.cloud,
@@ -108,74 +108,23 @@ def run_main(args):
             ollama_base_url=ollama_base_url,
         )
 
-        # Optional Kindle workflow: convert latest generated markdown to EPUB and email
+        # Optional Kindle workflow: send newest note
         if getattr(args, "kindle", False):
             try:
-                summaries_dir = os.getenv("SUMMARIES_PATH")
-                if not summaries_dir:
-                    logger.error("SUMMARIES_PATH not set; cannot perform --kindle workflow")
-                    return
-
-                # Gather all markdown files recursively
-                md_files = []
-                for root, _dirs, files in os.walk(summaries_dir):
-                    for f in files:
-                        if f.lower().endswith(".md"):
-                            full_path = os.path.join(root, f)
-                            md_files.append(full_path)
-
-                if not md_files:
-                    logger.warning("No markdown files found for --kindle workflow")
-                    return
-
-                # Sort by modification time descending
-                md_files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-                latest_md = md_files[0]
-                logger.info(f"Latest markdown selected for Kindle workflow: {latest_md}")
-
-                # Convert to EPUB (same directory, same stem)
-                try:
-                    from yt2md.email.epub.converter import md_to_epub, EpubOptions
-                except Exception as e:  # pragma: no cover
-                    logger.error(f"EPUB converter import failed: {e}")
-                    return
-
-                epub_path = None
-                try:
-                    epub_path = md_to_epub(latest_md, options=EpubOptions())
-                except Exception as e:
-                    logger.error(f"EPUB conversion failed: {e}")
-                    return
-
-                logger.info(f"Generated EPUB: {epub_path}")
-
-                # Email parameters
-                recipient = os.getenv("KINDLE_EMAIL")
-                if not recipient:
-                    logger.error("No Kindle recipient email set (KINDLE_EMAIL)")
-                    return
-
-                subject = "Kindle Delivery"
-                body = "Automated delivery from yt2md --kindle workflow."
-
-                try:
-                    from yt2md.email.send_email import send_email
-                except Exception as e:  # pragma: no cover
-                    logger.error(f"Email sender import failed: {e}")
-                    return
-
-                sent = send_email(
-                    subject=subject,
-                    body=body,
-                    recipients=recipient,
-                    attachments=[str(epub_path)] if epub_path else None,
-                )
-                if sent:
-                    logger.info("Kindle email sent successfully")
-                else:
-                    logger.error("Failed to send Kindle email")
+                from yt2md.email.kindle import send_latest_markdown_to_kindle
+                send_latest_markdown_to_kindle()
             except Exception as e:  # pragma: no cover
-                logger.error(f"Unhandled --kindle workflow error: {e}")
+                logger.error(f"Kindle workflow error: {e}")
+
+        # Auto-send long notes to Kindle based on word count threshold
+        try:
+            from yt2md.email.kindle import auto_send_long_notes
+            if results:
+                sent, failed = auto_send_long_notes(results)
+                if sent or failed:
+                    logger.info(f"Auto Kindle summary: sent={sent} failed={failed}")
+        except Exception as e:  # pragma: no cover
+            logger.error(f"Auto Kindle workflow error: {e}")
 
         if os.name == "nt":  # Check if the platform is Windows
             winsound.Beep(1000, 500)

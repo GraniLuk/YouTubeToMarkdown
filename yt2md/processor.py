@@ -29,6 +29,7 @@ def process_videos(
     """
     total = len(videos_to_process)
     start_time = time.time()
+    all_results = []
     for idx, (
         video_url,
         video_title,
@@ -41,7 +42,7 @@ def process_videos(
         logger.info(
             f"Processing video {idx}/{total}: {video_title} by {channel_name} with URL: {video_url}"
         )
-        process_video(
+        res = process_video(
             video_url,
             video_title,
             published_date,
@@ -55,10 +56,13 @@ def process_videos(
             ollama_model=ollama_model,
             ollama_base_url=ollama_base_url,
         )
+        if res:
+            all_results.extend(res)
     execution_time = time.time() - start_time
     minutes = int(execution_time // 60)
     seconds = execution_time % 60
     logger.info(f"All videos processed in {minutes} min {seconds:.2f} sec")
+    return all_results
 
 
 def process_video(
@@ -204,7 +208,26 @@ def process_video(
                 logger.debug(f"Saved Ollama result to: {ollama_file_path}")
                 saved_files.append(ollama_file_path)
 
-        return saved_files
+        # Also return approximate word counts for downstream logic (e.g., Kindle auto-send)
+        result = []
+        for path in saved_files:
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                # Remove YAML front matter (between first two ---) to get content word count
+                if text.startswith('---'):
+                    parts = text.split('---', 2)
+                    if len(parts) == 3:
+                        text_body = parts[2]
+                    else:
+                        text_body = text
+                else:
+                    text_body = text
+                words = len(text_body.split())
+            except Exception:
+                words = 0
+            result.append({'path': path, 'word_count': words})
+        return result
 
     except Exception as e:
         # Log error message without stack trace

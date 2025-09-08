@@ -28,6 +28,7 @@ YouTube contains vast amounts of valuable information, but video is not easily s
 - **Video Filtering**: Process videos by date range or title keywords
 - **Parallel Comparison**: Generate alternative markdown versions using different LLMs
 - **Batch Processing**: Process multiple videos in a single command
+- **Kindle Delivery (EPUB)**: One-command send of latest note to Kindle and automatic delivery of long notes over a configurable word threshold
 
 ## Installation
 
@@ -63,6 +64,9 @@ yt2md --category IT --channel "Nick Chapsas" --days 7
 
 # Collect more videos per channel (default is 10)
 yt2md --category AI --max-videos 30
+
+# Send the latest generated note to Kindle (EPUB auto-conversion)
+yt2md --kindle --category IT --days 1
 ```
 
 You can also filter videos by title for specific channels by adding `title_filters` to the channel configuration in `channels.yaml`. See the Channel Configuration section below for details.
@@ -176,7 +180,7 @@ YT2MD operates through a series of optimized steps:
 1. **Video Collection**: Based on channels, categories, and date ranges
 2. **Transcript Extraction**: Fetches transcripts via YouTube API
 3. **LLM Strategy Selection**: Chooses the best LLM based on transcript length and language
-4. **Content Processing**: 
+4. **Content Processing**:
    - Chunks long transcripts to optimize processing
    - Applies different prompts based on content category
    - Enhances structure while preserving all important information
@@ -194,7 +198,7 @@ YouTube Video → Transcript → LLM Processing → Structured Markdown → Know
 YT2MD generates markdown files with:
 
 - **YAML Frontmatter**: Title, source URL, author, publish date, description, category
-- **Well-Structured Content**: 
+- **Well-Structured Content**:
   - Proper headings and subheadings
   - Bulleted and numbered lists
   - Code blocks with syntax highlighting
@@ -261,8 +265,60 @@ The tool intelligently selects different LLM providers based on transcript lengt
 ### Customizing Prompts
 
 The system uses different prompts based on content category to optimize formatting. For example:
+
 - IT videos get special treatment for code examples
 - Crypto videos receive enhanced chart and price level formatting
+
+## Kindle Delivery
+
+YT2MD can deliver your processed notes directly to your Kindle in EPUB format.
+
+### Quick Send (latest note)
+
+Use the `--kindle` flag. After processing, the most recently modified markdown file in `SUMMARIES_PATH` is converted to EPUB and emailed to your Kindle address.
+
+```bash
+yt2md --category IT --days 1 --kindle
+```
+
+### Automatic Long Note Delivery
+
+Any generated note whose content (excluding YAML frontmatter) exceeds a configurable word threshold is auto-sent during the same run.
+
+Environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `KINDLE_EMAIL` | Your approved Kindle Personal Document email | (required) |
+| `KINDLE_MIN_WORDS` | Word count threshold for auto-send | 2000 |
+
+Add to `.env`:
+
+```text
+KINDLE_EMAIL=yourname@kindle.com
+KINDLE_MIN_WORDS=2500  # optional override
+```
+
+### How Kindle Delivery Works
+
+1. Each saved markdown file is post-processed to compute a content word count.
+2. Files meeting or exceeding `KINDLE_MIN_WORDS` are converted to EPUB with Pandoc.
+3. EPUBs are emailed using the existing SMTP configuration.
+
+### Troubleshooting
+
+- Ensure the sender (EMAIL_ADDRESS) is approved in Amazon's "Approved Personal Document Email List".
+- Extremely long filenames may occasionally cause Kindle delivery delays—try shortening if issues occur.
+- Confirm `pandoc` is installed and on PATH (`pandoc --version`).
+- Set `KINDLE_EMAIL` only (no commas); multiple recipients aren't supported for Kindle delivery.
+
+### Manual Test Script
+
+You can also run the provided helper to test a single file (already added):
+
+```bash
+python kindle_test_send.py "path/to/file.md"
+```
 
 ### Performance Optimization
 
@@ -275,7 +331,7 @@ Upcoming features:
 - Automatic image generation for key concepts
 - Direct integration with note-taking apps (Obsidian, Logseq)
 - Browser extension for one-click processing
-- Support for automatic diagram generation 
+- Support for automatic diagram generation
 - Batch scheduling and automatic processing
 
 ## Contributing
