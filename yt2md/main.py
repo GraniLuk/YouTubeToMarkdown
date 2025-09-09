@@ -116,15 +116,7 @@ def run_main(args):
             except Exception as e:  # pragma: no cover
                 logger.error(f"Kindle workflow error: {e}")
 
-        # Auto-send long notes to Kindle based on word count threshold
-        try:
-            from yt2md.email.kindle import auto_send_long_notes
-            if results:
-                sent, failed = auto_send_long_notes(results)
-                if sent or failed:
-                    logger.info(f"Auto Kindle summary: sent={sent} failed={failed}")
-        except Exception as e:  # pragma: no cover
-            logger.error(f"Auto Kindle workflow error: {e}")
+    # (Auto-send now handled immediately inside process_videos loop.)
 
         if os.name == "nt":  # Check if the platform is Windows
             winsound.Beep(1000, 500)

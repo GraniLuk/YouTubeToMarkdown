@@ -30,6 +30,14 @@ def process_videos(
     total = len(videos_to_process)
     start_time = time.time()
     all_results = []
+    # Kindle auto-send counters (per-video immediate sending)
+    kindle_sent = 0
+    kindle_failed = 0
+
+    # Lazy import flag so we only import kindle utilities if KINDLE_EMAIL is set
+    kindle_enabled = bool(os.getenv("KINDLE_EMAIL"))
+    kindle_module = None
+
     for idx, (
         video_url,
         video_title,
@@ -58,10 +66,24 @@ def process_videos(
         )
         if res:
             all_results.extend(res)
+            # Immediately attempt Kindle auto-send for any long notes from this video
+            if kindle_enabled:
+                try:
+                    if kindle_module is None:
+                        from yt2md.email import kindle as kindle_module  # type: ignore
+                    sent, failed = kindle_module.auto_send_long_notes(res)
+                    kindle_sent += sent
+                    kindle_failed += failed
+                except Exception as e:  # pragma: no cover
+                    logger.error(f"Kindle immediate send error: {e}")
     execution_time = time.time() - start_time
     minutes = int(execution_time // 60)
     seconds = execution_time % 60
     logger.info(f"All videos processed in {minutes} min {seconds:.2f} sec")
+    if kindle_enabled and (kindle_sent or kindle_failed):
+        logger.info(
+            f"Kindle immediate send summary: sent={kindle_sent} failed={kindle_failed}"
+        )
     return all_results
 
 
