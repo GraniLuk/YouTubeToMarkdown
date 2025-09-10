@@ -271,7 +271,9 @@ def extract_video_id(url: str) -> Optional[str]:
 
 
 def get_video_details_from_url(
-    url: str, skip_verification: bool = False
+    url: str,
+    skip_verification: bool = False,
+    include_processed: bool = False,
 ) -> Optional[tuple[str, str, str, str]]:
     """
     Get details for a YouTube video given its URL.
@@ -296,8 +298,10 @@ def get_video_details_from_url(
 
     # Get processed video IDs from index file
     processed_video_ids = get_processed_video_ids(skip_verification)
-    if video_id in processed_video_ids:
-        logger.debug(f"Video with ID {video_id} was already processed. Skipping...")
+    if video_id in processed_video_ids and not include_processed:
+        logger.debug(
+            f"Video with ID {video_id} was already processed. Skipping... (include_processed=False)"
+        )
         return None
 
     try:

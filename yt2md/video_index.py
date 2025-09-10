@@ -62,3 +62,33 @@ def update_video_index(
     except Exception as e:
         print(f"Warning: Could not update video index: {e}")
         return False
+
+
+def find_markdown_files_for_video(video_id: str) -> list[str]:
+    """Return list of existing markdown file paths for a given processed video id.
+
+    Skips status marker entries (like VIDEO_UNAVAILABLE) and only returns paths that
+    currently exist on disk and end with .md.
+    """
+    summaries_dir = os.getenv("SUMMARIES_PATH")
+    if not summaries_dir:
+        raise ValueError("SUMMARIES_PATH environment variable is not set")
+    index_file = os.path.join(summaries_dir, "video_index.txt")
+    paths: list[str] = []
+    if not os.path.exists(index_file):
+        return paths
+    try:
+        with open(index_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                parts = line.split(" | ", 1)
+                if len(parts) != 2:
+                    continue
+                vid, path = parts[0].strip(), parts[1].strip()
+                if vid == video_id and path.lower().endswith('.md') and os.path.isfile(path):
+                    paths.append(path)
+    except Exception:
+        pass
+    return paths
+
