@@ -76,42 +76,14 @@ def run_main(args):
     try:
         # Collect videos based on command line arguments
         if args.url:
-            # Special Kindle fast-path: if --kindle and video already processed, resend without reprocessing
-            if getattr(args, "kindle", False) and not args.skip_verification:
-                from yt2md.youtube import extract_video_id, get_video_details_from_url
-                from yt2md.video_index import get_processed_video_ids, find_markdown_files_for_video
-                vid = extract_video_id(args.url)
-                if vid:
-                    processed_ids = get_processed_video_ids(False)
-                    if vid in processed_ids:
-                        logger.info(
-                            "Video already processed; using existing markdown for Kindle delivery"
-                        )
-                        existing_files = find_markdown_files_for_video(vid)
-                        if not existing_files:
-                            logger.warning(
-                                "No existing markdown files found despite index entry; falling back to reprocessing"
-                            )
-                        else:
-                            # Choose most recent file
-                            existing_files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-                            latest_md = existing_files[0]
-                            try:
-                                from yt2md.email.kindle import convert_md_to_epub, send_epub
-                                epub_path = convert_md_to_epub(Path(latest_md))
-                                recipient = os.getenv("KINDLE_EMAIL")
-                                if recipient:
-                                    ok = send_epub(epub_path, recipient, subject="Kindle Delivery", body="Resent existing note via --kindle fast path.")
-                                    if ok:
-                                        logger.info("Kindle resend successful")
-                                    else:
-                                        logger.error("Kindle resend failed")
-                                else:
-                                    logger.error("KINDLE_EMAIL not set; cannot resend")
-                                return  # Skip normal processing path
-                            except Exception as e:  # pragma: no cover
-                                logger.error(f"Fast-path Kindle resend failed; will reprocess: {e}")
-                # If fast path not taken, fall through to normal collection
+            kindle_mode = getattr(args, "kindle", False)
+            if kindle_mode and not args.skip_verification:
+                try:
+                    from yt2md.email.kindle import resend_latest_for_video_url
+                    if resend_latest_for_video_url(args.url):
+                        return  # Successfully resent existing note, stop.
+                except Exception as e:  # pragma: no cover
+                    logger.error(f"Kindle fast-path error (continuing to process): {e}")
             videos_to_process = collect_videos_from_url(
                 args.url,
                 language_code=args.language,
@@ -136,6 +108,7 @@ def run_main(args):
         # Process all collected videos with progress
         from yt2md.processor import process_videos
 
+        single_url_and_kindle = bool(args.url and getattr(args, "kindle", False))
         results = process_videos(
             videos_to_process,
             use_ollama=args.ollama,
@@ -143,15 +116,16 @@ def run_main(args):
             skip_verification=args.skip_verification,
             ollama_model=ollama_model,
             ollama_base_url=ollama_base_url,
+            disable_kindle_auto=single_url_and_kindle,
         )
 
-        # Optional Kindle workflow: send newest note
-        if getattr(args, "kindle", False):
+        # Kindle single URL explicit send (even if below threshold)
+        if single_url_and_kindle and results:
             try:
-                from yt2md.email.kindle import send_latest_markdown_to_kindle
-                send_latest_markdown_to_kindle()
+                from yt2md.email.kindle import send_processed_results
+                send_processed_results(results)
             except Exception as e:  # pragma: no cover
-                logger.error(f"Kindle workflow error: {e}")
+                logger.error(f"Kindle single url send error: {e}")
 
     # (Auto-send now handled immediately inside process_videos loop.)
 

@@ -1,26 +1,26 @@
 """Kindle delivery utilities.
 
-This module centralizes logic for:
-  * Sending the most recently modified markdown file as an EPUB to a Kindle address.
-  * Automatically sending long notes (word-count based) after processing.
+Responsibilities:
+    * Automatically sending long notes (word-count based) as they are produced.
+    * Re-sending an already processed single-video note (fast path) when invoked with --url --kindle.
+    * Sending freshly processed results for a single video (even if below threshold).
 
 Environment variables used:
-  KINDLE_EMAIL            -> target Kindle recipient (required for sending)
-  KINDLE_MIN_WORDS        -> integer threshold for auto-send (default 2000)
-  SUMMARIES_PATH          -> base directory containing markdown summaries
+    KINDLE_EMAIL            -> target Kindle recipient (required for sending)
+    KINDLE_MIN_WORDS        -> integer threshold for auto-send (default 2000)
+    SUMMARIES_PATH          -> base directory containing markdown summaries
 
-The processing pipeline (in `main.py`) produces a list of dict results like:
-  { 'path': '.../file.md', 'word_count': 2345 }
-
-Public functions:
-  send_latest_markdown_to_kindle()
-  auto_send_long_notes(results)
+Processing pipeline produces result dictionaries like:
+    { 'path': '.../file.md', 'word_count': 2345 }
 """
 from __future__ import annotations
 
 import os
 from pathlib import Path
 from typing import Iterable, List, Dict, Tuple
+
+from yt2md.youtube import extract_video_id
+from yt2md.video_index import find_markdown_files_for_video, get_processed_video_ids
 
 from yt2md.logger import get_logger
 
@@ -29,28 +29,6 @@ logger = get_logger("kindle")
 
 def _get_kindle_recipient() -> str | None:
     return os.getenv("KINDLE_EMAIL")
-
-
-def _gather_markdown_files(summaries_dir: str) -> List[Path]:
-    md_files: List[Path] = []
-    for root, _dirs, files in os.walk(summaries_dir):
-        for f in files:
-            if f.lower().endswith(".md"):
-                md_files.append(Path(root) / f)
-    return md_files
-
-
-def find_latest_markdown(summaries_dir: str) -> Path | None:
-    """Return the most recently modified markdown file path or None."""
-    try:
-        all_md = _gather_markdown_files(summaries_dir)
-        if not all_md:
-            return None
-        all_md.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        return all_md[0]
-    except Exception as e:  # pragma: no cover
-        logger.error(f"Failed scanning markdown files: {e}")
-        return None
 
 
 def convert_md_to_epub(md_path: Path):
@@ -69,39 +47,6 @@ def send_epub(epub_path: Path, recipient: str, *, subject: str, body: str) -> bo
         recipients=recipient,
         attachments=[str(epub_path)],
     )
-
-
-def send_latest_markdown_to_kindle() -> bool:
-    """Locate newest markdown, convert, and send to Kindle. Returns success boolean."""
-    summaries_dir = os.getenv("SUMMARIES_PATH")
-    if not summaries_dir:
-        logger.error("SUMMARIES_PATH not set; cannot perform Kindle workflow")
-        return False
-
-    recipient = _get_kindle_recipient()
-    if not recipient:
-        logger.error("KINDLE_EMAIL not set; skipping Kindle send")
-        return False
-
-    latest_md = find_latest_markdown(summaries_dir)
-    if not latest_md:
-        logger.warning("No markdown files found for Kindle workflow")
-        return False
-
-    logger.info(f"Latest markdown selected for Kindle workflow: {latest_md}")
-    try:
-        epub_path = convert_md_to_epub(latest_md)
-    except Exception as e:
-        logger.error(f"EPUB conversion failed: {e}")
-        return False
-
-    logger.info(f"Generated EPUB: {epub_path}")
-    ok = send_epub(epub_path, recipient, subject="Kindle Delivery", body="Automated delivery from yt2md --kindle workflow.")
-    if ok:
-        logger.info("Kindle email sent successfully")
-    else:
-        logger.error("Failed to send Kindle email")
-    return ok
 
 
 def auto_send_long_notes(results: Iterable[Dict], *, threshold: int | None = None) -> Tuple[int, int]:
@@ -154,8 +99,78 @@ def auto_send_long_notes(results: Iterable[Dict], *, threshold: int | None = Non
             failed += 1
     return (sent, failed)
 
+
+def resend_latest_for_video_url(video_url: str) -> bool:
+    """Attempt to resend the latest existing markdown for a processed video.
+
+    Returns True if resent (and email attempted), False if not found / not processed.
+    """
+    recipient = _get_kindle_recipient()
+    if not recipient:
+        return False
+    vid = extract_video_id(video_url)
+    if not vid:
+        return False
+    processed = get_processed_video_ids(False)
+    if vid not in processed:
+        return False
+    existing = find_markdown_files_for_video(vid)
+    if not existing:
+        return False
+    existing.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    latest_md = existing[0]
+    try:
+        epub_path = convert_md_to_epub(Path(latest_md))
+        ok = send_epub(epub_path, recipient, subject="Kindle Delivery", body="Resent existing note.")
+        if ok:
+            logger.info(f"Kindle resend successful: {latest_md}")
+        else:
+            logger.error(f"Kindle resend failed: {latest_md}")
+        return ok
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Resend conversion error: {e}")
+        return False
+
+
+def send_processed_results(results: Iterable[Dict]) -> Tuple[int, int]:
+    """Send all processed markdown results for a single video (URL mode).
+
+    Returns (sent, failed). Sends regardless of word count (single video explicit send).
+    """
+    recipient = _get_kindle_recipient()
+    if not recipient:
+        logger.error("KINDLE_EMAIL not set; cannot send processed results")
+        return (0, 0)
+    from yt2md.email.epub.converter import md_to_epub, EpubOptions
+    from yt2md.email.send_email import send_email
+    sent = 0
+    failed = 0
+    for r in results:
+        md_path = r.get("path") if isinstance(r, dict) else None
+        if not md_path:
+            continue
+        try:
+            epub_path = md_to_epub(md_path, options=EpubOptions())
+            ok = send_email(
+                subject="Kindle Delivery",
+                body="Delivered processed note.",
+                recipients=recipient,
+                attachments=[str(epub_path)],
+            )
+            if ok:
+                logger.info(f"Kindle send success: {md_path}")
+                sent += 1
+            else:
+                logger.error(f"Kindle send failed: {md_path}")
+                failed += 1
+        except Exception as e:  # pragma: no cover
+            logger.error(f"Kindle conversion/send error for {md_path}: {e}")
+            failed += 1
+    return (sent, failed)
+
 __all__ = [
-    "send_latest_markdown_to_kindle",
     "auto_send_long_notes",
-    "find_latest_markdown",
+    "resend_latest_for_video_url",
+    "send_processed_results",
+    "convert_md_to_epub",
 ]

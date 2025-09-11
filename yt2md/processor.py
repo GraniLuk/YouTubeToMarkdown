@@ -20,6 +20,7 @@ def process_videos(
     skip_verification=False,
     ollama_model=None,
     ollama_base_url=None,
+    disable_kindle_auto: bool = False,
 ):
     """
     Process a list of videos, logging progress count in the existing log about processing each video.
@@ -35,7 +36,7 @@ def process_videos(
     kindle_failed = 0
 
     # Lazy import flag so we only import kindle utilities if KINDLE_EMAIL is set
-    kindle_enabled = bool(os.getenv("KINDLE_EMAIL"))
+    kindle_enabled = bool(os.getenv("KINDLE_EMAIL")) and not disable_kindle_auto
     kindle_module = None
 
     for idx, (
