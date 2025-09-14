@@ -5,6 +5,7 @@ This module implements the Strategy Pattern for different LLM providers.
 
 import os
 import time
+import random
 from abc import ABC, abstractmethod
 
 import requests
@@ -111,6 +112,35 @@ class GeminiStrategy(LLMStrategy):
         # Configure Gemini client
         client = genai.Client(api_key=api_key)
 
+        # Fixed retry configuration (no external configurability)
+        max_retries = 3
+        base_backoff = 1.5
+        max_backoff = 12.0
+        jitter = 0.25  # proportion of backoff added/subtracted
+
+        def _is_retryable_error(exc: Exception) -> bool:
+            msg = str(exc).lower()
+            # Gemini overloaded / transient indicators
+            return any(
+                token in msg
+                for token in [
+                    "503",  # service unavailable
+                    "unavailable",
+                    "rate limit",  # generic rate limit phrase
+                    "429",  # too many requests
+                    "deadline exceeded",
+                    "temporarily",  # temporarily unavailable
+                ]
+            )
+
+        def _compute_backoff(attempt: int) -> float:
+            # attempt starts at 1
+            sleep = min((base_backoff ** (attempt - 1)), max_backoff)
+            if jitter > 0:
+                delta = sleep * jitter
+                sleep = random.uniform(max(0, sleep - delta), sleep + delta)
+            return sleep
+
         # Get chunking strategy
         chunker = ChunkingStrategyFactory.get_strategy(
             chunking_strategy, chunk_size=chunk_size
@@ -149,33 +179,46 @@ class GeminiStrategy(LLMStrategy):
             # Create full prompt
             full_prompt = f"{context_prompt}{template}\n\n{chunk}"
 
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=full_prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=0.6,
-                        max_output_tokens=60000,
-                    ),
-                )
-
-                # Get text from response
-                text = response.text if response.text else ""
-
-                # Process the response text
-                processed_text, chunk_description = self.process_model_response(
-                    text, i == 0
-                )
-
-                # Save description only from the first chunk
-                if i == 0 and chunk_description:
-                    description = chunk_description
-
-                previous_response = processed_text
-                final_output.append(processed_text)
-
-            except Exception as e:
-                raise Exception(f"Gemini API error: {str(e)}")
+            last_error = None
+            for attempt in range(1, max_retries + 1):
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=full_prompt,
+                        config=types.GenerateContentConfig(
+                            temperature=0.6,
+                            max_output_tokens=60000,
+                        ),
+                    )
+                    text = response.text if response.text else ""
+                    processed_text, chunk_description = self.process_model_response(
+                        text, i == 0
+                    )
+                    if i == 0 and chunk_description:
+                        description = chunk_description
+                    previous_response = processed_text
+                    final_output.append(processed_text)
+                    if attempt > 1:
+                        logger.info(
+                            f"Gemini chunk {i+1}/{len(chunks)} succeeded after {attempt} attempts"
+                        )
+                    break
+                except Exception as e:  # noqa: BLE001
+                    last_error = e
+                    if attempt < max_retries and _is_retryable_error(e):
+                        sleep_for = _compute_backoff(attempt)
+                        logger.warning(
+                            f"Gemini transient error (attempt {attempt}/{max_retries}): {e}. Retrying in {sleep_for:.2f}s"
+                        )
+                        time.sleep(sleep_for)
+                        continue
+                    # Non-retryable or exhausted retries
+                    logger.error(
+                        f"Gemini API error (attempt {attempt}/{max_retries}) for chunk {i+1}: {e}"
+                    )
+                    raise Exception(f"Gemini API error: {str(e)}") from e
+            else:  # pragma: no cover - defensive, loop should break or raise
+                raise Exception(f"Gemini API failed after {max_retries} attempts: {last_error}")
 
         return "\n\n".join(final_output), description
 

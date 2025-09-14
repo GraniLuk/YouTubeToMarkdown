@@ -78,6 +78,17 @@ Make sure to set up your environment variables in a .env file:
 - SUMMARIES_PATH
 - GOOGLE_DRIVE_FOLDER_ID (optional)
 - PERPLEXITY_API_KEY (optional, used as fallback for rate limits)
+ 
+### Retry Logic (LLM Resilience)
+
+Gemini calls automatically retry transient failures (model overload, 503, 429, temporary unavailability) with a fixed internal policy:
+
+- Attempts: 3 total per chunk
+- Backoff: exponential with base 1.5 (capped at 12s)
+- Jitter: ±25% randomization to reduce contention
+- Fallback: If retries still fail with a 429 (rate limit) and Perplexity is configured, the system falls back to Perplexity.
+
+This behavior is intentionally not configurable to keep runtime predictable.
 
 ### Using Ollama
 

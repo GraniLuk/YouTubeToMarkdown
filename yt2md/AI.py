@@ -79,14 +79,13 @@ def analyze_transcript_with_gemini(
             model_name=gemini_model_name,
             output_language=output_language,
             category=category,
-            # perplexity_api_key might be used by the strategy if it has internal fallback
         )
         return refined_text, description
     except Exception as e:
         logger.error(f"Gemini API call failed: {e}")
         if "429" in str(e) and perplexity_api_key:
             logger.info(
-                "Falling back to Perplexity API due to Gemini 429 error..."
+                "Falling back to Perplexity API after Gemini retries exhausted (429/rate limit)."
             )  # Fetch perplexity model name from config for fallback
             perplexity_config = get_llm_model_config("perplexity", category)
             fallback_perplexity_model_name = (
