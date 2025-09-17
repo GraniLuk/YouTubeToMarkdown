@@ -16,29 +16,53 @@ LOG_COLORS = {
     "CRITICAL": colorama.Fore.RED + colorama.Style.BRIGHT,
 }
 
+# Optional per-module message color overrides (applied to the log message text)
+MODULE_MESSAGE_COLORS = {
+    "yt2md.kindle": colorama.Fore.MAGENTA + colorama.Style.BRIGHT,
+}
+
 
 class ColoredFormatter(logging.Formatter):
-    """Custom formatter that adds colors based on log level and handles Unicode encoding"""
+    """Custom formatter that adds colors based on log level, with optional per-module
+    message coloring (e.g., Kindle) while keeping file logs uncolored.
+    """
 
-    def format(self, record: logging.LogRecord):
-        levelname = record.levelname
-        if levelname in LOG_COLORS:
-            record.levelname = (
-                f"{LOG_COLORS[levelname]}{levelname}{colorama.Style.RESET_ALL}"
-            )
-            # Handle Unicode encoding issues by safely encoding the message
-            msg = str(record.msg)
+    def format(self, record: logging.LogRecord) -> str:
+        # Preserve originals so other handlers (e.g., file) aren't affected
+        original_levelname = record.levelname
+        original_msg = record.msg
+        original_name = record.name
+
+        try:
+            # Color the level name if we have a mapping
+            if record.levelname in LOG_COLORS:
+                record.levelname = f"{LOG_COLORS[record.levelname]}{record.levelname}{colorama.Style.RESET_ALL}"
+
+            # Build a safe version of the message (Unicode issues handled)
+            raw_msg = str(record.msg)
             try:
-                # Test if the message can be encoded
-                msg.encode(sys.stdout.encoding or 'utf-8', errors='strict')
+                raw_msg.encode(sys.stdout.encoding or 'utf-8', errors='strict')
             except (UnicodeEncodeError, AttributeError):
-                # If encoding fails, replace problematic characters
-                msg = msg.encode('ascii', errors='replace').decode('ascii')
-            
-            record.msg = (
-                f"{LOG_COLORS[levelname]}{msg}{colorama.Style.RESET_ALL}"
-            )
-        return super().format(record)
+                raw_msg = raw_msg.encode('ascii', errors='replace').decode('ascii')
+
+            # Decide color for message body
+            if original_name in MODULE_MESSAGE_COLORS:
+                # Kindle (or other modules) get their own distinct color for the message body
+                record.msg = f"{MODULE_MESSAGE_COLORS[original_name]}{raw_msg}{colorama.Style.RESET_ALL}"
+            elif original_levelname in LOG_COLORS:
+                # Default: color body by level
+                record.msg = f"{LOG_COLORS[original_levelname]}{raw_msg}{colorama.Style.RESET_ALL}"
+            else:
+                record.msg = raw_msg
+
+            formatted = super().format(record)
+        finally:
+            # Restore record attributes for any subsequent handlers
+            record.levelname = original_levelname
+            record.msg = original_msg
+            record.name = original_name
+
+        return formatted
 
 
 def setup_logging(level: int = logging.INFO) -> logging.Logger:
