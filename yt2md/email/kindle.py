@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Iterable, List, Dict, Tuple
+from typing import Iterable, Dict, Tuple
+
+import yaml
 
 from yt2md.youtube import extract_video_id
 from yt2md.video_index import find_markdown_files_for_video, get_processed_video_ids
@@ -25,6 +27,67 @@ from yt2md.video_index import find_markdown_files_for_video, get_processed_video
 from yt2md.logger import get_logger
 
 logger = get_logger("kindle")
+
+KINDLE_TAG = "#Summaries/ToKindle"
+
+
+def mark_sent_to_kindle(md_path: str | Path) -> bool:
+    """Ensure the markdown file includes the Kindle tag in its front matter."""
+
+    path = Path(md_path)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        logger.warning(f"Markdown file not found while tagging for Kindle: {path}")
+        return False
+    except OSError as e:
+        logger.error(f"Could not read markdown for Kindle tagging ({path}): {e}")
+        return False
+
+    if not text.startswith("---"):
+        logger.debug(f"Skipping Kindle tag update; no YAML front matter in {path}")
+        return False
+
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        logger.debug(f"Skipping Kindle tag update; malformed front matter in {path}")
+        return False
+
+    _, front_matter_raw, remainder = parts
+    try:
+        metadata = yaml.safe_load(front_matter_raw) or {}
+    except yaml.YAMLError as e:
+        logger.warning(f"Failed to parse YAML front matter for Kindle tag on {path}: {e}")
+        return False
+
+    tags = metadata.get("tags")
+    if tags is None:
+        tags_list: list[str] = []
+    elif isinstance(tags, str):
+        tags_list = [tags]
+    else:
+        try:
+            tags_list = list(tags)
+        except TypeError:
+            tags_list = [str(tags)]
+
+    if KINDLE_TAG not in tags_list:
+        tags_list.append(KINDLE_TAG)
+
+    metadata["tags"] = tags_list
+
+    new_front = yaml.safe_dump(
+        metadata, sort_keys=False, allow_unicode=True, default_flow_style=False
+    ).strip()
+    new_text = f"---\n{new_front}\n---{remainder}"
+
+    try:
+        path.write_text(new_text, encoding="utf-8")
+    except OSError as e:
+        logger.error(f"Failed to write Kindle tag update to {path}: {e}")
+        return False
+
+    return True
 
 
 def _get_kindle_recipient() -> str | None:
@@ -90,6 +153,7 @@ def auto_send_long_notes(results: Iterable[Dict], *, threshold: int | None = Non
             )
             if ok:
                 logger.info(f"Auto Kindle send success: {md_path}")
+                mark_sent_to_kindle(md_path)
                 sent += 1
             else:
                 logger.error(f"Auto Kindle send FAILED: {md_path}")
@@ -124,6 +188,7 @@ def resend_latest_for_video_url(video_url: str) -> bool:
         ok = send_epub(epub_path, recipient, subject="Kindle Delivery", body="Resent existing note.")
         if ok:
             logger.info(f"Kindle resend successful: {latest_md}")
+            mark_sent_to_kindle(latest_md)
         else:
             logger.error(f"Kindle resend failed: {latest_md}")
         return ok
@@ -159,6 +224,7 @@ def send_processed_results(results: Iterable[Dict]) -> Tuple[int, int]:
             )
             if ok:
                 logger.info(f"Kindle send success: {md_path}")
+                mark_sent_to_kindle(md_path)
                 sent += 1
             else:
                 logger.error(f"Kindle send failed: {md_path}")
@@ -173,4 +239,5 @@ __all__ = [
     "resend_latest_for_video_url",
     "send_processed_results",
     "convert_md_to_epub",
+    "mark_sent_to_kindle",
 ]
