@@ -4,6 +4,8 @@ import sys
 import unicodedata
 from datetime import datetime
 
+import yaml
+
 from yt2md.logger import get_logger
 from yt2md.video_index import update_video_index
 
@@ -146,20 +148,23 @@ def save_to_markdown(
     # Get current date for 'created' field
     created_date = datetime.now().strftime("%Y-%m-%d")
 
-    # Prepare the markdown content
-    header = f"""---
-title: "{title}"
-source: {video_url}
-author: "[[{author}]]"
-published: {published_date}
-created: {created_date}
-description: {description}
-category: {category}
-length: {len(content.split())}
-tags: ["#Summaries/ToRead"]
----
+    # Prepare the markdown content using safe YAML serialization to handle special characters
+    metadata = {
+        "title": title,
+        "source": video_url,
+        "author": f"[[{author}]]",
+        "published": published_date,
+        "created": created_date,
+        "description": description or "",
+        "category": category,
+        "length": len(content.split()),
+        "tags": ["#Summaries/ToRead"],
+    }
 
-"""
+    header_yaml = yaml.safe_dump(
+        metadata, sort_keys=False, allow_unicode=True, default_flow_style=False
+    ).strip()
+    header = f"---\n{header_yaml}\n---\n\n"
 
     # Combine header and content
     full_content = header + content
