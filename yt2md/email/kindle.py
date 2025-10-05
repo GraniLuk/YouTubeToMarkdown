@@ -124,11 +124,19 @@ def auto_send_long_notes(results: Iterable[Dict], *, threshold: int | None = Non
 
     if threshold is None:
         try:
-            threshold = int(os.getenv("KINDLE_MIN_WORDS", "2000"))
+            threshold = int(os.getenv("KINDLE_MIN_WORDS", "1500"))
         except ValueError:
             threshold = 2000
 
     long_notes = [r for r in results if r.get("word_count", 0) >= threshold]
+    
+    # Log threshold check details for debugging
+    for r in results:
+        wc = r.get("word_count", 0)
+        path_short = Path(r.get("path", "unknown")).name if r.get("path") else "unknown"
+        status = "SEND" if wc >= threshold else "SKIP"
+        logger.debug(f"Kindle threshold check: {path_short} = {wc} words [{status}, threshold={threshold}]")
+    
     if not long_notes:
         logger.debug("No notes exceeded Kindle length threshold; nothing auto-sent")
         return (0, 0)

@@ -247,6 +247,7 @@ def process_video(
                 else:
                     text_body = text
                 words = len(text_body.split())
+                logger.debug(f"Word count for saved file: {words} words (file: {os.path.basename(path)})")
             except Exception:
                 words = 0
             result.append({'path': path, 'word_count': words})
