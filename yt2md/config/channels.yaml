@@ -194,6 +194,16 @@ Fitness:
     language_code: pl
     output_language: Polish
 
+  - id: UCuYe75CZ_RJYwOTw0uzhGxg
+    name: Lowking
+    language_code: pl
+    output_language: Polish
+  
+  - id: UCEm0MAqM_Jsyq_iDvJ8H34w
+    name: Tomasz Cwiakala
+    language_code: pl
+    output_language: Polish
+
 Trading:
   - id: UCCbv0qixG-cyokxEY3kELtg
     name: TradingLab
