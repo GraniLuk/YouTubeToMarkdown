@@ -221,6 +221,16 @@ News:
       - "RAT KREDYTU"
       - "IZRAEL"
 
+  - id: UC4RkUl120K4nct7dYrk19_A
+    name: Karol Modzelewski
+    language_code: pl
+    output_language: Polish
+
+  - id: UCoXxgqIOTa8qCM7Hd7RiURw
+    name: Imponderabilia
+    language_code: pl
+    output_language: Polish
+
 # Category Color Configuration
 category_colors:
   default: 
