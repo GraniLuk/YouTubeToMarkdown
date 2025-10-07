@@ -203,6 +203,7 @@ Fitness:
     name: Tomasz Cwiakala
     language_code: pl
     output_language: Polish
+    skip_shorts: true
 
 Trading:
   - id: UCCbv0qixG-cyokxEY3kELtg
@@ -220,16 +221,19 @@ News:
       - "RYNKI OD ZERA"
       - "RAT KREDYTU"
       - "IZRAEL"
+    skip_shorts: true
 
   - id: UC4RkUl120K4nct7dYrk19_A
     name: Karol Modzelewski
     language_code: pl
     output_language: Polish
+    skip_shorts: true
 
   - id: UCoXxgqIOTa8qCM7Hd7RiURw
     name: Imponderabilia
     language_code: pl
     output_language: Polish
+    skip_shorts: true
 
 # Category Color Configuration
 category_colors:

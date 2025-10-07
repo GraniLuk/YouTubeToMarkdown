@@ -157,6 +157,7 @@ The `channels.yaml` file in the `config` directory organizes YouTube channels in
 Optional configuration:
 
 - `title_filters`: List of strings to filter videos by title (only process videos containing at least one of these strings)
+- `skip_shorts`: Set to `true` to ignore YouTube Shorts (videos up to ~75 seconds) for that channel
 
 Example configuration:
 
@@ -182,6 +183,7 @@ AI:
       - "AI"
       - "GPT"
       - "LLM"
+    skip_shorts: true
 ```
 
 ## How It Works
@@ -200,7 +202,7 @@ YT2MD operates through a series of optimized steps:
 
 Processing typically takes 1-3 minutes per video, depending on transcript length and LLM selection.
 
-```
+```text
 YouTube Video → Transcript → LLM Processing → Structured Markdown → Knowledge Base
 ```
 

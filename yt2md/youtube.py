@@ -20,6 +20,10 @@ from yt2md.video_index import get_processed_video_ids, update_video_index
 # Get logger for this module
 logger = get_logger("youtube")
 
+_DURATION_PATTERN = re.compile(
+    r"PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?"
+)
+
 
 def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optional[str]:
     """
@@ -152,6 +156,8 @@ def get_videos_from_channel(
     skip_verification: bool = False,
     max_pages: int = 100,  # Default to a high number to keep paginating
     max_videos: int = 10,
+    skip_shorts: bool = False,
+    shorts_max_duration_seconds: int = 75,
 ) -> list[tuple[str, str, str]]:
     """
     Get all unprocessed videos from a YouTube channel published in the last days.
@@ -163,6 +169,8 @@ def get_videos_from_channel(
         skip_verification (bool): If True, skip checking if videos were already processed
         max_pages (int): Maximum number of API result pages to fetch (default: 100)
         max_videos (int): Maximum number of videos to collect per channel (default: 10)
+        skip_shorts (bool): If True, skip videos classified as YouTube Shorts
+        shorts_max_duration_seconds (int): Duration threshold in seconds to classify videos as Shorts
 
     Returns:
         list[tuple[str, str, str]]: A list of tuples containing (video_url, video_title, published_date) for each video
@@ -208,10 +216,24 @@ def get_videos_from_channel(
                 break
 
             if "items" in data:
-                items_count = len(data["items"])
+                items = data["items"]
+                items_count = len(items)
                 logger.debug(f"Retrieved {items_count} videos on page {page_count}")
 
-                for item in data["items"]:
+                durations: dict[str, Optional[int]] = {}
+                if skip_shorts and items:
+                    video_ids_for_duration = [
+                        item.get("id", {}).get("videoId")
+                        for item in items
+                        if isinstance(item.get("id"), dict)
+                        and item.get("id", {}).get("videoId")
+                    ]
+                    if video_ids_for_duration:
+                        durations = _fetch_video_durations(
+                            video_ids_for_duration, API_KEY
+                        )
+
+                for item in items:
                     # Stop if we've reached the maximum videos limit
                     if len(videos) >= max_videos:
                         logger.info(
@@ -220,14 +242,25 @@ def get_videos_from_channel(
                         break
 
                     video_id = item["id"]["videoId"]
+                    title = item["snippet"]["title"]
                     if not skip_verification and video_id in processed_video_ids:
                         logger.debug(
                             f"Video {item['snippet']['title']} was already processed. Skipping..."
                         )
                         continue
 
+                    if skip_shorts:
+                        duration_seconds = durations.get(video_id)
+                        if (
+                            duration_seconds is not None
+                            and duration_seconds <= shorts_max_duration_seconds
+                        ):
+                            logger.debug(
+                                f"Skipping short video '{title}' (duration {duration_seconds}s) from channel {channel_id}"
+                            )
+                            continue
+
                     video_url = f"https://www.youtube.com/watch?v={video_id}"
-                    title = item["snippet"]["title"]
                     published_date = item["snippet"]["publishedAt"].split("T")[
                         0
                     ]  # Get just the date part
@@ -259,6 +292,75 @@ def get_videos_from_channel(
         f"Made {api_calls_count} API calls for channel {channel_id}, collected {len(videos)} videos"
     )
     return videos
+
+
+def _parse_iso8601_duration(duration: Optional[str]) -> Optional[int]:
+    """Convert an ISO 8601 duration string (e.g. PT5M30S) to seconds."""
+    if not duration:
+        return None
+
+    match = _DURATION_PATTERN.fullmatch(duration)
+    if not match:
+        logger.debug(f"Failed to parse ISO 8601 duration: {duration}")
+        return None
+
+    hours = int(match.group("hours") or 0)
+    minutes = int(match.group("minutes") or 0)
+    seconds = int(match.group("seconds") or 0)
+
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def _fetch_video_durations(
+    video_ids: list[str], api_key: Optional[str]
+) -> dict[str, Optional[int]]:
+    """Fetch the duration (in seconds) for the provided YouTube video IDs."""
+    if not video_ids:
+        return {}
+
+    if not api_key:
+        logger.warning(
+            "YOUTUBE_API_KEY not set; cannot filter YouTube Shorts by duration."
+        )
+        return {vid: None for vid in video_ids}
+
+    base_url = "https://www.googleapis.com/youtube/v3/videos"
+    durations: dict[str, Optional[int]] = {}
+
+    for start in range(0, len(video_ids), 50):
+        chunk = video_ids[start : start + 50]
+        params = {
+            "part": "contentDetails",
+            "id": ",".join(chunk),
+            "key": api_key,
+        }
+
+        try:
+            response = requests.get(base_url, params=params)
+            data = response.json()
+
+            if "error" in data:
+                logger.error(
+                    "YouTube API error fetching durations: %s",
+                    data["error"].get("message", "Unknown error"),
+                )
+                continue
+
+            for item in data.get("items", []):
+                vid = item.get("id")
+                content_details = item.get("contentDetails", {})
+                duration_str = content_details.get("duration")
+                if vid:
+                    durations[vid] = _parse_iso8601_duration(duration_str)
+
+        except Exception as exc:  # pragma: no cover - network errors are rare/hard to mock
+            logger.error(f"Error fetching video durations: {str(exc)}")
+            break
+
+    for vid in video_ids:
+        durations.setdefault(vid, None)
+
+    return durations
 
 
 def extract_video_id(url: str) -> Optional[str]:

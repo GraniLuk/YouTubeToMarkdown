@@ -10,6 +10,7 @@ class Channel:
         category: str,
         name: str,
         title_filters: Optional[list[str]] = None,
+        skip_shorts: bool = False,
     ):
         self.id = id
         self.language_code = language_code
@@ -17,3 +18,4 @@ class Channel:
         self.category = category
         self.name = name
         self.title_filters = title_filters or []
+        self.skip_shorts = skip_shorts

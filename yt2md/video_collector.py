@@ -146,7 +146,11 @@ def _collect_videos_from_single_channel(
     logger.debug(f"Getting videos from channel: {channel.name}")
     # We set max_pages to a large number (100) to effectively keep paginating until we hit max_videos
     channel_videos = get_videos_from_channel(
-        channel.id, days, max_pages=100, max_videos=max_videos
+        channel.id,
+        days,
+        max_pages=100,
+        max_videos=max_videos,
+        skip_shorts=channel.skip_shorts,
     )
     logger.debug(
         f"Found {len(channel_videos)} videos from {channel.name} in the last {days} days"
