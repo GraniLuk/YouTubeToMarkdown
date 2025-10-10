@@ -7,8 +7,8 @@ llm_strategies:
         primary: "ollama"
         fallback: "perplexity"
       medium: # Medium transcripts (1000-3000 characters)
-        primary: "perplexity" 
-        fallback: "gemini"
+        primary: "gemini" 
+        fallback: "perplexity"
       long:   # Long transcripts (> 3000 characters)
         primary: "gemini"
         fallback: "perplexity"

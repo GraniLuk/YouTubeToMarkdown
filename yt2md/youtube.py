@@ -1,7 +1,8 @@
+import json
 import os
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import requests
@@ -23,6 +24,130 @@ logger = get_logger("youtube")
 _DURATION_PATTERN = re.compile(
     r"PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?"
 )
+
+_UPLOADS_CACHE_FILE = os.path.join(
+    os.path.dirname(__file__), "config", "youtube_uploads_cache.json"
+)
+_uploads_playlist_cache: dict[str, str] = {}
+_uploads_cache_loaded = False
+_uploads_cache_dirty = False
+
+_YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
+_DEFAULT_REQUEST_TIMEOUT = 15
+_RATE_LIMIT_SLEEP_SECONDS = 0.2
+
+
+def _load_uploads_playlist_cache() -> None:
+    global _uploads_cache_loaded, _uploads_playlist_cache
+    if _uploads_cache_loaded:
+        return
+
+    try:
+        with open(_UPLOADS_CACHE_FILE, "r", encoding="utf-8") as cache_file:
+            data = json.load(cache_file)
+            if isinstance(data, dict):
+                _uploads_playlist_cache = {
+                    str(key): str(value) for key, value in data.items()
+                }
+                logger.debug(
+                    "Loaded %d cached upload playlist ids", len(_uploads_playlist_cache)
+                )
+    except FileNotFoundError:
+        logger.debug("Uploads playlist cache file not found. It will be created on save.")
+    except Exception as exc:  # pragma: no cover - defensive logging only
+        logger.warning("Failed to load uploads playlist cache: %s", str(exc))
+
+    _uploads_cache_loaded = True
+
+
+def _save_uploads_playlist_cache() -> None:
+    global _uploads_cache_dirty
+    if not _uploads_cache_dirty:
+        return
+
+    try:
+        os.makedirs(os.path.dirname(_UPLOADS_CACHE_FILE), exist_ok=True)
+        with open(_UPLOADS_CACHE_FILE, "w", encoding="utf-8") as cache_file:
+            json.dump(_uploads_playlist_cache, cache_file, ensure_ascii=False, indent=2)
+        logger.debug(
+            "Persisted %d upload playlist ids to cache file",
+            len(_uploads_playlist_cache),
+        )
+    except Exception as exc:  # pragma: no cover - defensive logging only
+        logger.error("Failed to persist uploads playlist cache: %s", str(exc))
+    finally:
+        _uploads_cache_dirty = False
+
+
+def _request_json(url: str, params: Optional[dict[str, str]] = None) -> dict:
+    time.sleep(_RATE_LIMIT_SLEEP_SECONDS)
+    response = requests.get(url, params=params, timeout=_DEFAULT_REQUEST_TIMEOUT)
+    response.raise_for_status()
+    return response.json()
+
+
+def _extract_youtube_error_message(error: requests.HTTPError) -> str:
+    try:
+        payload = error.response.json() if error.response is not None else None
+        message = payload.get("error", {}).get("message") if payload else None
+        if message:
+            return message
+    except Exception:  # pragma: no cover - defensive parsing only
+        pass
+    return str(error)
+
+
+def _get_uploads_playlist_id(channel_id: str, api_key: Optional[str]) -> Optional[str]:
+    """Resolve the uploads playlist ID for a channel, caching the result locally."""
+    if not api_key:
+        logger.error("YOUTUBE_API_KEY is not set. Cannot resolve uploads playlist id.")
+        return None
+
+    _load_uploads_playlist_cache()
+    if channel_id in _uploads_playlist_cache:
+        return _uploads_playlist_cache[channel_id]
+
+    params = {
+        "part": "contentDetails",
+        "id": channel_id,
+        "key": api_key,
+        "maxResults": "1",
+    }
+
+    try:
+        data = _request_json(f"{_YOUTUBE_API_BASE}/channels", params=params)
+    except requests.HTTPError as http_exc:
+        logger.error(
+            "YouTube API error resolving uploads playlist for channel %s: %s",
+            channel_id,
+            str(http_exc),
+        )
+        return None
+    except Exception as exc:  # pragma: no cover - network errors are rare/hard to mock
+        logger.error(
+            "Unexpected error resolving uploads playlist for channel %s: %s",
+            channel_id,
+            str(exc),
+        )
+        return None
+
+    items = data.get("items") or []
+    if not items:
+        logger.error("No uploads playlist found for channel %s", channel_id)
+        return None
+
+    content_details = items[0].get("contentDetails", {})
+    related_playlists = content_details.get("relatedPlaylists", {})
+    playlist_id = related_playlists.get("uploads")
+
+    if not playlist_id:
+        logger.error("Uploads playlist missing in response for channel %s", channel_id)
+        return None
+
+    _uploads_playlist_cache[channel_id] = playlist_id
+    global _uploads_cache_dirty
+    _uploads_cache_dirty = True
+    return playlist_id
 
 
 def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optional[str]:
@@ -157,7 +282,7 @@ def get_videos_from_channel(
     max_pages: int = 100,  # Default to a high number to keep paginating
     max_videos: int = 10,
     skip_shorts: bool = False,
-    shorts_max_duration_seconds: int = 75,
+    shorts_max_duration_seconds: int = 120,
 ) -> list[tuple[str, str, str]]:
     """
     Get all unprocessed videos from a YouTube channel published in the last days.
@@ -176,122 +301,385 @@ def get_videos_from_channel(
         list[tuple[str, str, str]]: A list of tuples containing (video_url, video_title, published_date) for each video
     """
     API_KEY = os.getenv("YOUTUBE_API_KEY")
+    if not API_KEY:
+        logger.error(
+            "YOUTUBE_API_KEY is not set. Skipping fetch for channel %s", channel_id
+        )
+        return []
+
     logger.debug(
-        f"Fetching videos from channel ID: {channel_id} for last {days} days (max {max_videos} videos)"
+        "Fetching videos from channel ID: %s for last %d days (max %d videos)",
+        channel_id,
+        days,
+        max_videos,
     )
 
-    # Get processed video IDs from index file
     processed_video_ids = get_processed_video_ids(skip_verification)
-    logger.debug(f"Found {len(processed_video_ids)} already processed videos")
+    logger.debug("Found %d already processed videos", len(processed_video_ids))
 
-    end_date = datetime.now()
-    start_date = (end_date - timedelta(days=days)).isoformat("T") + "Z"
-    logger.debug(f"Searching for videos published after {start_date}")
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).replace(tzinfo=None)
 
-    url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={channel_id}&type=video&order=date&publishedAfter={start_date}&key={API_KEY}&maxResults=50"
-
+    playlist_id = _get_uploads_playlist_id(channel_id, API_KEY)
     videos: list[tuple[str, str, str]] = []
-    next_page_token = None
+    api_calls_count = 0
+
+    if playlist_id:
+        videos, api_calls_count = _collect_videos_from_playlist(
+            playlist_id=playlist_id,
+            api_key=API_KEY,
+            processed_video_ids=processed_video_ids,
+            skip_verification=skip_verification,
+            skip_shorts=skip_shorts,
+            shorts_max_duration_seconds=shorts_max_duration_seconds,
+            max_pages=max_pages,
+            max_videos=max_videos,
+            channel_id=channel_id,
+            start_date=start_date,
+        )
+    else:
+        logger.warning(
+            "Falling back to search API for channel %s due to missing playlist id",
+            channel_id,
+        )
+        videos, api_calls_count = _collect_videos_via_search(
+            channel_id=channel_id,
+            api_key=API_KEY,
+            processed_video_ids=processed_video_ids,
+            skip_verification=skip_verification,
+            skip_shorts=skip_shorts,
+            shorts_max_duration_seconds=shorts_max_duration_seconds,
+            max_pages=max_pages,
+            max_videos=max_videos,
+            start_date=start_date,
+        )
+
+    _save_uploads_playlist_cache()
+
+    logger.debug(
+        "Made %d API calls for channel %s, collected %d videos",
+        api_calls_count,
+        channel_id,
+        len(videos),
+    )
+    return videos
+
+
+def _collect_videos_from_playlist(
+    *,
+    playlist_id: str,
+    api_key: str,
+    processed_video_ids: set[str],
+    skip_verification: bool,
+    skip_shorts: bool,
+    shorts_max_duration_seconds: int,
+    max_pages: int,
+    max_videos: int,
+    channel_id: str,
+    start_date: datetime,
+) -> tuple[list[tuple[str, str, str]], int]:
+    videos: list[tuple[str, str, str]] = []
+    page_token: Optional[str] = None
     page_count = 0
     api_calls_count = 0
 
-    # Fetch pages up to max_pages limit or until we have max_videos
     while page_count < max_pages and len(videos) < max_videos:
         page_count += 1
-        api_calls_count += 1
+        params = {
+            "part": "snippet,contentDetails",
+            "playlistId": playlist_id,
+            "maxResults": "50",
+            "key": api_key,
+        }
+        if page_token:
+            params["pageToken"] = page_token
 
-        if next_page_token:
-            current_url = f"{url}&pageToken={next_page_token}"
-            logger.debug(f"Fetching page {page_count} with token: {next_page_token}")
-        else:
-            current_url = url
-            logger.debug("Fetching first page of results")
+        logger.debug(
+            "Fetching playlistItems page %d for channel %s (playlist %s)",
+            page_count,
+            channel_id,
+            playlist_id,
+        )
 
         try:
-            response = requests.get(current_url)
-            data = response.json()
-
-            if "error" in data:
-                logger.error(f"YouTube API error: {data['error']['message']}")
-                break
-
-            if "items" in data:
-                items = data["items"]
-                items_count = len(items)
-                logger.debug(f"Retrieved {items_count} videos on page {page_count}")
-
-                durations: dict[str, Optional[int]] = {}
-                if skip_shorts and items:
-                    video_ids_for_duration = [
-                        item.get("id", {}).get("videoId")
-                        for item in items
-                        if isinstance(item.get("id"), dict)
-                        and item.get("id", {}).get("videoId")
-                    ]
-                    if video_ids_for_duration:
-                        durations = _fetch_video_durations(
-                            video_ids_for_duration, API_KEY
-                        )
-
-                for item in items:
-                    # Stop if we've reached the maximum videos limit
-                    if len(videos) >= max_videos:
-                        logger.info(
-                            f"Reached maximum videos limit ({max_videos}) for channel {channel_id}"
-                        )
-                        break
-
-                    video_id = item["id"]["videoId"]
-                    title = item["snippet"]["title"]
-                    if not skip_verification and video_id in processed_video_ids:
-                        logger.debug(
-                            f"Video {item['snippet']['title']} was already processed. Skipping..."
-                        )
-                        continue
-
-                    if skip_shorts:
-                        duration_seconds = durations.get(video_id)
-                        if (
-                            duration_seconds is not None
-                            and duration_seconds <= shorts_max_duration_seconds
-                        ):
-                            logger.debug(
-                                f"Skipping short video '{title}' (duration {duration_seconds}s) from channel {channel_id}"
-                            )
-                            continue
-
-                    video_url = f"https://www.youtube.com/watch?v={video_id}"
-                    published_date = item["snippet"]["publishedAt"].split("T")[
-                        0
-                    ]  # Get just the date part
-                    logger.debug(f"Adding video: {title} ({published_date})")
-                    videos.append((video_url, title, published_date))
-            else:
-                logger.warning("No items found in YouTube API response")
-                break  # Break if no items found to avoid unnecessary API calls
-
-            # Check if we need to fetch more pages
-            next_page_token = data.get("nextPageToken")
-            if not next_page_token:
-                logger.debug("No more pages to fetch")
-                break
-
-            # If we've collected enough videos, stop fetching more pages
-            if len(videos) >= max_videos:
-                logger.info(f"Collected {len(videos)} videos, stopping pagination")
-                break
-
-        except Exception as e:
+            data = _request_json(f"{_YOUTUBE_API_BASE}/playlistItems", params)
+            api_calls_count += 1
+        except requests.HTTPError as http_exc:
+            message = _extract_youtube_error_message(http_exc)
             logger.error(
-                f"Error fetching videos from channel {channel_id}: {str(e)}",
+                "YouTube API error (playlistItems) for channel %s: %s",
+                channel_id,
+                message,
+            )
+            break
+        except Exception as exc:  # pragma: no cover - network errors are rare/hard to mock
+            logger.error(
+                "Unexpected error fetching playlistItems for channel %s: %s",
+                channel_id,
+                str(exc),
                 exc_info=True,
             )
             break
 
-    logger.debug(
-        f"Made {api_calls_count} API calls for channel {channel_id}, collected {len(videos)} videos"
-    )
-    return videos
+        items = data.get("items") or []
+        if not items:
+            logger.debug("No items returned for playlist %s", playlist_id)
+            break
+
+        staged_items: list[dict[str, str]] = []
+        video_ids_for_duration: list[str] = []
+        all_items_older_than_window = True
+
+        for item in items:
+            content_details = item.get("contentDetails", {})
+            snippet = item.get("snippet", {})
+            video_id = content_details.get("videoId")
+            title = snippet.get("title") or "(untitled video)"
+            published_at_raw = (
+                content_details.get("videoPublishedAt")
+                or snippet.get("publishedAt")
+            )
+
+            if not video_id or not published_at_raw:
+                logger.debug(
+                    "Skipping playlist item missing videoId or publishedAt for channel %s",
+                    channel_id,
+                )
+                continue
+
+            try:
+                published_at_dt = datetime.fromisoformat(
+                    published_at_raw.replace("Z", "+00:00")
+                ).replace(tzinfo=None)
+            except ValueError:
+                logger.debug(
+                    "Could not parse publishedAt '%s' for video %s", published_at_raw, video_id
+                )
+                continue
+
+            if published_at_dt < start_date:
+                logger.debug(
+                    "Skipping video %s from %s (before window)", video_id, published_at_dt
+                )
+                continue
+
+            all_items_older_than_window = False
+
+            if not skip_verification and video_id in processed_video_ids:
+                logger.debug("Video %s already processed. Skipping...", video_id)
+                continue
+
+            published_date = published_at_dt.date().isoformat()
+            staged_items.append(
+                {
+                    "video_id": video_id,
+                    "title": title,
+                    "published_date": published_date,
+                }
+            )
+
+            if skip_shorts:
+                video_ids_for_duration.append(video_id)
+
+        durations: dict[str, Optional[int]] = {}
+        if skip_shorts and video_ids_for_duration:
+            durations = _fetch_video_durations(video_ids_for_duration, api_key)
+
+        for staged in staged_items:
+            if len(videos) >= max_videos:
+                logger.info(
+                    "Reached maximum videos limit (%d) for channel %s",
+                    max_videos,
+                    channel_id,
+                )
+                break
+
+            video_id = staged["video_id"]
+            if skip_shorts:
+                duration_seconds = durations.get(video_id)
+                if (
+                    duration_seconds is not None
+                    and duration_seconds <= shorts_max_duration_seconds
+                ):
+                    logger.debug(
+                        "Skipping short video '%s' (%ss) from channel %s",
+                        staged["title"],
+                        duration_seconds,
+                        channel_id,
+                    )
+                    continue
+
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            videos.append((video_url, staged["title"], staged["published_date"]))
+
+        if len(videos) >= max_videos:
+            break
+
+        page_token = data.get("nextPageToken")
+        if not page_token:
+            logger.debug("No additional playlist pages for channel %s", channel_id)
+            break
+
+        if all_items_older_than_window:
+            logger.debug(
+                "All items on page %d for channel %s were older than window; stopping",
+                page_count,
+                channel_id,
+            )
+            break
+
+    return videos, api_calls_count
+
+
+def _collect_videos_via_search(
+    *,
+    channel_id: str,
+    api_key: str,
+    processed_video_ids: set[str],
+    skip_verification: bool,
+    skip_shorts: bool,
+    shorts_max_duration_seconds: int,
+    max_pages: int,
+    max_videos: int,
+    start_date: datetime,
+) -> tuple[list[tuple[str, str, str]], int]:
+    videos: list[tuple[str, str, str]] = []
+    page_token: Optional[str] = None
+    page_count = 0
+    api_calls_count = 0
+
+    published_after = start_date.isoformat(timespec="seconds") + "Z"
+
+    while page_count < max_pages and len(videos) < max_videos:
+        page_count += 1
+        params = {
+            "part": "snippet",
+            "channelId": channel_id,
+            "type": "video",
+            "order": "date",
+            "publishedAfter": published_after,
+            "key": api_key,
+            "maxResults": "50",
+        }
+        if page_token:
+            params["pageToken"] = page_token
+
+        try:
+            data = _request_json(f"{_YOUTUBE_API_BASE}/search", params)
+            api_calls_count += 1
+        except requests.HTTPError as http_exc:
+            message = _extract_youtube_error_message(http_exc)
+            logger.error(
+                "YouTube API error (search) for channel %s: %s",
+                channel_id,
+                message,
+            )
+            break
+        except Exception as exc:  # pragma: no cover - network errors are rare/hard to mock
+            logger.error(
+                "Unexpected error fetching search results for channel %s: %s",
+                channel_id,
+                str(exc),
+                exc_info=True,
+            )
+            break
+
+        if "error" in data:
+            logger.error(
+                "YouTube API error payload (search) for channel %s: %s",
+                channel_id,
+                data["error"].get("message", "Unknown error"),
+            )
+            break
+
+        items = data.get("items") or []
+        if not items:
+            logger.debug("No items returned from search for channel %s", channel_id)
+            break
+
+        video_ids_for_duration: list[str] = []
+        durations: dict[str, Optional[int]] = {}
+
+        if skip_shorts:
+            video_ids_for_duration = [
+                item.get("id", {}).get("videoId")
+                for item in items
+                if isinstance(item.get("id"), dict)
+                and item.get("id", {}).get("videoId")
+            ]
+            if video_ids_for_duration:
+                durations = _fetch_video_durations(video_ids_for_duration, api_key)
+
+        for item in items:
+            if len(videos) >= max_videos:
+                logger.info(
+                    "Reached maximum videos limit (%d) for channel %s",
+                    max_videos,
+                    channel_id,
+                )
+                break
+
+            video_id = item.get("id", {}).get("videoId")
+            snippet = item.get("snippet", {})
+            title = snippet.get("title") or "(untitled video)"
+            published_at = snippet.get("publishedAt")
+
+            if not video_id or not published_at:
+                logger.debug(
+                    "Skipping search item missing videoId or publishedAt for channel %s",
+                    channel_id,
+                )
+                continue
+
+            try:
+                published_at_dt = datetime.fromisoformat(
+                    published_at.replace("Z", "+00:00")
+                ).replace(tzinfo=None)
+            except ValueError:
+                logger.debug(
+                    "Could not parse search publishedAt '%s' for video %s",
+                    published_at,
+                    video_id,
+                )
+                continue
+
+            if published_at_dt < start_date:
+                logger.debug(
+                    "Skipping search result %s from %s (before window)",
+                    video_id,
+                    published_at_dt,
+                )
+                continue
+
+            if not skip_verification and video_id in processed_video_ids:
+                logger.debug("Search result %s already processed. Skipping...", video_id)
+                continue
+
+            if skip_shorts:
+                duration_seconds = durations.get(video_id)
+                if (
+                    duration_seconds is not None
+                    and duration_seconds <= shorts_max_duration_seconds
+                ):
+                    logger.debug(
+                        "Skipping short search result '%s' (%ss) from channel %s",
+                        title,
+                        duration_seconds,
+                        channel_id,
+                    )
+                    continue
+
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            videos.append((video_url, title, published_at_dt.date().isoformat()))
+
+        if len(videos) >= max_videos:
+            break
+
+        page_token = data.get("nextPageToken")
+        if not page_token:
+            logger.debug("No additional search pages for channel %s", channel_id)
+            break
+
+    return videos, api_calls_count
 
 
 def _parse_iso8601_duration(duration: Optional[str]) -> Optional[int]:

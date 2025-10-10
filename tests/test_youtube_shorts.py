@@ -6,11 +6,16 @@ from yt2md import youtube
 
 
 class DummyResponse:
-    def __init__(self, payload: Dict[str, Any]):
+    def __init__(self, payload: Dict[str, Any], status_code: int = 200):
         self._payload = payload
+        self.status_code = status_code
 
     def json(self) -> Dict[str, Any]:
         return self._payload
+
+    def raise_for_status(self) -> None:
+        if not (200 <= self.status_code < 300):
+            raise RuntimeError(f"HTTP error {self.status_code}")
 
 
 @pytest.mark.parametrize(
@@ -28,38 +33,69 @@ def test_parse_iso8601_duration(duration, expected):
     assert youtube._parse_iso8601_duration(duration) == expected
 
 
-def _setup_common_mocks(monkeypatch, search_payload, videos_payload):
-    def fake_get(url, params=None):
-        if "youtube/v3/search" in url:
-            return DummyResponse(search_payload)
+def _setup_common_mocks(
+    monkeypatch,
+    playlist_payload: Dict[str, Any],
+    videos_payload: Dict[str, Any],
+    channels_payload: Dict[str, Any] | None = None,
+):
+    channels_payload = channels_payload or {
+        "items": [
+            {
+                "contentDetails": {
+                    "relatedPlaylists": {
+                        "uploads": "UPLOADS_PLAYLIST_ID",
+                    }
+                }
+            }
+        ]
+    }
+
+    def fake_get(url, params=None, timeout=None):
+        if "youtube/v3/channels" in url:
+            return DummyResponse(channels_payload)
+        if "youtube/v3/playlistItems" in url:
+            assert params is not None
+            return DummyResponse(playlist_payload)
         if "youtube/v3/videos" in url:
-            # Ensure params dict is provided with IDs
             assert params is not None
             requested_ids = params["id"].split(",")
-            items = []
-            for item in videos_payload["items"]:
-                if item["id"] in requested_ids:
-                    items.append(item)
+            items = [
+                item
+                for item in videos_payload.get("items", [])
+                if item["id"] in requested_ids
+            ]
             return DummyResponse({"items": items})
         raise AssertionError(f"Unexpected URL requested: {url}")
 
-    monkeypatch.setattr(youtube, "requests", type("RequestsModule", (), {"get": staticmethod(fake_get)}))
+    monkeypatch.setattr(youtube.requests, "get", fake_get)
     monkeypatch.setattr(youtube, "get_processed_video_ids", lambda skip: set())
+    monkeypatch.setattr(youtube, "_uploads_playlist_cache", {}, raising=False)
+    monkeypatch.setattr(youtube, "_uploads_cache_loaded", True, raising=False)
+    monkeypatch.setattr(youtube, "_uploads_cache_dirty", False, raising=False)
+    monkeypatch.setattr(youtube, "_load_uploads_playlist_cache", lambda: None)
+    monkeypatch.setattr(youtube, "_save_uploads_playlist_cache", lambda: None)
     monkeypatch.setenv("YOUTUBE_API_KEY", "dummy-key")
 
 
 def test_get_videos_from_channel_skips_shorts_when_enabled(monkeypatch):
-    search_payload = {
+    playlist_payload = {
         "items": [
             {
-                "id": {"videoId": "short123"},
+                "contentDetails": {
+                    "videoId": "short123",
+                    "videoPublishedAt": "2025-02-01T12:00:00Z",
+                },
                 "snippet": {
                     "title": "Short clip",
                     "publishedAt": "2025-02-01T12:00:00Z",
                 },
             },
             {
-                "id": {"videoId": "video456"},
+                "contentDetails": {
+                    "videoId": "video456",
+                    "videoPublishedAt": "2025-02-02T15:30:00Z",
+                },
                 "snippet": {
                     "title": "Long form video",
                     "publishedAt": "2025-02-02T15:30:00Z",
@@ -74,11 +110,11 @@ def test_get_videos_from_channel_skips_shorts_when_enabled(monkeypatch):
         ]
     }
 
-    _setup_common_mocks(monkeypatch, search_payload, videos_payload)
+    _setup_common_mocks(monkeypatch, playlist_payload, videos_payload)
 
     videos = youtube.get_videos_from_channel(
         "channel-id",
-        days=1,
+        days=400,
         max_videos=5,
         skip_shorts=True,
         shorts_max_duration_seconds=75,
@@ -89,10 +125,13 @@ def test_get_videos_from_channel_skips_shorts_when_enabled(monkeypatch):
 
 
 def test_get_videos_from_channel_keeps_shorts_when_disabled(monkeypatch):
-    search_payload = {
+    playlist_payload = {
         "items": [
             {
-                "id": {"videoId": "short123"},
+                "contentDetails": {
+                    "videoId": "short123",
+                    "videoPublishedAt": "2025-02-01T12:00:00Z",
+                },
                 "snippet": {
                     "title": "Short clip",
                     "publishedAt": "2025-02-01T12:00:00Z",
@@ -106,11 +145,11 @@ def test_get_videos_from_channel_keeps_shorts_when_disabled(monkeypatch):
         ]
     }
 
-    _setup_common_mocks(monkeypatch, search_payload, videos_payload)
+    _setup_common_mocks(monkeypatch, playlist_payload, videos_payload)
 
     videos = youtube.get_videos_from_channel(
         "channel-id",
-        days=1,
+        days=400,
         max_videos=5,
         skip_shorts=False,
     )
