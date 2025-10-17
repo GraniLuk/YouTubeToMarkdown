@@ -4,16 +4,16 @@ This module implements the Strategy Pattern for different LLM providers.
 """
 
 import os
-import time
 import random
+import time
 from abc import ABC, abstractmethod
 
 import requests
 from google import genai
 from google.genai import types
 
-from yt2md.chunking import ChunkingStrategyFactory
 from yt2md import response_processing
+from yt2md.chunking import ChunkingStrategyFactory
 from yt2md.logger import get_logger
 
 logger = get_logger("llm_strategies")
@@ -101,11 +101,13 @@ class GeminiStrategy(LLMStrategy):
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")
         chunk_size = kwargs.get("chunk_size", 5000)
-        logger.debug(f"Using Gemini strategy with model: {model_name}, output language: {output_language}, category: {category}, chunking strategy: {chunking_strategy}, chunk size: {chunk_size}")
+        logger.debug(
+            f"Using Gemini strategy with model: {model_name}, output language: {output_language}, category: {category}, chunking strategy: {chunking_strategy}, chunk size: {chunk_size}"
+        )
 
         if not api_key:
             raise ValueError("Gemini API key is required")
-        
+
         if not model_name:
             raise ValueError("Gemini model name is required")
 
@@ -113,10 +115,10 @@ class GeminiStrategy(LLMStrategy):
         client = genai.Client(api_key=api_key)
 
         # Fixed retry configuration (no external configurability)
-        max_retries = 3
-        base_backoff = 1.5
-        max_backoff = 12.0
-        jitter = 0.25  # proportion of backoff added/subtracted
+        max_retries = 4
+        base_backoff = 2.5
+        max_backoff = 14.0
+        jitter = 0.3  # proportion of backoff added/subtracted
 
         def _is_retryable_error(exc: Exception) -> bool:
             msg = str(exc).lower()
@@ -200,7 +202,7 @@ class GeminiStrategy(LLMStrategy):
                     final_output.append(processed_text)
                     if attempt > 1:
                         logger.info(
-                            f"Gemini chunk {i+1}/{len(chunks)} succeeded after {attempt} attempts"
+                            f"Gemini chunk {i + 1}/{len(chunks)} succeeded after {attempt} attempts"
                         )
                     break
                 except Exception as e:  # noqa: BLE001
@@ -214,11 +216,13 @@ class GeminiStrategy(LLMStrategy):
                         continue
                     # Non-retryable or exhausted retries
                     logger.error(
-                        f"Gemini API error (attempt {attempt}/{max_retries}) for chunk {i+1}: {e}"
+                        f"Gemini API error (attempt {attempt}/{max_retries}) for chunk {i + 1}: {e}"
                     )
                     raise Exception(f"Gemini API error: {str(e)}") from e
             else:  # pragma: no cover - defensive, loop should break or raise
-                raise Exception(f"Gemini API failed after {max_retries} attempts: {last_error}")
+                raise Exception(
+                    f"Gemini API failed after {max_retries} attempts: {last_error}"
+                )
 
         return "\n\n".join(final_output), description
 
@@ -374,7 +378,9 @@ class OllamaStrategy(LLMStrategy):
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")
-        chunk_size = kwargs.get("chunk_size", 2500)  # Increased chunk size to better utilize 4096 context
+        chunk_size = kwargs.get(
+            "chunk_size", 2500
+        )  # Increased chunk size to better utilize 4096 context
 
         # For backward compatibility, check both host and base_url parameters
         base_url = kwargs.get(
@@ -427,11 +433,7 @@ class OllamaStrategy(LLMStrategy):
             # Create full prompt
             full_prompt = f"{context_prompt}{template}\n\n{chunk}"
 
-            data = {
-                "model": model_name, 
-                "prompt": full_prompt, 
-                "stream": False
-            }
+            data = {"model": model_name, "prompt": full_prompt, "stream": False}
 
             for attempt in range(max_retries):
                 try:
