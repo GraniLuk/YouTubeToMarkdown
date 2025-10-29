@@ -53,7 +53,9 @@ def _load_uploads_playlist_cache() -> None:
                     "Loaded %d cached upload playlist ids", len(_uploads_playlist_cache)
                 )
     except FileNotFoundError:
-        logger.debug("Uploads playlist cache file not found. It will be created on save.")
+        logger.debug(
+            "Uploads playlist cache file not found. It will be created on save."
+        )
     except Exception as exc:  # pragma: no cover - defensive logging only
         logger.warning("Failed to load uploads playlist cache: %s", str(exc))
 
@@ -150,13 +152,16 @@ def _get_uploads_playlist_id(channel_id: str, api_key: Optional[str]) -> Optiona
     return playlist_id
 
 
-def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optional[str]:
+def get_youtube_transcript(
+    video_url: str, language_code: str = "en", prefer_auto_generated: bool = False
+) -> Optional[str]:
     """
     Extract transcript from a YouTube video and return it as a string.
 
     Args:
         video_url (str): YouTube video URL
         language_code (str): Language code for the transcript (default: 'en' for English)
+        prefer_auto_generated (bool): If True, prefer auto-generated transcripts over manual ones (default: False)
 
     Returns:
         str: Video transcript as a single string or None if transcript is not available
@@ -179,15 +184,46 @@ def get_youtube_transcript(video_url: str, language_code: str = "en") -> Optiona
 
             # Get transcript with specified language
             ytt_api = YouTubeTranscriptApi()
-            transcript_list = ytt_api.fetch(  # type: ignore
-                video_id, languages=[language_code]
-            ).to_raw_data()
 
-            logger.debug(f"Retrieved {len(transcript_list)} transcript segments")  # type: ignore
+            if prefer_auto_generated:
+                # Try to get auto-generated transcript first
+                logger.debug(
+                    f"Attempting to fetch auto-generated transcript for language: {language_code}"
+                )
+                transcript_list = ytt_api.list(video_id)  # type: ignore
+                try:
+                    transcript_obj = transcript_list.find_generated_transcript(
+                        [language_code]
+                    )  # type: ignore
+                    transcript_fetched = transcript_obj.fetch()  # type: ignore
+                    # Convert FetchedTranscriptSnippet objects to dict format
+                    transcript_raw = [
+                        {
+                            "text": segment.text,
+                            "start": segment.start,
+                            "duration": segment.duration,
+                        }  # type: ignore
+                        for segment in transcript_fetched  # type: ignore
+                    ]
+                except Exception:
+                    # Fallback to any available transcript in the language
+                    logger.debug(
+                        "No auto-generated transcript found, falling back to any available transcript"
+                    )
+                    transcript_raw = ytt_api.fetch(  # type: ignore
+                        video_id, languages=[language_code]
+                    ).to_raw_data()
+            else:
+                # Use the default behavior - prefer manual transcripts
+                transcript_raw = ytt_api.fetch(  # type: ignore
+                    video_id, languages=[language_code]
+                ).to_raw_data()
+
+            logger.debug(f"Retrieved {len(transcript_raw)} transcript segments")  # type: ignore
 
             # Combine all transcript pieces into one string
             transcript = " ".join(
-                [transcript["text"] for transcript in transcript_list]  # type: ignore
+                [segment["text"] for segment in transcript_raw]  # type: ignore
             )
 
             logger.debug(f"Transcript assembled with {len(transcript.split())} words")
@@ -317,7 +353,9 @@ def get_videos_from_channel(
     processed_video_ids = get_processed_video_ids(skip_verification)
     logger.debug("Found %d already processed videos", len(processed_video_ids))
 
-    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).replace(tzinfo=None)
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).replace(
+        tzinfo=None
+    )
 
     playlist_id = _get_uploads_playlist_id(channel_id, API_KEY)
     videos: list[tuple[str, str, str]] = []
@@ -411,7 +449,9 @@ def _collect_videos_from_playlist(
                 message,
             )
             break
-        except Exception as exc:  # pragma: no cover - network errors are rare/hard to mock
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - network errors are rare/hard to mock
             logger.error(
                 "Unexpected error fetching playlistItems for channel %s: %s",
                 channel_id,
@@ -434,9 +474,8 @@ def _collect_videos_from_playlist(
             snippet = item.get("snippet", {})
             video_id = content_details.get("videoId")
             title = snippet.get("title") or "(untitled video)"
-            published_at_raw = (
-                content_details.get("videoPublishedAt")
-                or snippet.get("publishedAt")
+            published_at_raw = content_details.get("videoPublishedAt") or snippet.get(
+                "publishedAt"
             )
 
             if not video_id or not published_at_raw:
@@ -452,13 +491,17 @@ def _collect_videos_from_playlist(
                 ).replace(tzinfo=None)
             except ValueError:
                 logger.debug(
-                    "Could not parse publishedAt '%s' for video %s", published_at_raw, video_id
+                    "Could not parse publishedAt '%s' for video %s",
+                    published_at_raw,
+                    video_id,
                 )
                 continue
 
             if published_at_dt < start_date:
                 logger.debug(
-                    "Skipping video %s from %s (before window)", video_id, published_at_dt
+                    "Skipping video %s from %s (before window)",
+                    video_id,
+                    published_at_dt,
                 )
                 continue
 
@@ -574,7 +617,9 @@ def _collect_videos_via_search(
                 message,
             )
             break
-        except Exception as exc:  # pragma: no cover - network errors are rare/hard to mock
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - network errors are rare/hard to mock
             logger.error(
                 "Unexpected error fetching search results for channel %s: %s",
                 channel_id,
@@ -651,7 +696,9 @@ def _collect_videos_via_search(
                 continue
 
             if not skip_verification and video_id in processed_video_ids:
-                logger.debug("Search result %s already processed. Skipping...", video_id)
+                logger.debug(
+                    "Search result %s already processed. Skipping...", video_id
+                )
                 continue
 
             if skip_shorts:
@@ -741,7 +788,9 @@ def _fetch_video_durations(
                 if vid:
                     durations[vid] = _parse_iso8601_duration(duration_str)
 
-        except Exception as exc:  # pragma: no cover - network errors are rare/hard to mock
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - network errors are rare/hard to mock
             logger.error(f"Error fetching video durations: {str(exc)}")
             break
 

@@ -70,6 +70,11 @@ def create_parser():
         action="store_true",
         help="After generating a note, convert latest markdown to EPUB and email it as attachment",
     )
+    parser.add_argument(
+        "--auto-generated",
+        action="store_true",
+        help="Prefer auto-generated transcripts over manual ones (useful when manual subtitles are corrupted)",
+    )
     return parser
 
 

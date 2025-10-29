@@ -21,12 +21,15 @@ def process_videos(
     ollama_model=None,
     ollama_base_url=None,
     disable_kindle_auto: bool = False,
+    prefer_auto_generated: bool = False,
 ):
     """
     Process a list of videos, logging progress count in the existing log about processing each video.
     Args:
         videos_to_process: list of tuples with video parameters
         use_ollama, use_cloud, skip_verification, ollama_model, ollama_base_url: see process_video
+        disable_kindle_auto: if True, disable automatic Kindle sending
+        prefer_auto_generated: if True, prefer auto-generated transcripts over manual ones
     """
     total = len(videos_to_process)
     start_time = time.time()
@@ -64,6 +67,7 @@ def process_videos(
             skip_verification=skip_verification,
             ollama_model=ollama_model,
             ollama_base_url=ollama_base_url,
+            prefer_auto_generated=prefer_auto_generated,
         )
         if res:
             all_results.extend(res)
@@ -101,6 +105,7 @@ def process_video(
     skip_verification=False,
     ollama_model=None,
     ollama_base_url=None,
+    prefer_auto_generated=False,
 ):
     """
     Process a single video: get transcript, analyze with appropriate LLM based on transcript length, and save to markdown.
@@ -119,6 +124,7 @@ def process_video(
         skip_verification: If True, skip checking if video was already processed and don't update index
         ollama_model: Ollama model to use (if None, use environment variable)
         ollama_base_url: Ollama base URL (if None, use environment variable)
+        prefer_auto_generated: If True, prefer auto-generated transcripts over manual ones
 
     Returns:
         list: Paths to the saved file(s) or None if processing failed
@@ -133,7 +139,7 @@ def process_video(
         saved_files = []
 
         # Get transcript
-        transcript = get_youtube_transcript(video_url, language_code=language_code)
+        transcript = get_youtube_transcript(video_url, language_code=language_code, prefer_auto_generated=prefer_auto_generated)
         if transcript is None:
             # The error has already been logged in get_youtube_transcript
             logger.error(

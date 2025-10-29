@@ -117,6 +117,7 @@ def run_main(args):
             ollama_model=ollama_model,
             ollama_base_url=ollama_base_url,
             disable_kindle_auto=single_url_and_kindle,
+            prefer_auto_generated=getattr(args, "auto_generated", False),
         )
 
         # Kindle single URL explicit send (even if below threshold)
