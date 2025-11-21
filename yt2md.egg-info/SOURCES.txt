@@ -1,7 +1,16 @@
 README.md
 setup.py
 tests/__init__.py
+tests/test_email_attachments.py
+tests/test_epub_conversion.py
+tests/test_gemini_retry.py
+tests/test_gemini_retry_defaults.py
+tests/test_kindle_tags.py
 tests/test_llm_strategies.py
+tests/test_prompt_integration.py
+tests/test_prompt_syntax.py
+tests/test_response_processing.py
+tests/test_youtube_shorts.py
 yt2md/AI.py
 yt2md/__init__.py
 yt2md/channel.py
@@ -14,6 +23,7 @@ yt2md/logger.py
 yt2md/main.py
 yt2md/processor.py
 yt2md/reporting.py
+yt2md/response_processing.py
 yt2md/video_collector.py
 yt2md/video_index.py
 yt2md/youtube.py
