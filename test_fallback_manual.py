@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
     # Check if dependencies are installed
     import importlib.util
-    
+
     if importlib.util.find_spec("yt_dlp") is not None:
         print("✅ yt-dlp is installed")
     else:
@@ -121,6 +121,7 @@ if __name__ == "__main__":
 
     if importlib.util.find_spec("torch") is not None:
         import torch
+
         print("✅ torch is installed")
         if torch.cuda.is_available():
             print(f"  💡 CUDA available: {torch.cuda.get_device_name(0)}")
