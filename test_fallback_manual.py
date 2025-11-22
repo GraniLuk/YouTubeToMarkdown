@@ -37,7 +37,7 @@ def test_fallback_on_video(video_url: str, language_code: str = "en"):
             print("=" * 60)
             print(f"\nTranscript length: {len(transcript)} characters")
             print(f"Word count: {len(transcript.split())} words")
-            print(f"\nFirst 500 characters:")
+            print("\nFirst 500 characters:")
             print("-" * 60)
             print(transcript[:500])
             if len(transcript) > 500:
@@ -84,7 +84,7 @@ def test_fallback_integration():
 
     language = input("Enter language code (default: en): ").strip() or "en"
 
-    print(f"\nAttempting to get transcript using get_youtube_transcript()...")
+    print("\nAttempting to get transcript using get_youtube_transcript()...")
     transcript = youtube.get_youtube_transcript(test_url, language)
 
     if transcript:
@@ -94,7 +94,7 @@ def test_fallback_integration():
         print("\n❌ Failed to get transcript")
 
     # Show final state
-    print(f"\nFinal state:")
+    print("\nFinal state:")
     print(f"  Fallback-only mode: {youtube._fallback_only_mode}")
     print(f"  Consecutive failures: {youtube._consecutive_failures}")
 
