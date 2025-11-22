@@ -105,29 +105,26 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # Check if dependencies are installed
-    try:
-        import yt_dlp
-
+    import importlib.util
+    
+    if importlib.util.find_spec("yt_dlp") is not None:
         print("✅ yt-dlp is installed")
-    except ImportError:
+    else:
         print("❌ yt-dlp NOT installed - run: pip install yt-dlp")
         sys.exit(1)
 
-    try:
-        import whisper
-
+    if importlib.util.find_spec("whisper") is not None:
         print("✅ whisper is installed")
-    except ImportError:
+    else:
         print("❌ whisper NOT installed - run: pip install openai-whisper")
         sys.exit(1)
 
-    try:
+    if importlib.util.find_spec("torch") is not None:
         import torch
-
         print("✅ torch is installed")
         if torch.cuda.is_available():
             print(f"  💡 CUDA available: {torch.cuda.get_device_name(0)}")
-    except ImportError:
+    else:
         print("❌ torch NOT installed - run: pip install torch")
         sys.exit(1)
 

@@ -161,9 +161,15 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
             video_id = info.get("id")
+            
+            if not video_id:
+                raise AudioDownloadError("Could not extract video ID")
+            
+            # yt-dlp should create mp3 file after post-processing
             audio_path = os.path.join(cache_dir, f"{video_id}.mp3")
+            
             # Check if file exists and is non-empty (e.g., >1KB)
-            audio_path = os.path.join(cache_dir, f"{video_id}.mp3")
+            min_audio_size = 1024  # 1KB threshold for valid audio
             if not (
                 os.path.exists(audio_path)
                 and os.path.getsize(audio_path) >= min_audio_size
@@ -182,7 +188,6 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
                 if not found:
                     raise AudioDownloadError(
                         f"Downloaded audio file not found or is empty/corrupted: {audio_path}"
-                        f"Downloaded audio file not found: {audio_path}"
                     )
 
             logger.debug(f"Audio downloaded: {audio_path}")
