@@ -3,7 +3,6 @@ import os
 import sys
 import textwrap
 import winsound
-from pathlib import Path
 
 from dotenv import load_dotenv
 

@@ -1,0 +1,310 @@
+"""Audio-based transcript extraction fallback using yt-dlp and Whisper."""
+
+import os
+from typing import Optional
+
+from yt2md.logger import get_logger
+
+logger = get_logger("audio_fallback")
+
+
+class AudioDownloadError(Exception):
+    """Raised when yt-dlp fails to download audio."""
+
+    pass
+
+
+class TranscriptionError(Exception):
+    """Raised when Whisper fails to transcribe."""
+
+    pass
+
+
+class AudioTooLargeError(Exception):
+    """Raised when audio file exceeds size limit."""
+
+    pass
+
+
+class WhisperModelNotFoundError(Exception):
+    """Raised when Whisper model is not available locally."""
+
+    pass
+
+
+def extract_transcript_via_audio(
+    video_url: str, language_code: str = "en"
+) -> Optional[str]:
+    """
+    Extract transcript using audio fallback method (yt-dlp + Whisper).
+
+    Args:
+        video_url: YouTube video URL
+        language_code: Language code for transcription (e.g., 'en', 'pl')
+
+    Returns:
+        Transcript text or None on failure
+    """
+    audio_path = None
+
+    try:
+        logger.info(f"🔄 Activating audio fallback for {video_url}")
+
+        # Step 1: Download audio
+        audio_path = _download_audio_ytdlp(video_url)
+        if not audio_path:
+            logger.error("Audio download failed")
+            return None
+
+        # Step 2: Check file size
+        try:
+            max_size_mb = int(os.getenv("MAX_AUDIO_SIZE_MB", "100"))
+        except ValueError:
+            logger.error(
+                "Invalid value for environment variable MAX_AUDIO_SIZE_MB. "
+                "It must be an integer."
+            )
+            return None
+        file_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
+
+        if file_size_mb > max_size_mb:
+            logger.error(
+                f"Audio file too large ({file_size_mb:.1f}MB > {max_size_mb}MB). Skipping."
+            )
+            raise AudioTooLargeError(
+                f"Audio file {file_size_mb:.1f}MB exceeds limit {max_size_mb}MB"
+            )
+
+        logger.debug(f"Audio file size: {file_size_mb:.1f}MB")
+
+        # Step 3: Transcribe with Whisper
+        transcript = _transcribe_whisper_local(audio_path, language_code)
+
+        if transcript:
+            word_count = len(transcript.split())
+            logger.info(f"✅ Fallback succeeded: {word_count} words extracted")
+            return transcript
+        else:
+            logger.error("Transcription returned empty result")
+            return None
+
+    except AudioDownloadError as e:
+        logger.error(f"Audio download error: {str(e)}")
+        return None
+    except TranscriptionError as e:
+        logger.error(f"Transcription error: {str(e)}")
+        return None
+    except AudioTooLargeError as e:
+        logger.error(str(e))
+        return None
+    except WhisperModelNotFoundError as e:
+        logger.error(f"Whisper model error: {str(e)}")
+        logger.error(
+            "Please download the required Whisper model first. "
+            "See documentation for instructions."
+        )
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in audio fallback: {str(e)}", exc_info=True)
+        return None
+    finally:
+        # Cleanup audio file
+        if audio_path and os.path.exists(audio_path):
+            try:
+                os.remove(audio_path)
+                logger.debug(f"Cleaned up audio file: {audio_path}")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup audio file {audio_path}: {str(e)}")
+
+
+def _download_audio_ytdlp(video_url: str) -> Optional[str]:
+    """
+    Download audio from YouTube video using yt-dlp.
+
+    Args:
+        video_url: YouTube video URL
+
+    Returns:
+        Path to downloaded audio file or None on failure
+    """
+    try:
+        import yt_dlp
+    except ImportError:
+        logger.error("yt-dlp not installed. Install with: pip install yt-dlp")
+        raise AudioDownloadError("yt-dlp not installed")
+
+    cache_dir = os.getenv("AUDIO_CACHE_DIR", "temp_audio")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    # Create temporary filename
+    temp_template = os.path.join(cache_dir, "%(id)s.%(ext)s")
+
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "outtmpl": temp_template,
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            }
+        ],
+        "quiet": True,
+        "no_warnings": True,
+        "no_color": True,
+        "extract_audio": True,
+    }
+
+    try:
+        logger.info(f"⬇️  Downloading audio: {video_url}")
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=True)
+            video_id = info.get("id")
+            audio_path = os.path.join(cache_dir, f"{video_id}.mp3")
+            # Check if file exists and is non-empty (e.g., >1KB)
+            audio_path = os.path.join(cache_dir, f"{video_id}.mp3")
+            if not (
+                os.path.exists(audio_path)
+                and os.path.getsize(audio_path) >= min_audio_size
+            ):
+                # Try other possible extensions
+                found = False
+                for ext in ["m4a", "webm", "opus"]:
+                    alt_path = os.path.join(cache_dir, f"{video_id}.{ext}")
+                    if (
+                        os.path.exists(alt_path)
+                        and os.path.getsize(alt_path) >= min_audio_size
+                    ):
+                        audio_path = alt_path
+                        found = True
+                        break
+                if not found:
+                    raise AudioDownloadError(
+                        f"Downloaded audio file not found or is empty/corrupted: {audio_path}"
+                        f"Downloaded audio file not found: {audio_path}"
+                    )
+
+            logger.debug(f"Audio downloaded: {audio_path}")
+            return audio_path
+
+    except yt_dlp.DownloadError as e:
+        logger.error(f"yt-dlp download error: {str(e)}")
+        raise AudioDownloadError(f"Download failed: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error during audio download: {str(e)}")
+        raise AudioDownloadError(f"Download failed: {str(e)}")
+
+
+def _transcribe_whisper_local(audio_path: str, language_code: str) -> Optional[str]:
+    """
+    Transcribe audio file using local Whisper model.
+
+    Args:
+        audio_path: Path to audio file
+        language_code: Language code (e.g., 'en', 'pl')
+
+    Returns:
+        Transcribed text or None on failure
+    """
+    # Phase 1: Validate dependencies
+    whisper, torch = _check_whisper_dependencies()
+
+    # Phase 2: Load Whisper model
+    model, device = _load_whisper_model(whisper, torch)
+
+    # Phase 3: Perform transcription
+    return _perform_transcription(model, audio_path, language_code, device)
+
+
+def _check_whisper_dependencies():
+    """Validate that Whisper and torch are installed."""
+    try:
+        import torch
+        import whisper
+
+        return whisper, torch
+    except ImportError as e:
+        logger.error(
+            f"Whisper dependencies not installed: {str(e)}. "
+            "Install with: pip install openai-whisper torch"
+        )
+        raise TranscriptionError("Whisper not installed")
+
+
+def _load_whisper_model(whisper, torch):
+    """Load Whisper model with proper error handling."""
+    model_name = os.getenv("WHISPER_MODEL", "base")
+    device = os.getenv("WHISPER_DEVICE", "cpu")
+
+    # Check if CUDA is available but not being used
+    if device == "cpu" and torch.cuda.is_available():
+        logger.info(
+            "💡 CUDA detected but using CPU. Set WHISPER_DEVICE=cuda for faster transcription."
+        )
+
+    logger.info(f"🎤 Loading Whisper model (model: {model_name}, device: {device})...")
+
+    try:
+        model = whisper.load_model(model_name, device=device)
+        return model, device
+    except Exception as e:
+        error_msg = str(e).lower()
+        if "no such file" in error_msg or "not found" in error_msg:
+            raise WhisperModelNotFoundError(
+                f"Whisper model '{model_name}' not found. "
+                f"Please download it first by running: "
+                f"whisper --model {model_name} --language English 'test.mp3'"
+            )
+        raise TranscriptionError(f"Failed to load Whisper model: {str(e)}")
+
+
+def _perform_transcription(
+    model, audio_path: str, language_code: str, device: str
+) -> Optional[str]:
+    """Execute Whisper transcription."""
+    # Map common language codes to full names
+    language_map = {
+        "en": "english",
+        "pl": "polish",
+        "es": "spanish",
+        "fr": "french",
+        "de": "german",
+        "it": "italian",
+        "pt": "portuguese",
+        "ru": "russian",
+        "ja": "japanese",
+        "ko": "korean",
+        "zh": "chinese",
+    }
+
+    whisper_language = language_map.get(language_code.lower(), language_code.lower())
+
+    logger.info(f"🎤 Transcribing audio (language: {whisper_language})...")
+
+    try:
+        result = model.transcribe(
+            audio_path,
+            language=whisper_language if whisper_language != "auto" else None,
+            fp16=(device == "cuda"),
+            verbose=False,
+        )
+
+        transcript_text = result.get("text", "").strip()
+
+        if not transcript_text:
+            logger.warning("Whisper returned empty transcript")
+            return None
+
+        logger.debug(f"Transcription completed: {len(transcript_text)} characters")
+        return transcript_text
+
+    except Exception as e:
+        logger.error(f"Transcription failed: {str(e)}", exc_info=True)
+        raise TranscriptionError(f"Transcription failed: {str(e)}")
+
+
+def is_fallback_enabled() -> bool:
+    """Check if audio fallback is enabled via environment variable."""
+    enabled = os.getenv("ENABLE_AUDIO_FALLBACK", "true").lower()
+    return enabled in ("true", "1", "yes", "on")

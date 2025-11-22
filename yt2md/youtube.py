@@ -15,11 +15,17 @@ from youtube_transcript_api._errors import (  # type: ignore
     VideoUnavailable,
 )
 
+from yt2md.audio_fallback import extract_transcript_via_audio, is_fallback_enabled
 from yt2md.logger import get_logger
 from yt2md.video_index import get_processed_video_ids, update_video_index
 
 # Get logger for this module
 logger = get_logger("youtube")
+
+# Fallback-only mode state (activated after consecutive failures or IP blocks)
+_fallback_only_mode = False
+_consecutive_failures = 0
+_CONSECUTIVE_FAILURES_THRESHOLD = int(os.getenv("CONSECUTIVE_FAILURES_THRESHOLD", "3"))
 
 _DURATION_PATTERN = re.compile(
     r"PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?"
@@ -152,11 +158,84 @@ def _get_uploads_playlist_id(channel_id: str, api_key: Optional[str]) -> Optiona
     return playlist_id
 
 
+def _is_ip_block_error(exception: Exception) -> bool:
+    """Check if exception indicates IP blocking."""
+    error_msg = str(exception).lower()
+    ip_block_indicators = [
+        "requestblocked",
+        "ipblocked",
+        "ip blocked",
+        "too many requests",
+        "429",
+        "rate limit",
+        "quota exceeded",
+    ]
+    return any(indicator in error_msg for indicator in ip_block_indicators)
+
+
+def _activate_fallback_only_mode() -> None:
+    """Activate fallback-only mode for remaining videos."""
+    global _fallback_only_mode
+    if not _fallback_only_mode:
+        _fallback_only_mode = True
+        logger.warning(
+            "⚠️ Detected IP block/consecutive failures. "
+            "Switching to audio fallback for remaining videos."
+        )
+
+
+def _reset_failure_counter() -> None:
+    """Reset consecutive failure counter after successful extraction."""
+    global _consecutive_failures
+    _consecutive_failures = 0
+
+
+def _increment_failure_counter() -> None:
+    """Increment failure counter and check threshold."""
+    global _consecutive_failures
+    _consecutive_failures += 1
+
+    if _consecutive_failures >= _CONSECUTIVE_FAILURES_THRESHOLD:
+        logger.warning(
+            f"Reached {_consecutive_failures} consecutive failures "
+            f"(threshold: {_CONSECUTIVE_FAILURES_THRESHOLD})"
+        )
+        _activate_fallback_only_mode()
+
+
+def _try_audio_fallback(
+    video_url: str, video_id: Optional[str], language_code: str
+) -> Optional[str]:
+    """Attempt audio fallback if enabled."""
+    if not is_fallback_enabled():
+        logger.debug("Audio fallback is disabled via ENABLE_AUDIO_FALLBACK")
+        return None
+
+    logger.info(f"Attempting audio fallback for {video_url}")
+    try:
+        transcript = extract_transcript_via_audio(video_url, language_code)
+        if transcript:
+            _reset_failure_counter()
+            return transcript
+        else:
+            logger.error("Audio fallback returned no transcript")
+            return None
+    except Exception as fallback_error:
+        logger.error(f"Audio fallback failed: {str(fallback_error)}")
+        if video_id:
+            try:
+                update_video_index(video_id, "AUDIO_FALLBACK_FAILED", False)
+            except Exception as index_error:
+                logger.error(f"Failed to update video index: {str(index_error)}")
+        return None
+
+
 def get_youtube_transcript(
     video_url: str, language_code: str = "en", prefer_auto_generated: bool = False
 ) -> Optional[str]:
     """
     Extract transcript from a YouTube video and return it as a string.
+    Uses youtube-transcript-api as primary method with audio fallback (yt-dlp + Whisper).
 
     Args:
         video_url (str): YouTube video URL
@@ -166,18 +245,27 @@ def get_youtube_transcript(
     Returns:
         str: Video transcript as a single string or None if transcript is not available
     """
+    global _fallback_only_mode
+
     # Initialize video_id to None to ensure it's defined even if an exception occurs
     video_id = None
 
+    # Extract video ID from URL first
+    video_id = extract_video_id(url=video_url)
+    if not video_id:
+        logger.error(f"Failed to extract video ID from URL: {video_url}")
+        return None
+
+    # If in fallback-only mode, skip youtube-transcript-api entirely
+    if _fallback_only_mode:
+        logger.info(f"Fallback-only mode active. Using audio extraction for {video_id}")
+        return _try_audio_fallback(video_url, video_id, language_code)
+
     max_retries = 10
     delay_seconds = 20
+
     for attempt in range(1, max_retries + 1):
         try:
-            # Extract video ID from URL
-            video_id = extract_video_id(url=video_url)
-            if not video_id:
-                logger.error(f"Failed to extract video ID from URL: {video_url}")
-                return None
             logger.debug(
                 f"Extracting transcript for video ID: {video_id} with language: {language_code} (attempt {attempt})"
             )
@@ -227,12 +315,21 @@ def get_youtube_transcript(
             )
 
             logger.debug(f"Transcript assembled with {len(transcript.split())} words")
+
+            # Success! Reset failure counter
+            _reset_failure_counter()
             return transcript
 
         except VideoUnavailable:
-            logger.error(
-                f"No transcript available: Video {video_url} is unavailable (attempt {attempt})"
-            )
+            logger.error(f"Video {video_url} is unavailable (attempt {attempt})")
+            _increment_failure_counter()
+
+            # Try audio fallback
+            fallback_result = _try_audio_fallback(video_url, video_id, language_code)
+            if fallback_result:
+                return fallback_result
+
+            # Fallback failed, update index
             if video_id:
                 try:
                     update_video_index(video_id, "VIDEO_UNAVAILABLE", False)
@@ -241,15 +338,39 @@ def get_youtube_transcript(
             return None
 
         except TranslationLanguageNotAvailable:
-            logger.error(
+            logger.warning(
                 f"No transcript found for {video_url} in language '{language_code}' (attempt {attempt})"
             )
+            _increment_failure_counter()
+
+            # Try audio fallback
+            fallback_result = _try_audio_fallback(video_url, video_id, language_code)
+            if fallback_result:
+                return fallback_result
+
             return None
 
         except TranscriptsDisabled:
-            logger.error(
+            logger.warning(
                 f"Transcripts are disabled for video {video_url} (attempt {attempt})"
             )
+            _increment_failure_counter()
+
+            # Try audio fallback
+            fallback_result = _try_audio_fallback(video_url, video_id, language_code)
+            if fallback_result:
+                if video_id:
+                    try:
+                        update_video_index(
+                            video_id, "TRANSCRIPTS_DISABLED_FALLBACK_SUCCEEDED", False
+                        )
+                    except Exception as index_error:
+                        logger.error(
+                            f"Failed to update video index: {str(index_error)}"
+                        )
+                return fallback_result
+
+            # Fallback failed, update index
             if video_id:
                 try:
                     update_video_index(video_id, "TRANSCRIPTS_DISABLED", False)
@@ -261,9 +382,26 @@ def get_youtube_transcript(
             return None
 
         except NoTranscriptFound:
-            logger.error(
+            logger.warning(
                 f"No transcripts available for video {video_url} (attempt {attempt})"
             )
+            _increment_failure_counter()
+
+            # Try audio fallback
+            fallback_result = _try_audio_fallback(video_url, video_id, language_code)
+            if fallback_result:
+                if video_id:
+                    try:
+                        update_video_index(
+                            video_id, "NO_TRANSCRIPT_FOUND_FALLBACK_SUCCEEDED", False
+                        )
+                    except Exception as index_error:
+                        logger.error(
+                            f"Failed to update video index: {str(index_error)}"
+                        )
+                return fallback_result
+
+            # Fallback failed, update index
             if video_id:
                 try:
                     update_video_index(video_id, "NO_TRANSCRIPT_FOUND", False)
@@ -275,6 +413,22 @@ def get_youtube_transcript(
             return None
 
         except Exception as e:
+            # Check for IP blocking
+            if _is_ip_block_error(e):
+                logger.error(f"IP block detected for {video_url}: {str(e)}")
+                _activate_fallback_only_mode()
+
+                if video_id:
+                    try:
+                        update_video_index(video_id, "IP_BLOCKED", False)
+                    except Exception as index_error:
+                        logger.error(
+                            f"Failed to update video index: {str(index_error)}"
+                        )
+
+                # Try audio fallback immediately (no retry for IP blocks)
+                return _try_audio_fallback(video_url, video_id, language_code)
+
             # Check for VideoUnplayable error message pattern
             if "The video is unplayable for the following reason:" in str(e):
                 reason = (
@@ -283,9 +437,18 @@ def get_youtube_transcript(
                     .split("\n")[1]
                     .strip()
                 )
-                logger.error(
-                    f"No transcript available for {video_url}: {reason} (attempt {attempt})"
+                logger.warning(
+                    f"Video unplayable for {video_url}: {reason} (attempt {attempt})"
                 )
+                _increment_failure_counter()
+
+                # Try audio fallback
+                fallback_result = _try_audio_fallback(
+                    video_url, video_id, language_code
+                )
+                if fallback_result:
+                    return fallback_result
+
                 if video_id and not reason.strip():
                     try:
                         update_video_index(video_id, "VIDEO_UNPLAYABLE", False)
@@ -295,7 +458,7 @@ def get_youtube_transcript(
                         )
                 return None
 
-            # Handle other exceptions
+            # Handle other exceptions with retry
             logger.debug(
                 f"Transcript extraction error for {video_url} (attempt {attempt}): {str(e)}"
             )
@@ -308,7 +471,10 @@ def get_youtube_transcript(
                 logger.error(
                     f"All {max_retries} attempts failed for {video_url}. Last error: {str(e)}"
                 )
-                return None
+                _increment_failure_counter()
+
+                # Try audio fallback as last resort
+                return _try_audio_fallback(video_url, video_id, language_code)
 
 
 def get_videos_from_channel(

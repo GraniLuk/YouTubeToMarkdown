@@ -10,3 +10,9 @@ setuptools
 pyyaml>=6.0
 colorama>=0.4.6
 pytest>=8.0.0
+
+# Audio fallback dependencies
+yt-dlp>=2024.0.0
+openai-whisper>=20231117
+torch>=2.0.0
+ffmpeg-python>=0.2.0

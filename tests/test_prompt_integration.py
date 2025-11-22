@@ -10,7 +10,6 @@ from yt2md.llm_strategies import (
     CATEGORY_PROMPTS,
     FIRST_CHUNK_TEMPLATE,
     PROMPT_TEMPLATE,
-    GeminiStrategy,
     LLMFactory,
 )
 
