@@ -1,4 +1,5 @@
 """Tests for audio fallback transcript extraction."""
+
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -61,9 +62,7 @@ class TestExtractTranscriptViaAudio:
 
         # Mock _download_audio_ytdlp to return the temp file path
         mock_download = Mock(return_value=str(audio_file))
-        monkeypatch.setattr(
-            "yt2md.audio_fallback._download_audio_ytdlp", mock_download
-        )
+        monkeypatch.setattr("yt2md.audio_fallback._download_audio_ytdlp", mock_download)
 
         # Mock _transcribe_whisper_local to return test transcript
         mock_transcribe = Mock(return_value="This is a test transcript")
@@ -87,9 +86,7 @@ class TestExtractTranscriptViaAudio:
 
         # Mock _download_audio_ytdlp to return None (download failed)
         mock_download = Mock(return_value=None)
-        monkeypatch.setattr(
-            "yt2md.audio_fallback._download_audio_ytdlp", mock_download
-        )
+        monkeypatch.setattr("yt2md.audio_fallback._download_audio_ytdlp", mock_download)
 
         result = extract_transcript_via_audio(
             "https://www.youtube.com/watch?v=test123", "en"
@@ -108,9 +105,7 @@ class TestExtractTranscriptViaAudio:
         audio_file.write_bytes(b"x" * (2 * 1024 * 1024))  # 2MB
 
         mock_download = Mock(return_value=str(audio_file))
-        monkeypatch.setattr(
-            "yt2md.audio_fallback._download_audio_ytdlp", mock_download
-        )
+        monkeypatch.setattr("yt2md.audio_fallback._download_audio_ytdlp", mock_download)
 
         result = extract_transcript_via_audio(
             "https://www.youtube.com/watch?v=test123", "en"
@@ -130,9 +125,7 @@ class TestExtractTranscriptViaAudio:
         audio_file.write_bytes(b"fake audio data")
 
         mock_download = Mock(return_value=str(audio_file))
-        monkeypatch.setattr(
-            "yt2md.audio_fallback._download_audio_ytdlp", mock_download
-        )
+        monkeypatch.setattr("yt2md.audio_fallback._download_audio_ytdlp", mock_download)
 
         # Mock _transcribe_whisper_local to raise TranscriptionError
         mock_transcribe = Mock(side_effect=TranscriptionError("Transcription failed"))
@@ -159,9 +152,7 @@ class TestExtractTranscriptViaAudio:
         audio_file.write_bytes(b"fake audio data")
 
         mock_download = Mock(return_value=str(audio_file))
-        monkeypatch.setattr(
-            "yt2md.audio_fallback._download_audio_ytdlp", mock_download
-        )
+        monkeypatch.setattr("yt2md.audio_fallback._download_audio_ytdlp", mock_download)
 
         # Mock _transcribe_whisper_local to raise WhisperModelNotFoundError
         mock_transcribe = Mock(
