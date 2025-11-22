@@ -128,7 +128,7 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
         Path to downloaded audio file or None on failure
     """
     try:
-        import yt_dlp
+        import yt_dlp  # type: ignore[import-not-found]
     except ImportError:
         logger.error("yt-dlp not installed. Install with: pip install yt-dlp")
         raise AudioDownloadError("yt-dlp not installed")
@@ -158,7 +158,7 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
     try:
         logger.info(f"⬇️  Downloading audio: {video_url}")
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore[arg-type]
             info = ydl.extract_info(video_url, download=True)
             video_id = info.get("id")
 
@@ -193,7 +193,7 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
             logger.debug(f"Audio downloaded: {audio_path}")
             return audio_path
 
-    except yt_dlp.DownloadError as e:
+    except yt_dlp.DownloadError as e:  # type: ignore[attr-defined]
         logger.error(f"yt-dlp download error: {str(e)}")
         raise AudioDownloadError(f"Download failed: {str(e)}")
     except Exception as e:
@@ -225,8 +225,8 @@ def _transcribe_whisper_local(audio_path: str, language_code: str) -> Optional[s
 def _check_whisper_dependencies():
     """Validate that Whisper and torch are installed."""
     try:
-        import torch
-        import whisper
+        import torch  # type: ignore[import-not-found]
+        import whisper  # type: ignore[import-not-found]
 
         return whisper, torch
     except ImportError as e:
