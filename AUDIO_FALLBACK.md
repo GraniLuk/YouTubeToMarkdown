@@ -217,6 +217,8 @@ The system tracks different failure states in `video_index.txt`:
 - `TRANSCRIPTS_DISABLED_FALLBACK_SUCCEEDED` - Fallback worked after transcript API failed
 - `NO_TRANSCRIPT_FOUND_FALLBACK_SUCCEEDED` - Fallback worked after no transcript found
 
+**Note:** Live streams and upcoming scheduled videos are NOT added to the index. They will be skipped during processing and can be retried on subsequent runs once they become available.
+
 These markers prevent re-attempting failed videos on subsequent runs.
 
 ## Disabling the Fallback
