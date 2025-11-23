@@ -222,10 +222,12 @@ def _try_audio_fallback(
             return None
     except Exception as fallback_error:
         error_msg = str(fallback_error).lower()
-        
+
         # Check if it's a live stream error - don't add to index so it can be retried later
         if "live" in error_msg or "upcoming" in error_msg:
-            logger.warning(f"Video is live or upcoming, skipping for now (will retry on next run): {fallback_error}")
+            logger.warning(
+                f"Video is live or upcoming, skipping for now (will retry on next run): {fallback_error}"
+            )
         else:
             logger.error(f"Audio fallback failed: {str(fallback_error)}")
             if video_id:

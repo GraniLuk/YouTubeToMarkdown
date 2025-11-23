@@ -141,23 +141,29 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
     try:
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:  # type: ignore[arg-type]
             info = ydl.extract_info(video_url, download=False)
-            
+
             # Check if video is live or upcoming
             is_live = info.get("is_live", False)
             live_status = info.get("live_status")
-            
+
             if is_live or live_status in ("is_live", "is_upcoming", "post_live"):
                 status_msg = "live stream" if is_live else live_status or "live"
                 logger.warning(
                     f"Video is {status_msg}. Cannot download audio from live/upcoming streams."
                 )
-                raise AudioDownloadError(f"Video is {status_msg}, not available for download")
-            
-            logger.debug(f"Video is not live (status: {live_status or 'normal'}), proceeding with download...")
+                raise AudioDownloadError(
+                    f"Video is {status_msg}, not available for download"
+                )
+
+            logger.debug(
+                f"Video is not live (status: {live_status or 'normal'}), proceeding with download..."
+            )
     except AudioDownloadError:
         raise
     except Exception as e:
-        logger.warning(f"Could not check live status: {str(e)}. Proceeding with download attempt...")
+        logger.warning(
+            f"Could not check live status: {str(e)}. Proceeding with download attempt..."
+        )
 
     # Create temporary filename
     temp_template = os.path.join(cache_dir, "%(id)s.%(ext)s")
