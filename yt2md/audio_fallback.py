@@ -136,8 +136,8 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
     cache_dir = os.getenv("AUDIO_CACHE_DIR", "temp_audio")
     os.makedirs(cache_dir, exist_ok=True)
 
-    # First, check if video is live or upcoming without downloading
-    logger.debug("Checking if video is live or upcoming...")
+    # First, check video metadata without downloading
+    logger.debug("Checking video metadata (live status, duration)...")
     try:
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:  # type: ignore[arg-type]
             info = ydl.extract_info(video_url, download=False)
@@ -155,14 +155,33 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
                     f"Video is {status_msg}, not available for download"
                 )
 
+            # Check video duration (skip very short videos)
+            duration = info.get("duration", 0)
+            try:
+                min_duration = int(os.getenv("MIN_VIDEO_DURATION_SECONDS", "30"))
+            except ValueError:
+                logger.warning(
+                    "Invalid MIN_VIDEO_DURATION_SECONDS, using default 30 seconds"
+                )
+                min_duration = 30
+
+            if duration and duration < min_duration:
+                logger.warning(
+                    f"Video is too short ({duration}s < {min_duration}s). "
+                    f"Skipping audio fallback for very short videos."
+                )
+                raise AudioDownloadError(
+                    f"Video too short ({duration}s), not worth processing with Whisper"
+                )
+
             logger.debug(
-                f"Video is not live (status: {live_status or 'normal'}), proceeding with download..."
+                f"Video is valid (status: {live_status or 'normal'}, duration: {duration}s), proceeding..."
             )
     except AudioDownloadError:
         raise
     except Exception as e:
         logger.warning(
-            f"Could not check live status: {str(e)}. Proceeding with download attempt..."
+            f"Could not check video metadata: {str(e)}. Proceeding with download attempt..."
         )
 
     # Create temporary filename

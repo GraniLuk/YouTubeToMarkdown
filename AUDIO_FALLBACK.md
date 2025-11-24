@@ -94,6 +94,10 @@ AUDIO_CACHE_DIR=temp_audio
 # Maximum audio file size in MB (default: 100)
 MAX_AUDIO_SIZE_MB=100
 
+# Minimum video duration for audio fallback in seconds (default: 30)
+# Videos shorter than this will skip audio fallback processing
+MIN_VIDEO_DURATION_SECONDS=30
+
 # Consecutive failures before switching to fallback-only mode (default: 3)
 CONSECUTIVE_FAILURES_THRESHOLD=3
 ```
@@ -152,6 +156,31 @@ When the system detects IP blocks or consecutive failures, it automatically swit
 You'll see this warning when it activates:
 ```
 ⚠️ Detected IP block/consecutive failures. Switching to audio fallback for remaining videos.
+```
+
+## Video Filtering
+
+The audio fallback system automatically **skips videos that are not suitable** for processing:
+
+### Videos That Are Skipped
+
+1. **Live Streams**: Currently broadcasting or scheduled streams cannot be downloaded
+   - Status: `is_live`, `is_upcoming`, `post_live`
+   - Warning: "Video is live stream. Cannot download audio from live/upcoming streams."
+
+2. **Very Short Videos**: Videos shorter than 30 seconds (configurable)
+   - Examples: YouTube Shorts, promotional clips, teasers
+   - Warning: "Video is too short (9s < 30s). Skipping audio fallback for very short videos."
+   - Reason: Processing overhead (download + Whisper) is not worth it for such short content
+
+These videos are **not added to the video index**, allowing you to retry them later when they become available or decide to process them manually.
+
+### Configuration
+
+Adjust the minimum duration threshold:
+```bash
+# Skip videos shorter than 60 seconds
+MIN_VIDEO_DURATION_SECONDS=60
 ```
 
 ## Troubleshooting
