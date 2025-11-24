@@ -17,6 +17,8 @@ updates:
       prefix: "chore"
       prefix-development: "chore"
       include: "scope"
+    allow:
+      - dependency-name: "*"
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
