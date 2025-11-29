@@ -203,6 +203,12 @@ def _increment_failure_counter() -> None:
         _activate_fallback_only_mode()
 
 
+def _is_live_or_upcoming_error(error: Exception) -> bool:
+    """Check if exception indicates a live or upcoming video."""
+    error_msg = str(error).lower()
+    return "live" in error_msg or "upcoming" in error_msg
+
+
 def _try_audio_fallback(
     video_url: str, video_id: Optional[str], language_code: str
 ) -> Optional[str]:
@@ -221,13 +227,12 @@ def _try_audio_fallback(
             logger.error("Audio fallback returned no transcript")
             return None
     except Exception as fallback_error:
-        error_msg = str(fallback_error).lower()
-
-        # Check if it's a live stream error - don't add to index so it can be retried later
-        if "live" in error_msg or "upcoming" in error_msg:
+        # Check if it's a live stream error - re-raise so caller can handle appropriately
+        if _is_live_or_upcoming_error(fallback_error):
             logger.warning(
                 f"Video is live or upcoming, skipping for now (will retry on next run): {fallback_error}"
             )
+            raise  # Re-raise to let caller know it's a live/upcoming video
         else:
             logger.error(f"Audio fallback failed: {str(fallback_error)}")
             if video_id:
@@ -333,9 +338,20 @@ def get_youtube_transcript(
             _increment_failure_counter()
 
             # Try audio fallback
-            fallback_result = _try_audio_fallback(video_url, video_id, language_code)
-            if fallback_result:
-                return fallback_result
+            try:
+                fallback_result = _try_audio_fallback(
+                    video_url, video_id, language_code
+                )
+                if fallback_result:
+                    return fallback_result
+            except Exception as fallback_error:
+                # If it's a live/upcoming video, don't add to index
+                if _is_live_or_upcoming_error(fallback_error):
+                    logger.info(
+                        f"Skipping live/upcoming video {video_id}, will retry later"
+                    )
+                    return None
+                # For other errors, continue to add to index below
 
             # Fallback failed, update index
             if video_id:
@@ -365,18 +381,31 @@ def get_youtube_transcript(
             _increment_failure_counter()
 
             # Try audio fallback
-            fallback_result = _try_audio_fallback(video_url, video_id, language_code)
-            if fallback_result:
-                if video_id:
-                    try:
-                        update_video_index(
-                            video_id, "TRANSCRIPTS_DISABLED_FALLBACK_SUCCEEDED", False
-                        )
-                    except Exception as index_error:
-                        logger.error(
-                            f"Failed to update video index: {str(index_error)}"
-                        )
-                return fallback_result
+            try:
+                fallback_result = _try_audio_fallback(
+                    video_url, video_id, language_code
+                )
+                if fallback_result:
+                    if video_id:
+                        try:
+                            update_video_index(
+                                video_id,
+                                "TRANSCRIPTS_DISABLED_FALLBACK_SUCCEEDED",
+                                False,
+                            )
+                        except Exception as index_error:
+                            logger.error(
+                                f"Failed to update video index: {str(index_error)}"
+                            )
+                    return fallback_result
+            except Exception as fallback_error:
+                # If it's a live/upcoming video, don't add to index
+                if _is_live_or_upcoming_error(fallback_error):
+                    logger.info(
+                        f"Skipping live/upcoming video {video_id}, will retry later"
+                    )
+                    return None
+                # For other errors, continue to add to index below
 
             # Fallback failed, update index
             if video_id:
@@ -396,18 +425,31 @@ def get_youtube_transcript(
             _increment_failure_counter()
 
             # Try audio fallback
-            fallback_result = _try_audio_fallback(video_url, video_id, language_code)
-            if fallback_result:
-                if video_id:
-                    try:
-                        update_video_index(
-                            video_id, "NO_TRANSCRIPT_FOUND_FALLBACK_SUCCEEDED", False
-                        )
-                    except Exception as index_error:
-                        logger.error(
-                            f"Failed to update video index: {str(index_error)}"
-                        )
-                return fallback_result
+            try:
+                fallback_result = _try_audio_fallback(
+                    video_url, video_id, language_code
+                )
+                if fallback_result:
+                    if video_id:
+                        try:
+                            update_video_index(
+                                video_id,
+                                "NO_TRANSCRIPT_FOUND_FALLBACK_SUCCEEDED",
+                                False,
+                            )
+                        except Exception as index_error:
+                            logger.error(
+                                f"Failed to update video index: {str(index_error)}"
+                            )
+                    return fallback_result
+            except Exception as fallback_error:
+                # If it's a live/upcoming video, don't add to index
+                if _is_live_or_upcoming_error(fallback_error):
+                    logger.info(
+                        f"Skipping live/upcoming video {video_id}, will retry later"
+                    )
+                    return None
+                # For other errors, continue to add to index below
 
             # Fallback failed, update index
             if video_id:
@@ -451,11 +493,20 @@ def get_youtube_transcript(
                 _increment_failure_counter()
 
                 # Try audio fallback
-                fallback_result = _try_audio_fallback(
-                    video_url, video_id, language_code
-                )
-                if fallback_result:
-                    return fallback_result
+                try:
+                    fallback_result = _try_audio_fallback(
+                        video_url, video_id, language_code
+                    )
+                    if fallback_result:
+                        return fallback_result
+                except Exception as fallback_error:
+                    # If it's a live/upcoming video, don't add to index
+                    if _is_live_or_upcoming_error(fallback_error):
+                        logger.info(
+                            f"Skipping live/upcoming video {video_id}, will retry later"
+                        )
+                        return None
+                    # For other errors, continue to add to index below
 
                 if video_id and not reason.strip():
                     try:
