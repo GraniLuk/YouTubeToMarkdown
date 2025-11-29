@@ -127,11 +127,6 @@ AI:
     language_code: en
     output_language: English
 
-  - id: UCsBjURrPoezykLs9EqgamOA
-    name: Fireship
-    language_code: en
-    output_language: English
-
   - id: UCWyvI4f-uSI9ckp2ZNS9fYA
     name: Krzysztof Tutak
     language_code: pl
