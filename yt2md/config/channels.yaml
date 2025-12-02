@@ -17,16 +17,6 @@ llm_strategies:
     length_thresholds:
       short_max: 1600    # Max word counts for short transcripts
       medium_max: 2500   # Max word counts for medium transcripts
-      
-    # Default model configurations
-    model_configs:
-      gemini:
-        model_name: "gemini-2.5-flash-preview-09-2025"
-      perplexity:
-        model_name: "sonar-pro"
-      ollama:
-        model_name: "qwen3:14b"
-        base_url: "http://localhost:11434"
         
   # Category-specific overrides
   IT:
@@ -40,9 +30,6 @@ llm_strategies:
       long:
         primary: "gemini"
         fallback: "perplexity"
-    model_configs:
-      ollama:
-        model_name: "qwen3:14b"  # Custom model for IT category
 
 # Channel configurations
 IT:
