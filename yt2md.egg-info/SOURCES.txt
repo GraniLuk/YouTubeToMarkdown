@@ -1,10 +1,12 @@
 README.md
 setup.py
 tests/__init__.py
+tests/test_audio_fallback.py
 tests/test_email_attachments.py
 tests/test_epub_conversion.py
 tests/test_gemini_retry.py
 tests/test_gemini_retry_defaults.py
+tests/test_interactions_integration.py
 tests/test_kindle_tags.py
 tests/test_llm_strategies.py
 tests/test_prompt_integration.py
@@ -13,6 +15,7 @@ tests/test_response_processing.py
 tests/test_youtube_shorts.py
 yt2md/AI.py
 yt2md/__init__.py
+yt2md/audio_fallback.py
 yt2md/channel.py
 yt2md/cli.py
 yt2md/config.py

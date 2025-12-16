@@ -151,7 +151,7 @@ class GeminiStrategy(LLMStrategy):
 
         # Process each chunk
         final_output = []
-        previous_response = ""
+        previous_interaction_id = None
         description = "No description available"
 
         # Get category-specific prompts
@@ -167,10 +167,11 @@ class GeminiStrategy(LLMStrategy):
 
         for i, chunk in enumerate(chunks):
             # Prepare prompt with context if needed
-            if previous_response:
+            if previous_interaction_id:
                 context_prompt = (
-                    "The following text is a continuation... "
-                    f"Previous response:\n{previous_response}\n\nNew text to process(Do Not Repeat the Previous response:):\n"
+                    "The following text is a continuation of the previous transcript chunk. "
+                    "Process it maintaining consistency with the previous output. "
+                    "New text to process:\n"
                 )
             else:
                 context_prompt = ""
@@ -184,21 +185,37 @@ class GeminiStrategy(LLMStrategy):
             last_error = None
             for attempt in range(1, max_retries + 1):
                 try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=full_prompt,
-                        config=types.GenerateContentConfig(
+                    kwargs_interactions = {
+                        "model": model_name,
+                        "input": full_prompt,
+                        "generation_config": types.GenerateContentConfig(
                             temperature=0.6,
                             max_output_tokens=60000,
                         ),
-                    )
-                    text = response.text if response.text else ""
+                    }
+                    if previous_interaction_id:
+                        kwargs_interactions["previous_interaction_id"] = (
+                            previous_interaction_id
+                        )
+
+                    response = client.interactions.create(**kwargs_interactions)
+
+                    # Store interaction ID for next chunk
+                    if hasattr(response, "id") and response.id:
+                        previous_interaction_id = response.id
+
+                    # Extract text from outputs
+                    text = ""
+                    if hasattr(response, "outputs") and response.outputs:
+                        for output in response.outputs:
+                            if hasattr(output, "text") and output.text:
+                                text += output.text
                     processed_text, chunk_description = self.process_model_response(
                         text, i == 0
                     )
                     if i == 0 and chunk_description:
                         description = chunk_description
-                    previous_response = processed_text
+
                     final_output.append(processed_text)
                     if attempt > 1:
                         logger.info(

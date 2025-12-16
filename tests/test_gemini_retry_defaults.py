@@ -3,17 +3,23 @@ from unittest import mock
 from yt2md.llm_strategies import GeminiStrategy
 
 
-class DummyResp:
+class DummyOutput:
     def __init__(self, text: str):
         self.text = text
+
+
+class DummyResp:
+    def __init__(self, text: str, interaction_id: str = "test_id"):
+        self.outputs = [DummyOutput(text)]
+        self.id = interaction_id
 
 
 def test_gemini_defaults_when_no_retry_kwargs(monkeypatch):
     # Simulate successful first call; ensure no TypeError from None parsing
     class DummyClient:
-        class models:  # type: ignore
+        class interactions:  # type: ignore
             @staticmethod
-            def generate_content(**kwargs):  # noqa: D401
+            def create(**kwargs):  # noqa: D401
                 return DummyResp("DESCRIPTION: D\nBody")
 
     strategy = GeminiStrategy()

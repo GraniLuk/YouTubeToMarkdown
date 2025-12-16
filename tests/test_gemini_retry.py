@@ -5,9 +5,15 @@ import pytest
 from yt2md.llm_strategies import GeminiStrategy
 
 
-class DummyResp:
+class DummyOutput:
     def __init__(self, text: str):
         self.text = text
+
+
+class DummyResp:
+    def __init__(self, text: str, interaction_id: str = "test_id"):
+        self.outputs = [DummyOutput(text)]
+        self.id = interaction_id
 
 
 def make_error(msg):
@@ -20,9 +26,9 @@ def test_gemini_retry_success_on_second_attempt(monkeypatch):
     attempts = {"count": 0}
 
     class DummyClient:
-        class models:  # type: ignore
+        class interactions:  # type: ignore
             @staticmethod
-            def generate_content(**kwargs):  # noqa: D401
+            def create(**kwargs):  # noqa: D401
                 attempts["count"] += 1
                 if attempts["count"] < 2:
                     raise make_error("503 UNAVAILABLE The model is overloaded")
@@ -41,9 +47,9 @@ def test_gemini_retry_exhaust(monkeypatch):
     strategy = GeminiStrategy()
 
     class DummyClientFail:
-        class models:  # type: ignore
+        class interactions:  # type: ignore
             @staticmethod
-            def generate_content(**kwargs):  # noqa: D401
+            def create(**kwargs):  # noqa: D401
                 raise make_error("503 service unavailable again")
 
     with mock.patch("google.genai.Client", return_value=DummyClientFail()):
