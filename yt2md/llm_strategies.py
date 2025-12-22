@@ -14,6 +14,7 @@ from google.genai import types
 
 from yt2md import response_processing
 from yt2md.chunking import ChunkingStrategyFactory
+from yt2md.config import get_llm_model_config
 from yt2md.logger import get_logger
 
 logger = get_logger("llm_strategies")
@@ -101,8 +102,22 @@ class GeminiStrategy(LLMStrategy):
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")
         chunk_size = kwargs.get("chunk_size", 8000)
+
+        # Get Gemini config for thinking level
+        gemini_config = get_llm_model_config("gemini", category)
+        thinking_level_str = gemini_config.get("thinking_level", "none").lower()
+
+        # Map thinking level string to enum
+        thinking_level_map = {
+            "minimal": types.ThinkingLevel.MINIMAL,
+            "medium": types.ThinkingLevel.MEDIUM,
+            "low": types.ThinkingLevel.LOW,
+            "high": types.ThinkingLevel.HIGH,
+        }
+        thinking_level = thinking_level_map.get(thinking_level_str)
+
         logger.debug(
-            f"Using Gemini strategy with model: {model_name}, output language: {output_language}, category: {category}, chunking strategy: {chunking_strategy}, chunk size: {chunk_size}"
+            f"Using Gemini strategy with model: {model_name}, output language: {output_language}, category: {category}, chunking strategy: {chunking_strategy}, chunk size: {chunk_size}, thinking level: {thinking_level_str}"
         )
 
         if not api_key:
@@ -191,6 +206,7 @@ class GeminiStrategy(LLMStrategy):
                         "generation_config": types.GenerateContentConfig(
                             temperature=0.6,
                             max_output_tokens=60000,
+                            thinking_config=types.ThinkingConfig(thinking_level=thinking_level) if thinking_level else None,
                         ),
                     }
                     if previous_interaction_id:

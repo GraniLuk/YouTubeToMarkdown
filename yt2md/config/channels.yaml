@@ -6,6 +6,7 @@ llm_strategies:
       gemini:
         primary_model: "gemini-3-flash-preview"
         fallback_model: "gemini-2.5-flash-preview-09-2025"
+        thinking_level: "medium"  # Options: none, minimal, medium
       ollama:
         model_name: "ministral-3"
         base_url: "http://localhost:11434"
