@@ -197,7 +197,20 @@ def analyze_transcript_by_length(
     # Handle force flags - force_cloud takes precedence over force_ollama
     if force_cloud:
         logger.info("Forcing cloud-only processing.")
-        # Primary will be determined by strategy_config, ollama will be skipped
+        # If primary is ollama, switch to fallback strategy for cloud processing
+        if primary and primary.get("provider") == "ollama":
+            if fallback and fallback.get("provider") != "ollama":
+                logger.info(
+                    f"Primary is Ollama, switching to fallback provider: {fallback.get('provider')}"
+                )
+                primary = fallback
+                fallback = None  # Clear fallback since we're using it as primary
+            else:
+                logger.warning(
+                    f"No cloud provider configured for category '{category}'. "
+                    "Both primary and fallback are local (Ollama). Skipping processing."
+                )
+                return results
     elif force_ollama:
         logger.info("Forcing Ollama processing.")
         primary = {"provider": "ollama", "model": effective_ollama_model}
