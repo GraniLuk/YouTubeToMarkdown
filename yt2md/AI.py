@@ -167,6 +167,19 @@ def analyze_transcript_by_length(
     primary = strategy_config.get("primary")
     fallback = strategy_config.get("fallback")
 
+    # Helper function to resolve model name from config
+    def get_model_name(provider, model_type, category):
+        """Resolve actual model name from provider and model_type."""
+        config = get_llm_model_config(provider, category)
+        if provider == "gemini":
+            if model_type == "primary":
+                return config.get("primary_model", "gemini-2.5-flash-preview-09-2025")
+            else:  # fallback
+                return config.get("fallback_model", "gemini-1.5-flash-8b")
+        elif provider == "ollama":
+            return config.get("model_name", "ministral-3")
+        return None
+
     # Ollama configuration
     ollama_config_from_file = get_llm_model_config("ollama", category)
     effective_ollama_model = ollama_model or (
@@ -194,9 +207,10 @@ def analyze_transcript_by_length(
     # Process with primary model
     if primary and primary["provider"] == "gemini" and not force_ollama:
         gemini_api_key = os.getenv("GEMINI_API_KEY")
-        model_name = primary["model"]
+        model_type = primary.get("model_type", "primary")
+        model_name = get_model_name("gemini", model_type, category)
 
-        if gemini_api_key:
+        if gemini_api_key and model_name:
             logger.info(
                 f"Attempting to use Gemini model: {model_name} for category: {category} (primary)"
             )
@@ -226,7 +240,7 @@ def analyze_transcript_by_length(
             primary_model_failed = True
 
     elif primary and primary["provider"] == "ollama" and not force_cloud:
-        model_name = primary["model"]
+        model_name = effective_ollama_model
         logger.info(f"Attempting to use Ollama model: {model_name} (primary)")
         try:
             if not model_name or not effective_ollama_base_url:
@@ -254,9 +268,10 @@ def analyze_transcript_by_length(
     if primary_model_failed and fallback:
         if fallback["provider"] == "gemini" and not force_ollama:
             gemini_api_key = os.getenv("GEMINI_API_KEY")
-            model_name = fallback["model"]
+            model_type = fallback.get("model_type", "fallback")
+            model_name = get_model_name("gemini", model_type, category)
 
-            if gemini_api_key:
+            if gemini_api_key and model_name:
                 logger.info(
                     f"Attempting to use Gemini model: {model_name} for category: {category} (fallback)"
                 )
@@ -288,7 +303,7 @@ def analyze_transcript_by_length(
                 )
 
         elif fallback["provider"] == "ollama" and not force_cloud and use_ollama:
-            model_name = fallback["model"]
+            model_name = effective_ollama_model
             logger.info(f"Attempting to use Ollama model: {model_name} (fallback)")
             try:
                 if not model_name or not effective_ollama_base_url:

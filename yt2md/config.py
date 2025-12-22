@@ -282,7 +282,8 @@ def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str,
         category: Content category
 
     Returns:
-        Dict with 'primary' and 'fallback' keys, each containing {'provider': str, 'model': str}
+        Dict with 'primary' and 'fallback' keys, each containing {'provider': str, 'model_type': str}
+        model_type is 'primary' or 'fallback' for gemini, not needed for ollama
     """
     transcript_word_count = len(transcript.split())
     length_category = get_transcript_length_category(transcript_word_count, category)
@@ -299,9 +300,9 @@ def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str,
         strategy = {
             "primary": {
                 "provider": "gemini",
-                "model": "gemini-2.5-flash-preview-09-2025",
+                "model_type": "primary",
             },
-            "fallback": {"provider": "gemini", "model": "gemini-1.5-flash-8b"},
+            "fallback": {"provider": "gemini", "model_type": "fallback"},
         }
 
     return strategy

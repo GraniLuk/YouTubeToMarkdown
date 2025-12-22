@@ -1,42 +1,41 @@
 # LLM Strategy Configuration
 llm_strategies:
   default:
+    # Model definitions - change models here only
+    model_configs:
+      gemini:
+        primary_model: "gemini-3-flash-preview"
+        fallback_model: "gemini-2.5-flash-preview-09-2025"
+      ollama:
+        model_name: "ministral-3"
+        base_url: "http://localhost:11434"
+    
     # Strategy for selecting models based on transcript length
     strategy_by_length:
       short:  # Short transcripts (< 1000 characters)
         primary: 
           provider: "ollama"
-          model: "ministral-3"
         fallback:
           provider: "gemini"
-          model: "gemini-2.5-flash-preview-09-2025"
+          model_type: "primary"
       medium: # Medium transcripts (1000-3000 characters)
         primary:
           provider: "gemini"
-          model: "gemini-2.5-flash-preview-09-2025"
+          model_type: "primary"
         fallback:
           provider: "ollama"
-          model: "ministral-3"
       long:   # Long transcripts (> 3000 characters)
         primary:
           provider: "gemini"
-          model: "gemini-2.5-flash-preview-09-2025"
+          model_type: "primary"
         fallback:
           provider: "gemini"
-          model: "gemini-1.5-flash-8b"
+          model_type: "fallback"
       
     # Default thresholds for length categorization
     length_thresholds:
       short_max: 1600    # Max word counts for short transcripts
       medium_max: 2500   # Max word counts for medium transcripts
-      
-    # Default model configurations (for backward compatibility and Ollama base_url)
-    model_configs:
-      gemini:
-        model_name: "gemini-2.5-flash-preview-09-2025"
-      ollama:
-        model_name: "ministral-3"
-        base_url: "http://localhost:11434"
         
   # Category-specific overrides
   IT:
@@ -44,24 +43,23 @@ llm_strategies:
       short:
         primary:
           provider: "ollama"
-          model: "ministral-3"
         fallback:
           provider: "gemini"
-          model: "gemini-2.5-flash-preview-09-2025"
+          model_type: "primary"
       medium:
         primary:
           provider: "gemini"
-          model: "gemini-2.5-flash-preview-09-2025"
+          model_type: "primary"
         fallback:
           provider: "gemini"
-          model: "gemini-1.5-flash-8b"
+          model_type: "fallback"
       long:
         primary:
           provider: "gemini"
-          model: "gemini-2.5-flash-preview-09-2025"
+          model_type: "primary"
         fallback:
           provider: "gemini"
-          model: "gemini-1.5-flash-8b"
+          model_type: "fallback"
 
 # Channel configurations
 IT:
