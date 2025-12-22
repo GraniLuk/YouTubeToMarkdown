@@ -100,7 +100,7 @@ class GeminiStrategy(LLMStrategy):
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")
-        chunk_size = kwargs.get("chunk_size", 5000)
+        chunk_size = kwargs.get("chunk_size", 8000)
         logger.debug(
             f"Using Gemini strategy with model: {model_name}, output language: {output_language}, category: {category}, chunking strategy: {chunking_strategy}, chunk size: {chunk_size}"
         )
@@ -265,7 +265,7 @@ class PerplexityStrategy(LLMStrategy):
         max_retries = kwargs.get("max_retries", 3)
         retry_delay = kwargs.get("retry_delay", 2)
         chunking_strategy = kwargs.get("chunking_strategy", "word")
-        chunk_size = kwargs.get("chunk_size", 5000)
+        chunk_size = kwargs.get("chunk_size", 8000)
 
         if not api_key:
             raise ValueError("Perplexity API key is required")

@@ -144,7 +144,7 @@ def get_category_colors() -> Dict[str, Dict[str, str]]:
     """Load and return the category color configurations with support for colors and styles."""
     config = _load_config()
     category_colors = config.get("category_colors", {})
-    
+
     # Convert old format to new format for backward compatibility
     processed_colors = {}
     for category, color_config in category_colors.items():
@@ -155,12 +155,12 @@ def get_category_colors() -> Dict[str, Dict[str, str]]:
             # New format: dict with color and style
             processed_colors[category] = {
                 "color": color_config.get("color", "WHITE"),
-                "style": color_config.get("style", "NORMAL")
+                "style": color_config.get("style", "NORMAL"),
             }
         else:
             # Fallback
             processed_colors[category] = {"color": "WHITE", "style": "NORMAL"}
-    
+
     logger.debug(f"Loaded category colors: {processed_colors}")
     return processed_colors
 
@@ -273,7 +273,7 @@ def get_transcript_length_category(transcript_length: int, category: str) -> str
         return "long"
 
 
-def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str, str]:
+def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str, Any]:
     """
     Get recommended LLM strategy based on transcript length and category.
 
@@ -282,7 +282,7 @@ def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str,
         category: Content category
 
     Returns:
-        Dict containing 'primary' and 'fallback' model names
+        Dict with 'primary' and 'fallback' keys, each containing {'provider': str, 'model': str}
     """
     transcript_word_count = len(transcript.split())
     length_category = get_transcript_length_category(transcript_word_count, category)
@@ -290,15 +290,19 @@ def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str,
     strategy_config = get_llm_strategy_config(category)
     length_strategies = strategy_config.get("strategy_by_length", {})
 
-    # Get strategy by length category
     strategy = length_strategies.get(length_category, {})
 
-    # Default to empty dict if not found
     if not strategy:
         logger.warning(
             f"No LLM strategy found for {length_category} transcripts in category {category}"
         )
-        strategy = {"primary": "gemini", "fallback": "perplexity"}
+        strategy = {
+            "primary": {
+                "provider": "gemini",
+                "model": "gemini-2.5-flash-preview-09-2025",
+            },
+            "fallback": {"provider": "gemini", "model": "gemini-1.5-flash-8b"},
+        }
 
     return strategy
 
@@ -360,26 +364,29 @@ def get_config_cache_stats() -> Dict[str, Any]:
 
 def get_category_color_style(category: str) -> str:
     """Get the combined colorama color and style for a specific category.
-    
+
     Args:
         category: The category name to get color/style for
-        
+
     Returns:
         str: Combined colorama color and style codes
     """
     import colorama
-    
+
     category_colors = get_category_colors()
-    default_config = category_colors.get("default", {"color": "WHITE", "style": "NORMAL"})
-    
+    default_config = category_colors.get(
+        "default", {"color": "WHITE", "style": "NORMAL"}
+    )
+
     # Get config for the specific category, fallback to Uncategorized, then default
     color_config = category_colors.get(
-        category, 
-        category_colors.get("Uncategorized", default_config)
+        category, category_colors.get("Uncategorized", default_config)
     )
-    
+
     # Get colorama attributes
     color = getattr(colorama.Fore, color_config["color"].upper(), colorama.Fore.WHITE)
-    style = getattr(colorama.Style, color_config["style"].upper(), colorama.Style.NORMAL)
-    
+    style = getattr(
+        colorama.Style, color_config["style"].upper(), colorama.Style.NORMAL
+    )
+
     return color + style

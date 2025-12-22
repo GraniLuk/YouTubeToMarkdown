@@ -56,7 +56,6 @@ def analyze_transcript_with_gemini(
 ) -> tuple[str, str]:
     """
     Analyze transcript using Gemini API and return refined text.
-    Falls back to Perplexity API if Gemini returns an error (handled by strategy or this func).
 
     Args:
         transcript (str): Text transcript to analyze
@@ -68,46 +67,16 @@ def analyze_transcript_with_gemini(
     Returns:
         tuple[str, str]: Refined and analyzed text, description
     """
-
-    perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
-    try:
-        # Use the strategy pattern implementation
-        strategy = LLMFactory.get_strategy("gemini")
-        refined_text, description = strategy.analyze_transcript(
-            transcript=transcript,
-            api_key=api_key,
-            model_name=gemini_model_name,
-            output_language=output_language,
-            category=category,
-        )
-        return refined_text, description
-    except Exception as e:
-        logger.error(f"Gemini API call failed: {e}")
-        if "429" in str(e) and perplexity_api_key:
-            logger.info(
-                "Falling back to Perplexity API after Gemini retries exhausted (429/rate limit)."
-            )  # Fetch perplexity model name from config for fallback
-            perplexity_config = get_llm_model_config("perplexity", category)
-            fallback_perplexity_model_name = (
-                perplexity_config.get("model_name")
-                if perplexity_config
-                else "sonar-pro"
-            )  # Default fallback model
-
-            if not fallback_perplexity_model_name:
-                logger.error(
-                    "Perplexity model name not configured for fallback. Cannot proceed with fallback."
-                )
-                raise  # Re-raise the original exception if fallback model is not found
-
-            return analyze_transcript_with_perplexity(
-                transcript=transcript,
-                api_key=perplexity_api_key,
-                perplexity_model_name=fallback_perplexity_model_name,
-                output_language=output_language,
-                category=category,
-            )
-        raise  # Re-raise original exception if no Perplexity API key available
+    # Use the strategy pattern implementation
+    strategy = LLMFactory.get_strategy("gemini")
+    refined_text, description = strategy.analyze_transcript(
+        transcript=transcript,
+        api_key=api_key,
+        model_name=gemini_model_name,
+        output_language=output_language,
+        category=category,
+    )
+    return refined_text, description
 
 
 def analyze_transcript_with_ollama(
@@ -175,6 +144,7 @@ def analyze_transcript_by_length(
     - Determines primary and fallback models based on transcript length and content category
     - Model selection can be overridden using force_ollama or force_cloud
     - Configuration is loaded from channels.yaml with category-specific overrides
+    - Supports provider+model configuration for flexible fallback (e.g., Gemini to different Gemini model)
 
     Args:
         transcript: Text transcript to analyze
@@ -190,21 +160,12 @@ def analyze_transcript_by_length(
               'ollama': {'text': refined_text, 'description': description, 'model_name': str} if used
     """
     results = {}
-    primary_model_failed = False  # Track if primary model failed
+    primary_model_failed = False
 
-    # Determine primary and fallback models from strategy config
-    strategy_config = get_llm_strategy_for_transcript(
-        transcript,
-        category,  # Pass the transcript string directly
-    )
-    primary_model_type = strategy_config.get("primary")
-    fallback_model_type = strategy_config.get("fallback")
-    gemini_config = get_llm_model_config("gemini", category)
-    gemini_model_name = gemini_config.get("model_name") if gemini_config else None
-    perplexity_config = get_llm_model_config("perplexity", category)
-    perplexity_model_name = (
-        perplexity_config.get("model_name") if perplexity_config else None
-    )
+    # Get strategy configuration
+    strategy_config = get_llm_strategy_for_transcript(transcript, category)
+    primary = strategy_config.get("primary")
+    fallback = strategy_config.get("fallback")
 
     # Ollama configuration
     ollama_config_from_file = get_llm_model_config("ollama", category)
@@ -226,141 +187,55 @@ def analyze_transcript_by_length(
         # Primary will be determined by strategy_config, ollama will be skipped
     elif force_ollama:
         logger.info("Forcing Ollama processing.")
-        primary_model_type = "ollama"  # Override strategy if forcing ollama
+        primary = {"provider": "ollama", "model": effective_ollama_model}
 
     processed_cloud = False
 
-    # Process with Gemini
-    if not force_ollama and (force_cloud or primary_model_type == "gemini"):
+    # Process with primary model
+    if primary and primary["provider"] == "gemini" and not force_ollama:
         gemini_api_key = os.getenv("GEMINI_API_KEY")
-        if gemini_api_key and gemini_model_name:
+        model_name = primary["model"]
+
+        if gemini_api_key:
             logger.info(
-                f"Attempting to use Gemini model: {gemini_model_name} for category: {category}"
+                f"Attempting to use Gemini model: {model_name} for category: {category} (primary)"
             )
             try:
                 refined_text, description = analyze_transcript_with_gemini(
                     transcript=transcript,
                     api_key=gemini_api_key,
-                    gemini_model_name=gemini_model_name,
+                    gemini_model_name=model_name,
                     output_language=output_language,
                     category=category,
                 )
                 results["cloud"] = {
                     "text": refined_text,
                     "description": description,
-                    "model_name": gemini_model_name,
+                    "model_name": model_name,
                     "provider": "gemini",
                 }
                 processed_cloud = True
-                logger.debug(f"Successfully processed with Gemini: {gemini_model_name}")
+                logger.debug(f"Successfully processed with Gemini: {model_name}")
             except Exception as e:
-                logger.error(
-                    f"Error during Gemini processing with {gemini_model_name}: {e}"
-                )  # Mark primary as failed if Gemini was the primary model
-                if primary_model_type == "gemini" or force_cloud:
-                    primary_model_failed = True
+                logger.error(f"Error during Gemini processing with {model_name}: {e}")
+                primary_model_failed = True
         else:
             logger.warning(
                 "Gemini API key or model name not configured/found. Skipping Gemini."
             )
-            # Mark primary as failed if Gemini was the primary model but not configured
-            if primary_model_type == "gemini" or force_cloud:
-                primary_model_failed = True
+            primary_model_failed = True
 
-    # Process with Perplexity if not already processed by Gemini and conditions met
-    if (
-        not processed_cloud
-        and not force_ollama
-        and (
-            force_cloud
-            or primary_model_type == "perplexity"
-            or (primary_model_failed and fallback_model_type == "perplexity")
-            or (force_cloud and primary_model_failed)  # Try Perplexity as fallback when force_cloud and primary failed
-        )
-    ):
-        perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
-        if not perplexity_api_key:
-            logger.warning(
-                "Perplexity API key not configured. Skipping Perplexity processing."
-            )
-            if force_cloud:
-                logger.error("Force cloud mode enabled but no working cloud providers available.")
-            return results
-        if perplexity_api_key and perplexity_model_name:
-            # Determine if this is a fallback attempt
-            is_fallback = (
-                primary_model_type != "perplexity"
-                and fallback_model_type == "perplexity"
-            ) or (force_cloud and primary_model_failed)
-            log_message = f"Attempting to use Perplexity model: {perplexity_model_name} for category: {category}"
-            if is_fallback:
-                log_message += " (fallback from failed primary model)"
-            logger.info(log_message)
-            try:
-                refined_text, description = analyze_transcript_with_perplexity(
-                    transcript=transcript,
-                    api_key=perplexity_api_key,
-                    perplexity_model_name=perplexity_model_name,
-                    output_language=output_language,
-                    category=category,
-                )
-                results["cloud"] = {
-                    "text": refined_text,
-                    "description": description,
-                    "model_name": perplexity_model_name,
-                    "provider": "perplexity",
-                }
-                processed_cloud = True
-                logger.debug(
-                    f"Successfully processed with Perplexity: {perplexity_model_name}"
-                )
-            except Exception as e:
-                logger.error(
-                    f"Error during Perplexity processing with {perplexity_model_name}: {e}"
-                )  # Mark primary as failed if Perplexity was the primary model
-                if primary_model_type == "perplexity":
-                    primary_model_failed = True
-        else:
-            logger.warning(
-                "Perplexity API key or model name not configured/found. Skipping Perplexity."
-            )
-            # Mark primary as failed if Perplexity was the primary model but not configured
-            if primary_model_type == "perplexity":
-                primary_model_failed = True
-
-    # Process with Ollama if forced, or primary, or fallback when primary failed
-    # But never if force_cloud is True
-    if use_ollama and not force_cloud and (
-        force_ollama
-        or primary_model_type == "ollama"
-        or (primary_model_failed and fallback_model_type == "ollama")
-        or (
-            not processed_cloud
-            and primary_model_type in ["gemini", "perplexity"]
-            and fallback_model_type == "ollama"
-        )
-    ):
-        # Determine if Ollama is running as a fallback
-        is_ollama_fallback = (
-            primary_model_failed and fallback_model_type == "ollama"
-        ) or (
-            not processed_cloud
-            and primary_model_type in ["gemini", "perplexity"]
-            and fallback_model_type == "ollama"
-        )
-
-        log_message = f"Attempting to use Ollama model: {effective_ollama_model}"
-        if is_ollama_fallback:
-            log_message += " (fallback from failed primary model)"
-        logger.info(log_message)
+    elif primary and primary["provider"] == "ollama" and not force_cloud:
+        model_name = primary["model"]
+        logger.info(f"Attempting to use Ollama model: {model_name} (primary)")
         try:
-            if not effective_ollama_model or not effective_ollama_base_url:
+            if not model_name or not effective_ollama_base_url:
                 raise ValueError(
                     "Ollama model name is missing. Please provide a valid model name."
                 )
             ollama_refined_text, ollama_description = analyze_transcript_with_ollama(
                 transcript=transcript,
-                model_name=effective_ollama_model,
+                model_name=model_name,
                 host=effective_ollama_base_url,
                 output_language=output_language,
                 category=category,
@@ -368,24 +243,78 @@ def analyze_transcript_by_length(
             results["ollama"] = {
                 "text": ollama_refined_text,
                 "description": ollama_description,
-                "model_name": effective_ollama_model,
+                "model_name": model_name,
             }
-            logger.debug(
-                f"Successfully processed with Ollama: {effective_ollama_model}"
-            )
+            logger.debug(f"Successfully processed with Ollama: {model_name}")
         except Exception as e:
-            logger.error(
-                f"Error during Ollama processing with {effective_ollama_model}: {e}"
-            )
-            # Mark primary as failed if Ollama was the primary model
-            if primary_model_type == "ollama":
-                primary_model_failed = True
+            logger.error(f"Error during Ollama processing with {model_name}: {e}")
+            primary_model_failed = True
 
-            if (
-                "ollama" not in results and not processed_cloud
-            ):  # if ollama was the only hope and failed
+    # Process with fallback model if primary failed
+    if primary_model_failed and fallback:
+        if fallback["provider"] == "gemini" and not force_ollama:
+            gemini_api_key = os.getenv("GEMINI_API_KEY")
+            model_name = fallback["model"]
+
+            if gemini_api_key:
+                logger.info(
+                    f"Attempting to use Gemini model: {model_name} for category: {category} (fallback)"
+                )
+                try:
+                    refined_text, description = analyze_transcript_with_gemini(
+                        transcript=transcript,
+                        api_key=gemini_api_key,
+                        gemini_model_name=model_name,
+                        output_language=output_language,
+                        category=category,
+                    )
+                    results["cloud"] = {
+                        "text": refined_text,
+                        "description": description,
+                        "model_name": model_name,
+                        "provider": "gemini",
+                    }
+                    processed_cloud = True
+                    logger.debug(
+                        f"Successfully processed with Gemini fallback: {model_name}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error during Gemini fallback processing with {model_name}: {e}"
+                    )
+            else:
                 logger.warning(
-                    "All processing attempts failed (Ollama was last attempt)."
+                    "Gemini API key or model name not configured/found for fallback."
+                )
+
+        elif fallback["provider"] == "ollama" and not force_cloud and use_ollama:
+            model_name = fallback["model"]
+            logger.info(f"Attempting to use Ollama model: {model_name} (fallback)")
+            try:
+                if not model_name or not effective_ollama_base_url:
+                    raise ValueError(
+                        "Ollama model name is missing. Please provide a valid model name."
+                    )
+                ollama_refined_text, ollama_description = (
+                    analyze_transcript_with_ollama(
+                        transcript=transcript,
+                        model_name=model_name,
+                        host=effective_ollama_base_url,
+                        output_language=output_language,
+                        category=category,
+                    )
+                )
+                results["ollama"] = {
+                    "text": ollama_refined_text,
+                    "description": ollama_description,
+                    "model_name": model_name,
+                }
+                logger.debug(
+                    f"Successfully processed with Ollama fallback: {model_name}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error during Ollama fallback processing with {model_name}: {e}"
                 )
 
     if not results:

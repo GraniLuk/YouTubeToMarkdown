@@ -4,26 +4,36 @@ llm_strategies:
     # Strategy for selecting models based on transcript length
     strategy_by_length:
       short:  # Short transcripts (< 1000 characters)
-        primary: "ollama"
-        fallback: "perplexity"
+        primary: 
+          provider: "ollama"
+          model: "ministral-3"
+        fallback:
+          provider: "gemini"
+          model: "gemini-2.5-flash-preview-09-2025"
       medium: # Medium transcripts (1000-3000 characters)
-        primary: "gemini" 
-        fallback: "perplexity"
+        primary:
+          provider: "gemini"
+          model: "gemini-2.5-flash-preview-09-2025"
+        fallback:
+          provider: "ollama"
+          model: "ministral-3"
       long:   # Long transcripts (> 3000 characters)
-        primary: "gemini"
-        fallback: "perplexity"
+        primary:
+          provider: "gemini"
+          model: "gemini-2.5-flash-preview-09-2025"
+        fallback:
+          provider: "gemini"
+          model: "gemini-1.5-flash-8b"
       
     # Default thresholds for length categorization
     length_thresholds:
       short_max: 1600    # Max word counts for short transcripts
       medium_max: 2500   # Max word counts for medium transcripts
       
-    # Default model configurations
+    # Default model configurations (for backward compatibility and Ollama base_url)
     model_configs:
       gemini:
         model_name: "gemini-2.5-flash-preview-09-2025"
-      perplexity:
-        model_name: "sonar-pro"
       ollama:
         model_name: "ministral-3"
         base_url: "http://localhost:11434"
@@ -32,14 +42,26 @@ llm_strategies:
   IT:
     strategy_by_length:
       short:
-        primary: "ollama" 
-        fallback: "perplexity"
+        primary:
+          provider: "ollama"
+          model: "ministral-3"
+        fallback:
+          provider: "gemini"
+          model: "gemini-2.5-flash-preview-09-2025"
       medium:
-        primary: "gemini"
-        fallback: "perplexity"
+        primary:
+          provider: "gemini"
+          model: "gemini-2.5-flash-preview-09-2025"
+        fallback:
+          provider: "gemini"
+          model: "gemini-1.5-flash-8b"
       long:
-        primary: "gemini"
-        fallback: "perplexity"
+        primary:
+          provider: "gemini"
+          model: "gemini-2.5-flash-preview-09-2025"
+        fallback:
+          provider: "gemini"
+          model: "gemini-1.5-flash-8b"
 
 # Channel configurations
 IT:
