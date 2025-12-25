@@ -107,14 +107,19 @@ class GeminiStrategy(LLMStrategy):
         gemini_config = get_llm_model_config("gemini", category)
         thinking_level_str = gemini_config.get("thinking_level", "none").lower()
 
-        # Map thinking level string to enum
-        thinking_level_map = {
-            "minimal": types.ThinkingLevel.MINIMAL,
-            "medium": types.ThinkingLevel.MEDIUM,
-            "low": types.ThinkingLevel.LOW,
-            "high": types.ThinkingLevel.HIGH,
-        }
-        thinking_level = thinking_level_map.get(thinking_level_str)
+        # Map thinking level string to enum (using getattr for safety)
+        thinking_level = None
+        if thinking_level_str and thinking_level_str != "none":
+            thinking_level_attr = thinking_level_str.upper()
+            try:
+                thinking_level = getattr(types.ThinkingLevel, thinking_level_attr)
+                logger.debug(f"Using thinking level: {thinking_level_attr}")
+            except AttributeError:
+                available = [attr for attr in dir(types.ThinkingLevel) if not attr.startswith('_') and attr.isupper()]
+                logger.warning(
+                    f"Unknown thinking level '{thinking_level_str}'. "
+                    f"Available: {', '.join(available)}"
+                )
 
         logger.debug(
             f"Using Gemini strategy with model: {model_name}, output language: {output_language}, category: {category}, chunking strategy: {chunking_strategy}, chunk size: {chunk_size}, thinking level: {thinking_level_str}"
@@ -200,14 +205,18 @@ class GeminiStrategy(LLMStrategy):
             last_error = None
             for attempt in range(1, max_retries + 1):
                 try:
+                    # Build generation config - only include thinking_config if thinking_level is set
+                    gen_config_params = {
+                        "temperature": 0.6,
+                        "max_output_tokens": 60000,
+                    }
+                    if thinking_level:
+                        gen_config_params["thinking_config"] = types.ThinkingConfig(thinking_level=thinking_level)
+                    
                     kwargs_interactions = {
                         "model": model_name,
                         "input": full_prompt,
-                        "generation_config": types.GenerateContentConfig(
-                            temperature=0.6,
-                            max_output_tokens=60000,
-                            thinking_config=types.ThinkingConfig(thinking_level=thinking_level) if thinking_level else None,
-                        ),
+                        "generation_config": types.GenerateContentConfig(**gen_config_params),
                     }
                     if previous_interaction_id:
                         kwargs_interactions["previous_interaction_id"] = (
