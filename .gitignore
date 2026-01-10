@@ -15,3 +15,4 @@ config/channels.yaml
 logs/yt2md.log
 setup-yt2md-schedule.ps1
 run-yt2md-daily.ps1
+yt2md_daily.log
