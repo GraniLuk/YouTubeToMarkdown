@@ -13,3 +13,6 @@ credentials.json
 
 config/channels.yaml
 logs/yt2md.log
+run-yt2md-task-pm.ps1
+run-yt2md-task.ps1
+setup-yt2md-schedule.ps1
