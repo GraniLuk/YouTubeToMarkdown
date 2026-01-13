@@ -142,14 +142,16 @@ class GeminiStrategy(LLMStrategy):
 
         def _is_retryable_error(exc: Exception) -> bool:
             msg = str(exc).lower()
-            # Gemini overloaded / transient indicators
+            # Check for quota exhaustion (should NOT retry, need fallback)
+            if "quota" in msg or ("429" in msg and "quota" in msg):
+                return False
+            # Gemini overloaded / transient indicators (CAN retry)
             return any(
                 token in msg
                 for token in [
                     "503",  # service unavailable
                     "unavailable",
-                    "rate limit",  # generic rate limit phrase
-                    "429",  # too many requests
+                    "rate limit",  # generic rate limit phrase (but not quota)
                     "deadline exceeded",
                     "temporarily",  # temporarily unavailable
                 ]

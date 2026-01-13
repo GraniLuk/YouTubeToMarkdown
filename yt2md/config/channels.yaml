@@ -24,7 +24,8 @@ llm_strategies:
           provider: "gemini"
           model_type: "primary"
         fallback:
-          provider: "ollama"
+          provider: "gemini"
+          model_type: "fallback"
       long:   # Long transcripts (> 3000 characters)
         primary:
           provider: "gemini"
