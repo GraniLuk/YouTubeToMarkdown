@@ -13,18 +13,18 @@ Environment variables used:
 Processing pipeline produces result dictionaries like:
     { 'path': '.../file.md', 'word_count': 2345 }
 """
+
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Iterable, Dict, Tuple
+from typing import Dict, Iterable, Tuple
 
 import yaml
 
-from yt2md.youtube import extract_video_id
-from yt2md.video_index import find_markdown_files_for_video, get_processed_video_ids
-
 from yt2md.logger import get_logger
+from yt2md.video_index import find_markdown_files_for_video, get_processed_video_ids
+from yt2md.youtube import extract_video_id
 
 logger = get_logger("kindle")
 
@@ -57,7 +57,9 @@ def mark_sent_to_kindle(md_path: str | Path) -> bool:
     try:
         metadata = yaml.safe_load(front_matter_raw) or {}
     except yaml.YAMLError as e:
-        logger.warning(f"Failed to parse YAML front matter for Kindle tag on {path}: {e}")
+        logger.warning(
+            f"Failed to parse YAML front matter for Kindle tag on {path}: {e}"
+        )
         return False
 
     tags = metadata.get("tags")
@@ -96,7 +98,7 @@ def _get_kindle_recipient() -> str | None:
 
 def convert_md_to_epub(md_path: Path):
     """Convert a markdown file to EPUB using existing converter."""
-    from yt2md.email.epub.converter import md_to_epub, EpubOptions
+    from yt2md.email.epub.converter import EpubOptions, md_to_epub
 
     return md_to_epub(str(md_path), options=EpubOptions())
 
@@ -112,7 +114,9 @@ def send_epub(epub_path: Path, recipient: str, *, subject: str, body: str) -> bo
     )
 
 
-def auto_send_long_notes(results: Iterable[Dict], *, threshold: int | None = None) -> Tuple[int, int]:
+def auto_send_long_notes(
+    results: Iterable[Dict], *, threshold: int | None = None
+) -> Tuple[int, int]:
     """Auto-send notes whose word_count >= threshold.
 
     Returns (sent_count, failed_count).
@@ -124,24 +128,26 @@ def auto_send_long_notes(results: Iterable[Dict], *, threshold: int | None = Non
 
     if threshold is None:
         try:
-            threshold = int(os.getenv("KINDLE_MIN_WORDS", "1500"))
+            threshold = int(os.getenv("KINDLE_MIN_WORDS", "1000"))
         except ValueError:
             threshold = 2000
 
     long_notes = [r for r in results if r.get("word_count", 0) >= threshold]
-    
+
     # Log threshold check details for debugging
     for r in results:
         wc = r.get("word_count", 0)
         path_short = Path(r.get("path", "unknown")).name if r.get("path") else "unknown"
         status = "SEND" if wc >= threshold else "SKIP"
-        logger.debug(f"Kindle threshold check: {path_short} = {wc} words [{status}, threshold={threshold}]")
-    
+        logger.debug(
+            f"Kindle threshold check: {path_short} = {wc} words [{status}, threshold={threshold}]"
+        )
+
     if not long_notes:
         logger.debug("No notes exceeded Kindle length threshold; nothing auto-sent")
         return (0, 0)
 
-    from yt2md.email.epub.converter import md_to_epub, EpubOptions
+    from yt2md.email.epub.converter import EpubOptions, md_to_epub
     from yt2md.email.send_email import send_email
 
     sent = 0
@@ -193,7 +199,12 @@ def resend_latest_for_video_url(video_url: str) -> bool:
     latest_md = existing[0]
     try:
         epub_path = convert_md_to_epub(Path(latest_md))
-        ok = send_epub(epub_path, recipient, subject="Kindle Delivery", body="Resent existing note.")
+        ok = send_epub(
+            epub_path,
+            recipient,
+            subject="Kindle Delivery",
+            body="Resent existing note.",
+        )
         if ok:
             logger.info(f"Kindle resend successful: {latest_md}")
             mark_sent_to_kindle(latest_md)
@@ -214,8 +225,9 @@ def send_processed_results(results: Iterable[Dict]) -> Tuple[int, int]:
     if not recipient:
         logger.error("KINDLE_EMAIL not set; cannot send processed results")
         return (0, 0)
-    from yt2md.email.epub.converter import md_to_epub, EpubOptions
+    from yt2md.email.epub.converter import EpubOptions, md_to_epub
     from yt2md.email.send_email import send_email
+
     sent = 0
     failed = 0
     for r in results:
@@ -241,6 +253,7 @@ def send_processed_results(results: Iterable[Dict]) -> Tuple[int, int]:
             logger.error(f"Kindle conversion/send error for {md_path}: {e}")
             failed += 1
     return (sent, failed)
+
 
 __all__ = [
     "auto_send_long_notes",
