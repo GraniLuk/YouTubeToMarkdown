@@ -14,5 +14,5 @@ pytest==9.0.2
 # Audio fallback dependencies
 yt-dlp==2025.12.8
 openai-whisper==20250625
-torch==2.9.1
+torch==2.10.0
 ffmpeg-python==0.2.0
