@@ -12,7 +12,7 @@ colorama==0.4.6
 pytest==9.0.2
 
 # Audio fallback dependencies
-yt-dlp==2025.12.8
+yt-dlp==2026.1.31
 openai-whisper==20250625
 torch==2.10.0
 ffmpeg-python==0.2.0
