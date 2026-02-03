@@ -212,14 +212,14 @@ def _is_live_or_upcoming_error(error: Exception) -> bool:
 def _is_retryable_download_error(error: Exception) -> bool:
     """
     Check if exception indicates a retryable download error.
-    
+
     Retryable errors are temporary issues that should not permanently mark
     the video as failed (e.g., cookie database locks, network issues).
     """
     error_msg = str(error).lower()
     retryable_patterns = [
         "could not copy chrome cookie database",
-        "could not copy firefox cookie database", 
+        "could not copy firefox cookie database",
         "could not copy brave cookie database",
         "could not copy edge cookie database",
         "cookie database",
@@ -228,7 +228,7 @@ def _is_retryable_download_error(error: Exception) -> bool:
         "network",
         "timeout",
         "http error 429",  # Rate limiting
-        "http error 5",    # Server errors (500-599)
+        "http error 5",  # Server errors (500-599)
     ]
     return any(pattern in error_msg for pattern in retryable_patterns)
 
@@ -265,7 +265,9 @@ def _try_audio_fallback(
             return None  # Don't add to index, allow retry
         else:
             # Permanent failure - add to index
-            logger.error(f"Audio fallback failed with permanent error: {str(fallback_error)}")
+            logger.error(
+                f"Audio fallback failed with permanent error: {str(fallback_error)}"
+            )
             if video_id:
                 try:
                     update_video_index(video_id, "AUDIO_FALLBACK_FAILED", False)
