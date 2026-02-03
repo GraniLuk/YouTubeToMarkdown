@@ -74,11 +74,6 @@ IT:
     name: Milan Jovanovic
     language_code: en
     output_language: English
-    
-  - id: UCidgSn6WJ9Fv3kwUtoI7_Jg
-    name: Stefan Dokic
-    language_code: en
-    output_language: English
 
   - id: UCX189tVw5L1E0uRpzJgj8mQ
     name: DevMentors
@@ -92,11 +87,6 @@ IT:
 
   - id: UCTdw38Cw6jcm0atBPA39a0Q
     name: NDC Conferences
-    language_code: en
-    output_language: English
-
-  - id: UC3RKA4vunFAfrfxiJhPEplw
-    name: CodeOpinion
     language_code: en
     output_language: English
 
@@ -131,11 +121,6 @@ AI:
     language_code: en
     output_language: English
 
-  - id: UCXUPKJO5MZQN11PqgIvyuvQ
-    name: Andrej Karpathy
-    language_code: en
-    output_language: English
-
   - id: UC55ODQSvARtgSyc8ThfiepQ
     name: Sam Witteveen
     language_code: en
@@ -166,11 +151,6 @@ Crypto:
     name: Crypto Stasiak
     language_code: pl
     output_language: Polish
-
-  - id: UCxBUeyObDhjqVXJgGv_BqWg
-    name: EXCAVO
-    language_code: en
-    output_language: English
 
   - id: UChcfYlb_660R3AemeXQGDkA
     name: IT Tech
@@ -223,6 +203,11 @@ Fitness:
     language_code: pl
     output_language: Polish
     skip_shorts: true
+
+  - id: UC1CVzH-XVr3E-kTT6D8hhfg
+    name: FitnessFaqs
+    language_code: en
+    output_language: English
 
 Trading:
   - id: UCCbv0qixG-cyokxEY3kELtg
