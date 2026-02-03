@@ -90,7 +90,7 @@ def extract_transcript_via_audio(
 
     except AudioDownloadError as e:
         logger.error(f"Audio download error: {str(e)}")
-        return None
+        raise  # Re-raise to let caller distinguish between error types
     except TranscriptionError as e:
         logger.error(f"Transcription error: {str(e)}")
         return None

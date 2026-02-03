@@ -209,6 +209,30 @@ def _is_live_or_upcoming_error(error: Exception) -> bool:
     return "live" in error_msg or "upcoming" in error_msg
 
 
+def _is_retryable_download_error(error: Exception) -> bool:
+    """
+    Check if exception indicates a retryable download error.
+    
+    Retryable errors are temporary issues that should not permanently mark
+    the video as failed (e.g., cookie database locks, network issues).
+    """
+    error_msg = str(error).lower()
+    retryable_patterns = [
+        "could not copy chrome cookie database",
+        "could not copy firefox cookie database", 
+        "could not copy brave cookie database",
+        "could not copy edge cookie database",
+        "cookie database",
+        "download failed",
+        "connection",
+        "network",
+        "timeout",
+        "http error 429",  # Rate limiting
+        "http error 5",    # Server errors (500-599)
+    ]
+    return any(pattern in error_msg for pattern in retryable_patterns)
+
+
 def _try_audio_fallback(
     video_url: str, video_id: Optional[str], language_code: str
 ) -> Optional[str]:
@@ -233,8 +257,15 @@ def _try_audio_fallback(
                 f"Video is live or upcoming, skipping for now (will retry on next run): {fallback_error}"
             )
             raise  # Re-raise to let caller know it's a live/upcoming video
+        # Check if it's a retryable error - don't add to index, allow retry on next run
+        elif _is_retryable_download_error(fallback_error):
+            logger.warning(
+                f"Audio fallback encountered retryable error (will retry on next run): {fallback_error}"
+            )
+            return None  # Don't add to index, allow retry
         else:
-            logger.error(f"Audio fallback failed: {str(fallback_error)}")
+            # Permanent failure - add to index
+            logger.error(f"Audio fallback failed with permanent error: {str(fallback_error)}")
             if video_id:
                 try:
                     update_video_index(video_id, "AUDIO_FALLBACK_FAILED", False)
