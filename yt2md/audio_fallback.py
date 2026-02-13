@@ -127,20 +127,22 @@ def extract_transcript_via_audio(
 def _enforce_download_delay() -> None:
     """Enforce minimum delay between consecutive audio downloads to avoid rate limiting."""
     global _last_download_time
-    
+
     try:
         min_delay = int(os.getenv("AUDIO_DOWNLOAD_DELAY_SECONDS", "10"))
     except ValueError:
         logger.warning("Invalid AUDIO_DOWNLOAD_DELAY_SECONDS, using default 10 seconds")
         min_delay = 10
-    
+
     if _last_download_time is not None:
         time_since_last = time.time() - _last_download_time
         if time_since_last < min_delay:
             wait_time = min_delay - time_since_last
-            logger.info(f"⏳ Waiting {wait_time:.1f}s before next download (rate limit protection)")
+            logger.info(
+                f"⏳ Waiting {wait_time:.1f}s before next download (rate limit protection)"
+            )
             time.sleep(wait_time)
-    
+
     _last_download_time = time.time()
 
 
@@ -251,18 +253,24 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
     except ValueError:
         logger.warning("Invalid AUDIO_DOWNLOAD_403_RETRIES, using default 1")
         max_retries_403 = 1
-    
+
     try:
-        retry_delay_403 = int(os.getenv("AUDIO_DOWNLOAD_403_RETRY_DELAY_SECONDS", "300"))
+        retry_delay_403 = int(
+            os.getenv("AUDIO_DOWNLOAD_403_RETRY_DELAY_SECONDS", "300")
+        )
     except ValueError:
-        logger.warning("Invalid AUDIO_DOWNLOAD_403_RETRY_DELAY_SECONDS, using default 300 seconds")
+        logger.warning(
+            "Invalid AUDIO_DOWNLOAD_403_RETRY_DELAY_SECONDS, using default 300 seconds"
+        )
         retry_delay_403 = 300
 
     attempt = 0
     while attempt <= max_retries_403:
         try:
             if attempt > 0:
-                logger.info(f"⬇️  Downloading audio (attempt {attempt + 1}/{max_retries_403 + 1}): {video_url}")
+                logger.info(
+                    f"⬇️  Downloading audio (attempt {attempt + 1}/{max_retries_403 + 1}): {video_url}"
+                )
             else:
                 logger.info(f"⬇️  Downloading audio: {video_url}")
 
@@ -303,8 +311,14 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
 
         except yt_dlp.DownloadError as e:  # type: ignore[attr-defined]
             error_str = str(e)
-            # Check if it's a 403 error
-            if "403" in error_str and "Forbidden" in error_str:
+            error_str_lower = error_str.lower()
+            # Check if it's a 403 error (be robust to casing and phrasing)
+            is_403_error = (
+                "http error 403" in error_str_lower
+                or "403 forbidden" in error_str_lower
+                or ("403" in error_str_lower and "forbidden" in error_str_lower)
+            )
+            if is_403_error:
                 if attempt < max_retries_403:
                     logger.warning(
                         f"⚠️  HTTP 403 Forbidden error (YouTube rate limit). "
@@ -314,8 +328,12 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
                     attempt += 1
                     continue
                 else:
-                    logger.error(f"yt-dlp download error after {attempt + 1} attempts: {error_str}")
-                    raise AudioDownloadError(f"Download failed after {attempt + 1} attempts: {error_str}")
+                    logger.error(
+                        f"yt-dlp download error after {attempt + 1} attempts: {error_str}"
+                    )
+                    raise AudioDownloadError(
+                        f"Download failed after {attempt + 1} attempts: {error_str}"
+                    )
             else:
                 # Non-403 error, don't retry
                 logger.error(f"yt-dlp download error: {error_str}")
@@ -323,7 +341,7 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
         except Exception as e:
             logger.error(f"Unexpected error during audio download: {str(e)}")
             raise AudioDownloadError(f"Download failed: {str(e)}")
-    
+
     # Should never reach here, but for safety
     raise AudioDownloadError(f"Download failed after {max_retries_403 + 1} attempts")
 

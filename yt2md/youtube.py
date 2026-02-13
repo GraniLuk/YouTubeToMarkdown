@@ -22,6 +22,13 @@ from yt2md.video_index import get_processed_video_ids, update_video_index
 # Get logger for this module
 logger = get_logger("youtube")
 
+
+class RetryableError(Exception):
+    """Raised when an error is temporary and should be retried on next run."""
+
+    pass
+
+
 # Fallback-only mode state (activated after consecutive failures or IP blocks)
 _fallback_only_mode = False
 _consecutive_failures = 0
@@ -258,12 +265,14 @@ def _try_audio_fallback(
                 f"Video is live or upcoming, skipping for now (will retry on next run): {fallback_error}"
             )
             raise  # Re-raise to let caller know it's a live/upcoming video
-        # Check if it's a retryable error - don't add to index, allow retry on next run
+        # Check if it's a retryable error - raise RetryableError so caller doesn't index
         elif _is_retryable_download_error(fallback_error):
             logger.warning(
                 f"Audio fallback encountered retryable error (will retry on next run): {fallback_error}"
             )
-            return None  # Don't add to index, allow retry
+            raise RetryableError(
+                str(fallback_error)
+            )  # Raise so caller can avoid indexing
         else:
             # Permanent failure - add to index
             logger.error(
@@ -378,6 +387,12 @@ def get_youtube_transcript(
                 )
                 if fallback_result:
                     return fallback_result
+            except RetryableError:
+                # Retryable error - don't index, will retry on next run
+                logger.info(
+                    f"Video {video_id} has retryable error, will retry on next run"
+                )
+                return None
             except Exception as fallback_error:
                 # If it's a live/upcoming video, don't add to index
                 if _is_live_or_upcoming_error(fallback_error):
@@ -432,6 +447,12 @@ def get_youtube_transcript(
                                 f"Failed to update video index: {str(index_error)}"
                             )
                     return fallback_result
+            except RetryableError:
+                # Retryable error (e.g., 403, network) - don't index, will retry on next run
+                logger.info(
+                    f"Video {video_id} has retryable error, will retry on next run"
+                )
+                return None
             except Exception as fallback_error:
                 # If it's a live/upcoming video, don't add to index
                 if _is_live_or_upcoming_error(fallback_error):
@@ -476,6 +497,12 @@ def get_youtube_transcript(
                                 f"Failed to update video index: {str(index_error)}"
                             )
                     return fallback_result
+            except RetryableError:
+                # Retryable error - don't index, will retry on next run
+                logger.info(
+                    f"Video {video_id} has retryable error, will retry on next run"
+                )
+                return None
             except Exception as fallback_error:
                 # If it's a live/upcoming video, don't add to index
                 if _is_live_or_upcoming_error(fallback_error):
@@ -511,7 +538,14 @@ def get_youtube_transcript(
                         )
 
                 # Try audio fallback immediately (no retry for IP blocks)
-                return _try_audio_fallback(video_url, video_id, language_code)
+                try:
+                    return _try_audio_fallback(video_url, video_id, language_code)
+                except RetryableError:
+                    # Even though IP is blocked, if audio fallback has retryable error, allow retry
+                    logger.info(
+                        "Audio fallback has retryable error, will retry on next run"
+                    )
+                    return None
 
             # Check for VideoUnplayable error message pattern
             if "The video is unplayable for the following reason:" in str(e):
@@ -540,15 +574,10 @@ def get_youtube_transcript(
                             f"Skipping live/upcoming video {video_id}, will retry later"
                         )
                         return None
-                    # For other errors, continue to add to index below
+                    # For other errors, don't add to index - allow retry next run
 
-                if video_id and not reason.strip():
-                    try:
-                        update_video_index(video_id, "VIDEO_UNPLAYABLE", False)
-                    except Exception as index_error:
-                        logger.error(
-                            f"Failed to update video index: {str(index_error)}"
-                        )
+                # Don't update index for unplayable videos - allow retry on next run
+                # Audio fallback may work later or video may become available
                 return None
 
             # Handle other exceptions with retry
@@ -567,7 +596,14 @@ def get_youtube_transcript(
                 _increment_failure_counter()
 
                 # Try audio fallback as last resort
-                return _try_audio_fallback(video_url, video_id, language_code)
+                try:
+                    return _try_audio_fallback(video_url, video_id, language_code)
+                except RetryableError:
+                    # Retryable error - don't index, will retry on next run
+                    logger.info(
+                        "Audio fallback has retryable error, will retry on next run"
+                    )
+                    return None
 
 
 def get_videos_from_channel(
