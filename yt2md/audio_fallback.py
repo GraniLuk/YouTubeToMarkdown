@@ -1,11 +1,15 @@
 """Audio-based transcript extraction fallback using yt-dlp and Whisper."""
 
 import os
+import time
 from typing import Optional
 
 from yt2md.logger import get_logger
 
 logger = get_logger("audio_fallback")
+
+# Track last download time to enforce delay between downloads
+_last_download_time: Optional[float] = None
 
 
 class AudioDownloadError(Exception):
@@ -49,6 +53,9 @@ def extract_transcript_via_audio(
 
     try:
         logger.info(f"🔄 Activating audio fallback for {video_url}")
+
+        # Enforce delay between downloads to avoid rate limiting
+        _enforce_download_delay()
 
         # Step 1: Download audio
         audio_path = _download_audio_ytdlp(video_url)
@@ -115,6 +122,26 @@ def extract_transcript_via_audio(
                 logger.debug(f"Cleaned up audio file: {audio_path}")
             except Exception as e:
                 logger.warning(f"Failed to cleanup audio file {audio_path}: {str(e)}")
+
+
+def _enforce_download_delay() -> None:
+    """Enforce minimum delay between consecutive audio downloads to avoid rate limiting."""
+    global _last_download_time
+    
+    try:
+        min_delay = int(os.getenv("AUDIO_DOWNLOAD_DELAY_SECONDS", "10"))
+    except ValueError:
+        logger.warning("Invalid AUDIO_DOWNLOAD_DELAY_SECONDS, using default 10 seconds")
+        min_delay = 10
+    
+    if _last_download_time is not None:
+        time_since_last = time.time() - _last_download_time
+        if time_since_last < min_delay:
+            wait_time = min_delay - time_since_last
+            logger.info(f"⏳ Waiting {wait_time:.1f}s before next download (rate limit protection)")
+            time.sleep(wait_time)
+    
+    _last_download_time = time.time()
 
 
 def _download_audio_ytdlp(video_url: str) -> Optional[str]:
@@ -218,50 +245,87 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
                 f"Could not configure browser cookies from {browser_name}: {str(e)}"
             )
 
+    # Get retry configuration
     try:
-        logger.info(f"⬇️  Downloading audio: {video_url}")
+        max_retries_403 = int(os.getenv("AUDIO_DOWNLOAD_403_RETRIES", "1"))
+    except ValueError:
+        logger.warning("Invalid AUDIO_DOWNLOAD_403_RETRIES, using default 1")
+        max_retries_403 = 1
+    
+    try:
+        retry_delay_403 = int(os.getenv("AUDIO_DOWNLOAD_403_RETRY_DELAY_SECONDS", "300"))
+    except ValueError:
+        logger.warning("Invalid AUDIO_DOWNLOAD_403_RETRY_DELAY_SECONDS, using default 300 seconds")
+        retry_delay_403 = 300
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore[arg-type]
-            info = ydl.extract_info(video_url, download=True)
-            video_id = info.get("id")
+    attempt = 0
+    while attempt <= max_retries_403:
+        try:
+            if attempt > 0:
+                logger.info(f"⬇️  Downloading audio (attempt {attempt + 1}/{max_retries_403 + 1}): {video_url}")
+            else:
+                logger.info(f"⬇️  Downloading audio: {video_url}")
 
-            if not video_id:
-                raise AudioDownloadError("Could not extract video ID")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore[arg-type]
+                info = ydl.extract_info(video_url, download=True)
+                video_id = info.get("id")
 
-            # yt-dlp should create mp3 file after post-processing
-            audio_path = os.path.join(cache_dir, f"{video_id}.mp3")
+                if not video_id:
+                    raise AudioDownloadError("Could not extract video ID")
 
-            # Check if file exists and is non-empty (e.g., >1KB)
-            min_audio_size = 1024  # 1KB threshold for valid audio
-            if not (
-                os.path.exists(audio_path)
-                and os.path.getsize(audio_path) >= min_audio_size
-            ):
-                # Try other possible extensions
-                found = False
-                for ext in ["m4a", "webm", "opus"]:
-                    alt_path = os.path.join(cache_dir, f"{video_id}.{ext}")
-                    if (
-                        os.path.exists(alt_path)
-                        and os.path.getsize(alt_path) >= min_audio_size
-                    ):
-                        audio_path = alt_path
-                        found = True
-                        break
-                if not found:
-                    raise AudioDownloadError(
-                        f"Downloaded audio file not found or is empty/corrupted: {audio_path}"
+                # yt-dlp should create mp3 file after post-processing
+                audio_path = os.path.join(cache_dir, f"{video_id}.mp3")
+
+                # Check if file exists and is non-empty (e.g., >1KB)
+                min_audio_size = 1024  # 1KB threshold for valid audio
+                if not (
+                    os.path.exists(audio_path)
+                    and os.path.getsize(audio_path) >= min_audio_size
+                ):
+                    # Try other possible extensions
+                    found = False
+                    for ext in ["m4a", "webm", "opus"]:
+                        alt_path = os.path.join(cache_dir, f"{video_id}.{ext}")
+                        if (
+                            os.path.exists(alt_path)
+                            and os.path.getsize(alt_path) >= min_audio_size
+                        ):
+                            audio_path = alt_path
+                            found = True
+                            break
+                    if not found:
+                        raise AudioDownloadError(
+                            f"Downloaded audio file not found or is empty/corrupted: {audio_path}"
+                        )
+
+                logger.debug(f"Audio downloaded: {audio_path}")
+                return audio_path
+
+        except yt_dlp.DownloadError as e:  # type: ignore[attr-defined]
+            error_str = str(e)
+            # Check if it's a 403 error
+            if "403" in error_str and "Forbidden" in error_str:
+                if attempt < max_retries_403:
+                    logger.warning(
+                        f"⚠️  HTTP 403 Forbidden error (YouTube rate limit). "
+                        f"Waiting {retry_delay_403}s before retry {attempt + 2}/{max_retries_403 + 1}..."
                     )
-
-            logger.debug(f"Audio downloaded: {audio_path}")
-            return audio_path
-
-    except yt_dlp.DownloadError as e:  # type: ignore[attr-defined]
-        logger.error(f"yt-dlp download error: {str(e)}")
-        raise AudioDownloadError(f"Download failed: {str(e)}")
-    except Exception as e:
-        logger.error(f"Unexpected error during audio download: {str(e)}")
-        raise AudioDownloadError(f"Download failed: {str(e)}")
+                    time.sleep(retry_delay_403)
+                    attempt += 1
+                    continue
+                else:
+                    logger.error(f"yt-dlp download error after {attempt + 1} attempts: {error_str}")
+                    raise AudioDownloadError(f"Download failed after {attempt + 1} attempts: {error_str}")
+            else:
+                # Non-403 error, don't retry
+                logger.error(f"yt-dlp download error: {error_str}")
+                raise AudioDownloadError(f"Download failed: {error_str}")
+        except Exception as e:
+            logger.error(f"Unexpected error during audio download: {str(e)}")
+            raise AudioDownloadError(f"Download failed: {str(e)}")
+    
+    # Should never reach here, but for safety
+    raise AudioDownloadError(f"Download failed after {max_retries_403 + 1} attempts")
 
 
 def _transcribe_whisper_local(audio_path: str, language_code: str) -> Optional[str]:

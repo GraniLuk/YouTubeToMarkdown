@@ -227,6 +227,7 @@ def _is_retryable_download_error(error: Exception) -> bool:
         "connection",
         "network",
         "timeout",
+        "http error 403",  # Forbidden (often YouTube rate limiting)
         "http error 429",  # Rate limiting
         "http error 5",  # Server errors (500-599)
     ]
