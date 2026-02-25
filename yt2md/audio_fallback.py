@@ -232,20 +232,30 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
         "extract_audio": True,
     }
 
-    # Add cookies from browser if enabled
-    cookies_from_browser = os.getenv("COOKIES_FROM_BROWSER", "").lower()
-    if cookies_from_browser in ("true", "1", "yes", "on", "brave"):
-        # Use brave browser cookies by default, or other browser if specified
-        browser_name = (
-            cookies_from_browser if cookies_from_browser != "true" else "brave"
-        )
+    # Add cookies from file or browser if enabled
+    cookies_file = os.getenv("COOKIES_FILE", "")
+    if cookies_file and os.path.exists(cookies_file):
         try:
-            ydl_opts["cookiesfrombrowser"] = (browser_name,)
-            logger.debug(f"📝 Configured to use cookies from {browser_name} browser")
+            ydl_opts["cookiefile"] = cookies_file
+            logger.debug(f"📝 Configured to use cookies from file: {cookies_file}")
         except Exception as e:
             logger.warning(
-                f"Could not configure browser cookies from {browser_name}: {str(e)}"
+                f"Could not configure cookies file '{cookies_file}': {str(e)}"
             )
+    else:
+        cookies_from_browser = os.getenv("COOKIES_FROM_BROWSER", "").lower()
+        if cookies_from_browser and cookies_from_browser not in ("false", "0", "no", "off"):
+            # Use brave browser cookies by default, or other browser if specified
+            browser_name = (
+                cookies_from_browser if cookies_from_browser not in ("true", "1", "yes", "on") else "brave"
+            )
+            try:
+                ydl_opts["cookiesfrombrowser"] = (browser_name,)
+                logger.debug(f"📝 Configured to use cookies from {browser_name} browser")
+            except Exception as e:
+                logger.warning(
+                    f"Could not configure browser cookies from {browser_name}: {str(e)}"
+                )
 
     # Get retry configuration
     try:
