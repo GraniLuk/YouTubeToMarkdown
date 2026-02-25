@@ -5,7 +5,7 @@ llm_strategies:
     model_configs:
       gemini:
         primary_model: "gemini-3-flash-preview"
-        fallback_model: "gemini-2.5-flash-preview-09-2025"
+        fallback_model: "gemini-2.5-flash"
         thinking_level: "none"  # Disabled: thinking_config not supported by API
       ollama:
         model_name: "ministral-3"
