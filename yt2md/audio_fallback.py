@@ -168,7 +168,10 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
     # First, check video metadata without downloading
     logger.debug("Checking video metadata (live status, duration)...")
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:  # type: ignore[arg-type]
+        # Include remote-components to enable e.g. EJS GitHub component support
+        with yt_dlp.YoutubeDL(
+            {"quiet": True, "no_warnings": True, "remote_components": ["ejs:github"]}
+        ) as ydl:  # type: ignore[arg-type]
             info = ydl.extract_info(video_url, download=False)
 
             # Check if video is live or upcoming
@@ -229,6 +232,8 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
         "quiet": True,
         "no_warnings": True,
         "no_color": True,
+        # Pass remote components option to yt-dlp (equivalent to CLI "--remote-components ejs:github")
+        "remote_components": ["ejs:github"],
         "extract_audio": True,
     }
 
@@ -244,14 +249,23 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
             )
     else:
         cookies_from_browser = os.getenv("COOKIES_FROM_BROWSER", "").lower()
-        if cookies_from_browser and cookies_from_browser not in ("false", "0", "no", "off"):
+        if cookies_from_browser and cookies_from_browser not in (
+            "false",
+            "0",
+            "no",
+            "off",
+        ):
             # Use brave browser cookies by default, or other browser if specified
             browser_name = (
-                cookies_from_browser if cookies_from_browser not in ("true", "1", "yes", "on") else "brave"
+                cookies_from_browser
+                if cookies_from_browser not in ("true", "1", "yes", "on")
+                else "brave"
             )
             try:
                 ydl_opts["cookiesfrombrowser"] = (browser_name,)
-                logger.debug(f"📝 Configured to use cookies from {browser_name} browser")
+                logger.debug(
+                    f"📝 Configured to use cookies from {browser_name} browser"
+                )
             except Exception as e:
                 logger.warning(
                     f"Could not configure browser cookies from {browser_name}: {str(e)}"
