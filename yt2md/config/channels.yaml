@@ -110,6 +110,11 @@ IT:
     language_code: pl
     output_language: Polish
 
+  - id: UC54oPbLImLFkxAJPLmmK-Iw
+    name: Kayla Cinnamon
+    language_code: en
+    output_language: English  
+
 AI:
   - id: UCWTpgi3bE5gIVfhEys-T12A
     name: Mike Tomala
