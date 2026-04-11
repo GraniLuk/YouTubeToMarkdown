@@ -11,7 +11,7 @@ llm_strategies:
         model_name: "ministral-3"
         base_url: "http://localhost:11434"
       openrouter:
-        model_name: "google/gemini-2.5-flash-preview-04-17:free"
+        model_name: "nvidia/nemotron-3-super-120b-a12b:free"
         base_url: "https://openrouter.ai/api/v1/chat/completions"
     
     # Strategy for selecting models based on transcript length
