@@ -117,6 +117,8 @@ def run_main(args):
             ollama_base_url=ollama_base_url,
             disable_kindle_auto=single_url_and_kindle,
             prefer_auto_generated=getattr(args, "auto_generated", False),
+            force_openrouter=getattr(args, "openrouter", False),
+            openrouter_model=getattr(args, "openrouter_model", None),
         )
 
         # Kindle single URL explicit send (even if below threshold)

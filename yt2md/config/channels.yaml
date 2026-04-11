@@ -10,6 +10,9 @@ llm_strategies:
       ollama:
         model_name: "ministral-3"
         base_url: "http://localhost:11434"
+      openrouter:
+        model_name: "google/gemini-2.5-flash-preview-04-17:free"
+        base_url: "https://openrouter.ai/api/v1/chat/completions"
     
     # Strategy for selecting models based on transcript length
     strategy_by_length:
@@ -31,8 +34,7 @@ llm_strategies:
           provider: "gemini"
           model_type: "primary"
         fallback:
-          provider: "gemini"
-          model_type: "fallback"
+          provider: "openrouter"
       
     # Default thresholds for length categorization
     length_thresholds:
@@ -60,8 +62,7 @@ llm_strategies:
           provider: "gemini"
           model_type: "primary"
         fallback:
-          provider: "gemini"
-          model_type: "fallback"
+          provider: "openrouter"
 
 # Channel configurations
 IT:

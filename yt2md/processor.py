@@ -22,6 +22,8 @@ def process_videos(
     ollama_base_url=None,
     disable_kindle_auto: bool = False,
     prefer_auto_generated: bool = False,
+    force_openrouter: bool = False,
+    openrouter_model: str | None = None,
 ):
     """
     Process a list of videos, logging progress count in the existing log about processing each video.
@@ -30,6 +32,8 @@ def process_videos(
         use_ollama, use_cloud, skip_verification, ollama_model, ollama_base_url: see process_video
         disable_kindle_auto: if True, disable automatic Kindle sending
         prefer_auto_generated: if True, prefer auto-generated transcripts over manual ones
+        force_openrouter: if True, force using OpenRouter for transcript processing
+        openrouter_model: override the OpenRouter model name
     """
     total = len(videos_to_process)
     start_time = time.time()
@@ -68,6 +72,8 @@ def process_videos(
             ollama_model=ollama_model,
             ollama_base_url=ollama_base_url,
             prefer_auto_generated=prefer_auto_generated,
+            force_openrouter=force_openrouter,
+            openrouter_model=openrouter_model,
         )
         if res:
             all_results.extend(res)
@@ -106,6 +112,8 @@ def process_video(
     ollama_model=None,
     ollama_base_url=None,
     prefer_auto_generated=False,
+    force_openrouter=False,
+    openrouter_model=None,
 ):
     """
     Process a single video: get transcript, analyze with appropriate LLM based on transcript length, and save to markdown.
@@ -125,6 +133,8 @@ def process_video(
         ollama_model: Ollama model to use (if None, use environment variable)
         ollama_base_url: Ollama base URL (if None, use environment variable)
         prefer_auto_generated: If True, prefer auto-generated transcripts over manual ones
+        force_openrouter: If True, force using OpenRouter for transcript processing
+        openrouter_model: Override the OpenRouter model name
 
     Returns:
         list: Paths to the saved file(s) or None if processing failed
@@ -164,6 +174,8 @@ def process_video(
             category=category,
             force_ollama=use_ollama,
             force_cloud=use_cloud,
+            force_openrouter=force_openrouter,
+            openrouter_model=openrouter_model,
         )
         execution_time = time.time() - start_time
         minutes = int(execution_time // 60)

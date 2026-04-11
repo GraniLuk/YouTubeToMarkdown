@@ -75,6 +75,16 @@ def create_parser():
         action="store_true",
         help="Prefer auto-generated transcripts over manual ones (useful when manual subtitles are corrupted)",
     )
+    parser.add_argument(
+        "--openrouter",
+        action="store_true",
+        help="Force using OpenRouter for transcript processing (useful for testing different models)",
+    )
+    parser.add_argument(
+        "--openrouter-model",
+        type=str,
+        help="Override the OpenRouter model to use (e.g., 'meta-llama/llama-4-maverick:free')",
+    )
     return parser
 
 

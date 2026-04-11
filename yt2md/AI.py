@@ -127,6 +127,37 @@ def analyze_transcript_with_ollama(
         raise Exception(f"Ollama processing error: {str(e)}")
 
 
+def analyze_transcript_with_openrouter(
+    transcript: str,
+    api_key: str,
+    model_name: str,
+    output_language: str = "English",
+    category: str = "IT",
+) -> tuple[str, str]:
+    """
+    Analyze transcript using OpenRouter API.
+
+    Args:
+        transcript (str): The transcript text to analyze.
+        api_key (str): OpenRouter API key.
+        model_name (str): OpenRouter model name to use.
+        output_language (str): Desired output language.
+        category (str): Category of the content.
+
+    Returns:
+        tuple[str, str]: Generated text and description from OpenRouter API.
+    """
+    strategy = LLMFactory.get_strategy("openrouter")
+    refined_text, description = strategy.analyze_transcript(
+        transcript=transcript,
+        api_key=api_key,
+        model_name=model_name,
+        output_language=output_language,
+        category=category,
+    )
+    return refined_text, description
+
+
 def analyze_transcript_by_length(
     transcript: str,
     ollama_model: str,
@@ -135,6 +166,8 @@ def analyze_transcript_by_length(
     category: str = "IT",
     force_ollama: bool = False,
     force_cloud: bool = False,
+    force_openrouter: bool = False,
+    openrouter_model: str | None = None,
 ) -> dict[str, dict[str, str]]:
     """
     Analyze transcript using different strategies based on transcript length and category.
@@ -142,9 +175,10 @@ def analyze_transcript_by_length(
 
     Strategy:
     - Determines primary and fallback models based on transcript length and content category
-    - Model selection can be overridden using force_ollama or force_cloud
+    - Model selection can be overridden using force_ollama, force_cloud, or force_openrouter
     - Configuration is loaded from channels.yaml with category-specific overrides
     - Supports provider+model configuration for flexible fallback (e.g., Gemini to different Gemini model)
+    - OpenRouter serves as a fallback for Gemini rate limits and can be forced via CLI
 
     Args:
         transcript: Text transcript to analyze
@@ -154,9 +188,12 @@ def analyze_transcript_by_length(
         category: Category of the content (used for strategy selection)
         force_ollama: Whether to force using Ollama regardless of configuration
         force_cloud: Whether to force using cloud services only (overrides force_ollama)
+        force_openrouter: Whether to force using OpenRouter as the primary provider
+        openrouter_model: Override the OpenRouter model name (e.g., 'meta-llama/llama-4-maverick:free')
 
     Returns:
-        dict: Dictionary containing results from different LLMs with keys:              'cloud': {'text': refined_text, 'description': description, 'model_name': str, 'provider': str} if used
+        dict: Dictionary containing results from different LLMs with keys:
+              'cloud': {'text': refined_text, 'description': description, 'model_name': str, 'provider': str} if used
               'ollama': {'text': refined_text, 'description': description, 'model_name': str} if used
     """
     results = {}
@@ -178,6 +215,11 @@ def analyze_transcript_by_length(
                 return config.get("fallback_model", "gemini-1.5-flash-8b")
         elif provider == "ollama":
             return config.get("model_name", "ministral-3")
+        elif provider == "openrouter":
+            return config.get(
+                "model_name",
+                os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash-preview-04-17:free"),
+            )
         return None
 
     # Ollama configuration
@@ -194,8 +236,14 @@ def analyze_transcript_by_length(
     )
     use_ollama = bool(effective_ollama_model and effective_ollama_base_url)
 
-    # Handle force flags - force_cloud takes precedence over force_ollama
-    if force_cloud:
+    # Handle force flags - force_openrouter takes highest precedence, then force_cloud, then force_ollama
+    if force_openrouter:
+        logger.info("Forcing OpenRouter processing.")
+        openrouter_config = get_llm_model_config("openrouter", category)
+        or_model = openrouter_model or get_model_name("openrouter", "primary", category)
+        primary = {"provider": "openrouter", "model_name": or_model}
+        fallback = None  # No fallback when forcing
+    elif force_cloud:
         logger.info("Forcing cloud-only processing.")
         # If primary is ollama, switch to fallback strategy for cloud processing
         if primary and primary.get("provider") == "ollama":
@@ -218,7 +266,40 @@ def analyze_transcript_by_length(
     processed_cloud = False
 
     # Process with primary model
-    if primary and primary["provider"] == "gemini" and not force_ollama:
+    if primary and primary["provider"] == "openrouter":
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+        model_name = primary.get("model_name") or openrouter_model or get_model_name("openrouter", "primary", category)
+
+        if openrouter_api_key and model_name:
+            logger.info(
+                f"Attempting to use OpenRouter model: {model_name} for category: {category} (primary)"
+            )
+            try:
+                refined_text, description = analyze_transcript_with_openrouter(
+                    transcript=transcript,
+                    api_key=openrouter_api_key,
+                    model_name=model_name,
+                    output_language=output_language,
+                    category=category,
+                )
+                results["cloud"] = {
+                    "text": refined_text,
+                    "description": description,
+                    "model_name": model_name,
+                    "provider": "openrouter",
+                }
+                processed_cloud = True
+                logger.debug(f"Successfully processed with OpenRouter: {model_name}")
+            except Exception as e:
+                logger.error(f"Error during OpenRouter processing with {model_name}: {e}")
+                primary_model_failed = True
+        else:
+            logger.warning(
+                "OpenRouter API key or model name not configured/found. Skipping OpenRouter."
+            )
+            primary_model_failed = True
+
+    elif primary and primary["provider"] == "gemini" and not force_ollama:
         gemini_api_key = os.getenv("GEMINI_API_KEY")
         model_type = primary.get("model_type", "primary")
         model_name = get_model_name("gemini", model_type, category)
@@ -279,7 +360,42 @@ def analyze_transcript_by_length(
 
     # Process with fallback model if primary failed
     if primary_model_failed and fallback:
-        if fallback["provider"] == "gemini" and not force_ollama:
+        if fallback["provider"] == "openrouter":
+            openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+            model_name = openrouter_model or get_model_name("openrouter", "primary", category)
+
+            if openrouter_api_key and model_name:
+                logger.info(
+                    f"Attempting to use OpenRouter model: {model_name} for category: {category} (fallback)"
+                )
+                try:
+                    refined_text, description = analyze_transcript_with_openrouter(
+                        transcript=transcript,
+                        api_key=openrouter_api_key,
+                        model_name=model_name,
+                        output_language=output_language,
+                        category=category,
+                    )
+                    results["cloud"] = {
+                        "text": refined_text,
+                        "description": description,
+                        "model_name": model_name,
+                        "provider": "openrouter",
+                    }
+                    processed_cloud = True
+                    logger.debug(
+                        f"Successfully processed with OpenRouter fallback: {model_name}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error during OpenRouter fallback processing with {model_name}: {e}"
+                    )
+            else:
+                logger.warning(
+                    "OpenRouter API key or model name not configured/found for fallback."
+                )
+
+        elif fallback["provider"] == "gemini" and not force_ollama:
             gemini_api_key = os.getenv("GEMINI_API_KEY")
             model_type = fallback.get("model_type", "fallback")
             model_name = get_model_name("gemini", model_type, category)
@@ -310,6 +426,35 @@ def analyze_transcript_by_length(
                     logger.error(
                         f"Error during Gemini fallback processing with {model_name}: {e}"
                     )
+                    # If Gemini fallback also failed, try OpenRouter as last resort
+                    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+                    or_model = openrouter_model or get_model_name("openrouter", "primary", category)
+                    if openrouter_api_key and or_model:
+                        logger.info(
+                            f"Gemini fallback failed, attempting OpenRouter as last resort: {or_model}"
+                        )
+                        try:
+                            refined_text, description = analyze_transcript_with_openrouter(
+                                transcript=transcript,
+                                api_key=openrouter_api_key,
+                                model_name=or_model,
+                                output_language=output_language,
+                                category=category,
+                            )
+                            results["cloud"] = {
+                                "text": refined_text,
+                                "description": description,
+                                "model_name": or_model,
+                                "provider": "openrouter",
+                            }
+                            processed_cloud = True
+                            logger.debug(
+                                f"Successfully processed with OpenRouter last resort: {or_model}"
+                            )
+                        except Exception as or_e:
+                            logger.error(
+                                f"Error during OpenRouter last resort processing: {or_e}"
+                            )
             else:
                 logger.warning(
                     "Gemini API key or model name not configured/found for fallback."

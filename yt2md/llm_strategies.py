@@ -517,6 +517,149 @@ class OllamaStrategy(LLMStrategy):
         return "\n\n".join(final_output), description
 
 
+class OpenRouterStrategy(LLMStrategy):
+    """OpenRouter API implementation strategy (OpenAI-compatible)."""
+
+    def analyze_transcript(self, transcript: str, **kwargs) -> tuple[str, str]:
+        """
+        Analyze transcript using OpenRouter API.
+
+        Args:
+            transcript: Input transcript text
+            **kwargs: Must include api_key, may include model_name, output_language, category,
+                      base_url, max_retries, retry_delay, chunking_strategy, chunk_size
+
+        Returns:
+            tuple[str, str]: Refined text and description
+        """
+        api_key = kwargs.get("api_key")
+        model_name = kwargs.get(
+            "model_name",
+            os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash-preview-04-17:free"),
+        )
+        output_language = kwargs.get("output_language", "English")
+        category = kwargs.get("category", "IT")
+        max_retries = kwargs.get("max_retries", 4)
+        retry_delay = kwargs.get("retry_delay", 3)
+        chunking_strategy = kwargs.get("chunking_strategy", "word")
+        chunk_size = kwargs.get("chunk_size", 8000)
+        base_url = kwargs.get(
+            "base_url", "https://openrouter.ai/api/v1/chat/completions"
+        )
+
+        logger.debug(
+            f"Using OpenRouter strategy with model: {model_name}, "
+            f"output language: {output_language}, category: {category}, "
+            f"chunking strategy: {chunking_strategy}, chunk size: {chunk_size}"
+        )
+
+        if not api_key:
+            raise ValueError("OpenRouter API key is required")
+
+        # Get category-specific prompts
+        category_prompt = CATEGORY_PROMPTS.get(category, "")
+
+        # Prepare base prompt
+        base_prompt = PROMPT_TEMPLATE.format(
+            category_prompts=category_prompt, output_language=output_language
+        )
+
+        # Prepare first chunk prompt with description request
+        first_chunk_prompt = FIRST_CHUNK_TEMPLATE.format(base_prompt=base_prompt)
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/GraniLuk/YouTubeToMarkdown",
+            "X-OpenRouter-Title": "YT2MD",
+        }
+
+        # Get chunking strategy
+        chunker = ChunkingStrategyFactory.get_strategy(
+            chunking_strategy, chunk_size=chunk_size
+        )
+        chunks = chunker.chunk_text(transcript)
+
+        # Process each chunk
+        final_output = []
+        previous_response = ""
+        description = "No description available"
+
+        for i, chunk in enumerate(chunks):
+            # Prepare prompt with context if needed
+            if previous_response:
+                context_prompt = (
+                    "The following text is a continuation... "
+                    f"Previous response:\n{previous_response}\n\nNew text to process(Do Not Repeat the Previous response:):\n"
+                )
+            else:
+                context_prompt = ""
+
+            # Use different template for first chunk
+            template = first_chunk_prompt if i == 0 else base_prompt
+
+            # Create full prompt
+            full_prompt = f"{context_prompt}{template}\n\n{chunk}"
+
+            data = {
+                "model": model_name,
+                "messages": [{"role": "user", "content": full_prompt}],
+                "temperature": 0.6,
+                "max_tokens": 60000,
+            }
+
+            response = None
+            for attempt in range(max_retries):
+                try:
+                    response = requests.post(base_url, json=data, headers=headers)
+                    response.raise_for_status()
+
+                    result = response.json()
+                    text = result["choices"][0]["message"]["content"]
+
+                    # Process the response text
+                    processed_text, chunk_description = self.process_model_response(
+                        text, i == 0
+                    )
+
+                    # Save description only from the first chunk
+                    if i == 0 and chunk_description:
+                        description = chunk_description
+
+                    previous_response = processed_text
+                    final_output.append(processed_text)
+                    break
+
+                except requests.exceptions.HTTPError as e:
+                    status_code = response.status_code if response is not None else None
+                    if (
+                        status_code in (429, 503)
+                        and attempt < max_retries - 1
+                    ):
+                        wait_time = retry_delay * (2 ** attempt)
+                        logger.warning(
+                            f"OpenRouter API error {status_code} (attempt {attempt + 1}/{max_retries}), "
+                            f"retrying in {wait_time}s..."
+                        )
+                        time.sleep(wait_time)
+                    else:
+                        response_text = (
+                            response.text
+                            if response is not None
+                            else "No response text"
+                        )
+                        raise Exception(
+                            f"OpenRouter API error: {str(e)}, Response: {response_text}"
+                        )
+
+                except Exception as e:
+                    raise Exception(f"OpenRouter API error: {str(e)}")
+            else:
+                raise Exception("OpenRouter: Failed to get response after multiple retries")
+
+        return "\n\n".join(final_output), description
+
+
 class LLMFactory:
     """Factory class to create LLM strategies based on provider name."""
 
@@ -526,7 +669,7 @@ class LLMFactory:
         Get the appropriate LLM strategy based on provider name.
 
         Args:
-            provider: The name of the LLM provider ("gemini", "perplexity", "ollama")
+            provider: The name of the LLM provider ("gemini", "perplexity", "ollama", "openrouter")
 
         Returns:
             LLMStrategy: The corresponding strategy implementation
@@ -535,6 +678,7 @@ class LLMFactory:
             "gemini": GeminiStrategy(),
             "perplexity": PerplexityStrategy(),
             "ollama": OllamaStrategy(),
+            "openrouter": OpenRouterStrategy(),
         }
 
         strategy = strategies.get(provider.lower())
