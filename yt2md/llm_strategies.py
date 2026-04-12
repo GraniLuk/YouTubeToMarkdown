@@ -605,7 +605,6 @@ class OpenRouterStrategy(LLMStrategy):
                 "model": model_name,
                 "messages": [{"role": "user", "content": full_prompt}],
                 "temperature": 0.6,
-                "max_tokens": 60000,
             }
 
             response = None
@@ -615,6 +614,39 @@ class OpenRouterStrategy(LLMStrategy):
                     response.raise_for_status()
 
                     result = response.json()
+
+                    # Check for error in response body (some models return errors with HTTP 200)
+                    if "error" in result:
+                        error_obj = result["error"]
+                        if isinstance(error_obj, dict):
+                            error_msg = error_obj.get("message", str(error_obj))
+                            error_code = error_obj.get("code", "unknown")
+                            metadata = error_obj.get("metadata", {})
+                            provider_name = metadata.get("provider_name", "unknown")
+                            raw = metadata.get("raw", "")
+                            logger.error(
+                                f"OpenRouter error from provider '{provider_name}' "
+                                f"(code: {error_code}): {error_msg}"
+                            )
+                            if raw:
+                                logger.debug(f"OpenRouter raw provider error: {raw}")
+                        else:
+                            error_msg = str(error_obj)
+                            logger.error(f"OpenRouter error: {error_msg}")
+                        raise Exception(
+                            f"OpenRouter error: {error_msg}"
+                        )
+
+                    # Validate response structure
+                    if "choices" not in result or not result["choices"]:
+                        logger.error(
+                            f"OpenRouter unexpected response format: {str(result)[:500]}"
+                        )
+                        raise Exception(
+                            f"OpenRouter returned unexpected response (no 'choices'). "
+                            f"Response: {str(result)[:200]}"
+                        )
+
                     text = result["choices"][0]["message"]["content"]
 
                     # Process the response text
@@ -649,11 +681,11 @@ class OpenRouterStrategy(LLMStrategy):
                             else "No response text"
                         )
                         raise Exception(
-                            f"OpenRouter API error: {str(e)}, Response: {response_text}"
-                        )
+                            f"OpenRouter HTTP {status_code}: {str(e)}, Response: {response_text}"
+                        ) from e
 
-                except Exception as e:
-                    raise Exception(f"OpenRouter API error: {str(e)}")
+                except Exception:
+                    raise
             else:
                 raise Exception("OpenRouter: Failed to get response after multiple retries")
 
