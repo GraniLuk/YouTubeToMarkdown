@@ -418,13 +418,16 @@ class OllamaStrategy(LLMStrategy):
         """
 
         # Use environment variables with kwargs as fallback
-        model_name = kwargs.get("model_name", os.getenv("OLLAMA_MODEL", "gemma3:4b"))
+        model_name = kwargs.get("model_name", os.getenv("OLLAMA_MODEL", "gemma4:e4b"))
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")
-        chunk_size = kwargs.get(
-            "chunk_size", 2500
-        )  # Increased chunk size to better utilize 4096 context
+        
+        # Configure chunk size depending on the model
+        if "gemma4" in model_name.lower():
+            chunk_size = kwargs.get("chunk_size", 12000)  # Capped at 12k to prevent OOM
+        else:
+            chunk_size = kwargs.get("chunk_size", 2500)  # Increased chunk size to better utilize 4096 context
 
         # For backward compatibility, check both host and base_url parameters
         base_url = kwargs.get(
@@ -477,7 +480,20 @@ class OllamaStrategy(LLMStrategy):
             # Create full prompt
             full_prompt = f"{context_prompt}{template}\n\n{chunk}"
 
-            data = {"model": model_name, "prompt": full_prompt, "stream": False}
+            # Advanced configuration for Gemma 4 models
+            if "gemma4" in model_name.lower():
+                data = {
+                    "model": model_name, 
+                    "prompt": full_prompt, 
+                    "stream": False,
+                    "options": {
+                        "temperature": 1.0,
+                        "top_p": 0.95,
+                        "top_k": 64
+                    }
+                }
+            else:
+                data = {"model": model_name, "prompt": full_prompt, "stream": False}
 
             for attempt in range(max_retries):
                 try:
