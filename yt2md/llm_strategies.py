@@ -418,7 +418,7 @@ class OllamaStrategy(LLMStrategy):
         """
 
         # Use environment variables with kwargs as fallback
-        model_name = kwargs.get("model_name", os.getenv("OLLAMA_MODEL", "gemma4:e4b"))
+        model_name = kwargs.get("model_name", os.getenv("OLLAMA_MODEL", "gemma4:26b"))
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
         chunking_strategy = kwargs.get("chunking_strategy", "word")

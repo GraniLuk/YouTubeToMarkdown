@@ -141,7 +141,7 @@ def process_video(
     """
     # Use environment variables if parameters are not provided
     if ollama_model is None:
-        ollama_model = os.getenv("OLLAMA_MODEL", "gemma3:4b")
+        ollama_model = os.getenv("OLLAMA_MODEL", "gemma4:26b")
     if ollama_base_url is None:
         ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 

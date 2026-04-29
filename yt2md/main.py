@@ -37,7 +37,7 @@ if not perplexity_api_key:
     )
 
 # Load Ollama configuration from environment variables
-ollama_model = os.getenv("OLLAMA_MODEL", "gemma3:4b")
+ollama_model = os.getenv("OLLAMA_MODEL", "gemma4:26b")
 ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 

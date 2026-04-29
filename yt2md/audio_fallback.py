@@ -12,6 +12,22 @@ logger = get_logger("audio_fallback")
 _last_download_time: Optional[float] = None
 
 
+def _is_copyright_blocked_error(error: Exception) -> bool:
+    """Check if an error indicates a permanent copyright or geo-restriction block."""
+    error_msg = str(error).lower()
+    copyright_patterns = [
+        "blocked it in your country",
+        "copyright grounds",
+        "who has blocked",
+        "video unavailable",
+        "content from",
+        "blocked in your country on copyright",
+        "this video is not available",
+        "the uploader has not made this video available",
+    ]
+    return any(pattern in error_msg for pattern in copyright_patterns)
+
+
 class AudioDownloadError(Exception):
     """Raised when yt-dlp fails to download audio."""
 
@@ -26,6 +42,12 @@ class TranscriptionError(Exception):
 
 class AudioTooLargeError(Exception):
     """Raised when audio file exceeds size limit."""
+
+    pass
+
+
+class CopyrightBlockedError(Exception):
+    """Raised when a video is blocked due to copyright or geo-restriction."""
 
     pass
 
@@ -95,6 +117,9 @@ def extract_transcript_via_audio(
             logger.error("Transcription returned empty result")
             return None
 
+    except CopyrightBlockedError as e:
+        logger.error(f"Copyright/geo-block error: {str(e)}")
+        raise  # Re-raise to let caller treat as permanent failure
     except AudioDownloadError as e:
         logger.error(f"Audio download error: {str(e)}")
         raise  # Re-raise to let caller distinguish between error types
@@ -212,6 +237,12 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
     except AudioDownloadError:
         raise
     except Exception as e:
+        # Check if the metadata error indicates a permanent copyright/geo-block
+        if _is_copyright_blocked_error(e):
+            logger.error(
+                f"Video is copyright/geo-blocked: {str(e)}"
+            )
+            raise CopyrightBlockedError(str(e))
         logger.warning(
             f"Could not check video metadata: {str(e)}. Proceeding with download attempt..."
         )
@@ -336,6 +367,12 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
         except yt_dlp.DownloadError as e:  # type: ignore[attr-defined]
             error_str = str(e)
             error_str_lower = error_str.lower()
+
+            # Check if it's a copyright/geo-block error (permanent, no retry)
+            if _is_copyright_blocked_error(e):
+                logger.error(f"Video is copyright/geo-blocked: {error_str}")
+                raise CopyrightBlockedError(error_str)
+
             # Check if it's a 403 error (be robust to casing and phrasing)
             is_403_error = (
                 "http error 403" in error_str_lower

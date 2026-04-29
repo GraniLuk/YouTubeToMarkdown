@@ -15,7 +15,12 @@ from youtube_transcript_api._errors import (  # type: ignore
     VideoUnavailable,
 )
 
-from yt2md.audio_fallback import extract_transcript_via_audio, is_fallback_enabled
+from yt2md.audio_fallback import (
+    CopyrightBlockedError,
+    extract_transcript_via_audio,
+    is_fallback_enabled,
+    _is_copyright_blocked_error,
+)
 from yt2md.logger import get_logger
 from yt2md.video_index import get_processed_video_ids, update_video_index
 
@@ -222,7 +227,13 @@ def _is_retryable_download_error(error: Exception) -> bool:
 
     Retryable errors are temporary issues that should not permanently mark
     the video as failed (e.g., cookie database locks, network issues).
+
+    Copyright/geo-block errors are NOT retryable - they are permanent.
     """
+    # Copyright/geo-block errors are permanent, never retryable
+    if _is_copyright_blocked_error(error):
+        return False
+
     error_msg = str(error).lower()
     retryable_patterns = [
         "could not copy chrome cookie database",
@@ -258,6 +269,17 @@ def _try_audio_fallback(
         else:
             logger.error("Audio fallback returned no transcript")
             return None
+    except CopyrightBlockedError as copyright_error:
+        # Copyright/geo-block is permanent - add to index so we never retry
+        logger.warning(
+            f"Video is copyright/geo-blocked (permanent): {copyright_error}"
+        )
+        if video_id:
+            try:
+                update_video_index(video_id, "COPYRIGHT_BLOCKED", False)
+            except Exception as index_error:
+                logger.error(f"Failed to update video index: {str(index_error)}")
+        return None
     except Exception as fallback_error:
         # Check if it's a live stream error - re-raise so caller can handle appropriately
         if _is_live_or_upcoming_error(fallback_error):

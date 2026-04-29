@@ -108,7 +108,7 @@ def analyze_transcript_with_ollama(
             ollama_config = get_llm_model_config("ollama", category)
             if not model_name:
                 model_name = ollama_config.get(
-                    "model_name", os.getenv("OLLAMA_MODEL", "gemma3:4b")
+                    "model_name", os.getenv("OLLAMA_MODEL", "gemma4:26b")
                 )
             if not host:
                 host = ollama_config.get(
