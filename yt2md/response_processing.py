@@ -11,6 +11,23 @@ import re
 from typing import Tuple
 
 
+def remove_thinking_blocks(text: str) -> str:
+    """
+    Remove thought/reasoning blocks from the model response.
+    Supports <think>...</think> and <|channel>thought...<channel|> formats.
+    """
+    if not text:
+        return text
+        
+    # Remove <think>...</think> (e.g., DeepSeek, some Ollama models)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove <|channel>thought...<channel|> (Gemma 4 format)
+    text = re.sub(r"<\|channel>thought.*?<channel\|>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    
+    return text.strip()
+
+
 def process_model_response(text: str, is_first_chunk: bool) -> Tuple[str, str]:
     """
     Process model response to extract description and clean up text.
@@ -30,6 +47,7 @@ def process_model_response(text: str, is_first_chunk: bool) -> Tuple[str, str]:
         tuple[str, str]: (processed_text, description)
     """
     description = ""
+    text = remove_thinking_blocks(text)
 
     if not is_first_chunk:
         return text, description

@@ -485,6 +485,7 @@ class OllamaStrategy(LLMStrategy):
                 data = {
                     "model": model_name, 
                     "prompt": full_prompt, 
+                    "system": "<|think|>",
                     "stream": False,
                     "options": {
                         "temperature": 1.0,
