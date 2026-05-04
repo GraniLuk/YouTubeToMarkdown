@@ -117,10 +117,6 @@ IT:
     output_language: English  
 
 AI:
-  - id: UCWTpgi3bE5gIVfhEys-T12A
-    name: Mike Tomala
-    language_code: pl
-    output_language: Polish
 
   - id: UCgfISCCaUB4zMyD8uvx56jw
     name: Ben's Cyber Life
@@ -148,11 +144,6 @@ Crypto:
     language_code: pl
     output_language: Polish
 
-  - id: UCXasJkcS9vY8X4HgzReo10A
-    name: Ostapowicz
-    language_code: pl
-    output_language: Polish
-
   - id: UChcfYlb_660R3AemeXQGDkA
     name: IT Tech
     language_code: en
@@ -171,11 +162,6 @@ Fitness:
 
   - id: UCwVDvFKQxaLAGgPGWWp1q7Q
     name: Policzona Szama
-    language_code: pl
-    output_language: Polish
-
-  - id: UCR9FLp39Y5QJvJmCDCgP9RQ
-    name: Lab One Polska
     language_code: pl
     output_language: Polish
 
@@ -215,11 +201,10 @@ Fitness:
     language_code: pl
     output_language: Polish
 
-Trading:
-  - id: UCCbv0qixG-cyokxEY3kELtg
-    name: TradingLab
-    language_code: en
-    output_language: English
+  - id: UCrPHhEOMm92HChWsZm6tb9w
+    name: TazDojo - Borys Mankowski
+    language_code: pl
+    output_language: Polish
 
 News:
   - id: UClhEl4bMD8_escGCCTmRAYg
