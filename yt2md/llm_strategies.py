@@ -231,9 +231,15 @@ class GeminiStrategy(LLMStrategy):
                     if hasattr(response, "id") and response.id:
                         previous_interaction_id = response.id
 
-                    # Extract text from outputs
+                    # Extract text from steps (new schema) or outputs (legacy schema)
                     text = ""
-                    if hasattr(response, "outputs") and response.outputs:
+                    if hasattr(response, "steps") and response.steps:
+                        for step in response.steps:
+                            if hasattr(step, "content") and step.content:
+                                for item in step.content:
+                                    if hasattr(item, "text") and item.text:
+                                        text += item.text
+                    elif hasattr(response, "outputs") and response.outputs:
                         for output in response.outputs:
                             if hasattr(output, "text") and output.text:
                                 text += output.text

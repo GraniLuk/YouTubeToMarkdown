@@ -15,8 +15,20 @@ class DummyOutput:
         self.text = text
 
 
+class DummyStepContent:
+    def __init__(self, text: str):
+        self.text = text
+
+
+class DummyStep:
+    def __init__(self, text: str):
+        self.type = "model_output"
+        self.content = [DummyStepContent(text)]
+
+
 class DummyInteractionResponse:
     def __init__(self, text: str, interaction_id: str):
+        self.steps = [DummyStep(text)]
         self.outputs = [DummyOutput(text)]
         self.id = interaction_id
 
