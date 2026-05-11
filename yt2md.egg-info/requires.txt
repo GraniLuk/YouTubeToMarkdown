@@ -1,4 +1,4 @@
-google-genai>=1.55.0
+google-genai>=2.0.1
 requests
 python-dotenv
 google-auth-oauthlib
