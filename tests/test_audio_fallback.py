@@ -1,5 +1,6 @@
 """Tests for audio fallback transcript extraction."""
 
+import builtins
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -179,14 +180,14 @@ class TestDownloadAudioYtdlp:
     def test_yt_dlp_not_installed(self, monkeypatch):
         """Test error handling when yt-dlp is not installed."""
         # Mock the import to raise ImportError
-        original_import = __builtins__.__import__
+        original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
             if name == "yt_dlp":
                 raise ImportError("No module named 'yt_dlp'")
             return original_import(name, *args, **kwargs)
 
-        monkeypatch.setattr(__builtins__, "__import__", mock_import)
+        monkeypatch.setattr(builtins, "__import__", mock_import)
 
         from yt2md.audio_fallback import _download_audio_ytdlp
 
@@ -200,14 +201,14 @@ class TestTranscribeWhisperLocal:
     def test_whisper_not_installed(self, monkeypatch, tmp_path):
         """Test error handling when Whisper is not installed."""
         # Mock the import to raise ImportError
-        original_import = __builtins__.__import__
+        original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
             if name == "whisper":
                 raise ImportError("No module named 'whisper'")
             return original_import(name, *args, **kwargs)
 
-        monkeypatch.setattr(__builtins__, "__import__", mock_import)
+        monkeypatch.setattr(builtins, "__import__", mock_import)
 
         from yt2md.audio_fallback import _transcribe_whisper_local
 
