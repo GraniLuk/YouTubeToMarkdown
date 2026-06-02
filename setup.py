@@ -5,7 +5,7 @@ setup(
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
-        "google-genai>=1.55.0",
+        "google-genai>=2.6.0",
         "requests",
         "python-dotenv",
         "google-auth-oauthlib",

@@ -4,7 +4,7 @@ llm_strategies:
     # Model definitions - change models here only
     model_configs:
       gemini:
-        primary_model:  "gemini-3-flash-preview"
+        primary_model:  "gemini-3.5-flash"
         fallback_model: "gemini-2.5-flash"
         thinking_level: "none"  # Disabled: thinking_config not supported by API
       ollama:

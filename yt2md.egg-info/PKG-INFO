@@ -4,7 +4,7 @@ Version: 0.1.0
 Summary: Convert YouTube videos to markdown summaries
 Author: GraniLuk
 Description-Content-Type: text/markdown
-Requires-Dist: google-genai>=1.55.0
+Requires-Dist: google-genai>=2.6.0
 Requires-Dist: requests
 Requires-Dist: python-dotenv
 Requires-Dist: google-auth-oauthlib
