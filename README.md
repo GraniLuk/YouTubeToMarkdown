@@ -100,6 +100,38 @@ To use [Ollama](https://ollama.ai/) (local LLM) for processing videos:
    ```text
    OLLAMA_MODEL=gemma3:4b  # or any model you have pulled
    OLLAMA_BASE_URL=http://localhost:11434  # default, change if running on another host/port
+   OLLAMA_NUM_CTX=12288  # optional, per-machine context window
+   ```
+
+   Optional per-machine tuning:
+
+   | Variable | Description | Default |
+   |----------|-------------|---------|
+   | `OLLAMA_NUM_CTX` | Context window sent to Ollama as `num_ctx` | 8192 |
+   | `OLLAMA_CHUNK_TOKENS` | Fixed transcript chunk budget; unset to auto-calculate from `OLLAMA_NUM_CTX` | auto |
+   | `OLLAMA_PREVIOUS_CONTEXT_TOKENS` | Tail of previous formatted output included for continuity | 700 |
+   | `OLLAMA_OVERLAP_TOKENS` | Tail of previous transcript chunk included for continuity | 220 |
+   | `OLLAMA_RESPONSE_RESERVE_TOKENS` | Tokens reserved for model output while auto-sizing chunks | auto |
+   | `OLLAMA_CONTEXT_RESERVE_TOKENS` | Tokens reserved for continuity context while auto-sizing chunks | auto |
+   | `OLLAMA_SAFETY_RESERVE_TOKENS` | Extra context safety margin while auto-sizing chunks | auto |
+   | `OLLAMA_MIN_CHUNK_TOKENS` | Minimum auto-calculated chunk size | auto |
+   | `OLLAMA_MAX_CHUNK_TOKENS` | Maximum auto-calculated chunk size | auto |
+   | `OLLAMA_CHUNKING_STRATEGY` | Chunking strategy: `token` or `word` | token |
+   | `OLLAMA_TEMPERATURE` | Ollama generation temperature | 1.0 |
+   | `OLLAMA_TOP_P` | Ollama nucleus sampling value | 0.95 |
+   | `OLLAMA_TOP_K` | Ollama top-k sampling value | 64 |
+   | `OLLAMA_MAX_RETRIES` | Retry attempts for local Ollama API calls | 3 |
+   | `OLLAMA_RETRY_DELAY_SECONDS` | Base retry delay for local Ollama API calls | 2 |
+   | `OLLAMA_SYSTEM_PROMPT` | Override the local model system prompt | built in |
+
+   Suggested starting point for a 32 GB RAM / 4 GB VRAM machine:
+
+   ```text
+   OLLAMA_MODEL=gemma4:12b
+   OLLAMA_NUM_CTX=12288
+   OLLAMA_PREVIOUS_CONTEXT_TOKENS=700
+   OLLAMA_OVERLAP_TOKENS=220
+   # Leave OLLAMA_CHUNK_TOKENS unset so chunks are auto-sized.
    ```
 
 3. Run the tool with the `--ollama` flag:

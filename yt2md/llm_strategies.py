@@ -13,7 +13,11 @@ from google import genai
 from google.genai import types
 
 from yt2md import response_processing
-from yt2md.chunking import ChunkingStrategyFactory
+from yt2md.chunking import (
+    ChunkingStrategyFactory,
+    clip_text_to_token_budget,
+    estimate_token_count,
+)
 from yt2md.config import get_llm_model_config
 from yt2md.logger import get_logger
 
@@ -57,6 +61,102 @@ FIRST_CHUNK_TEMPLATE = """
 First, provide a one-sentence description of the content (start with "DESCRIPTION:").
 Then, {base_prompt}
 """
+
+OLLAMA_DEFAULT_NUM_CTX = 8192
+OLLAMA_DEFAULT_PREVIOUS_CONTEXT_TOKENS = 700
+OLLAMA_DEFAULT_OVERLAP_TOKENS = 220
+OLLAMA_DEFAULT_TEMPERATURE = 1.0
+OLLAMA_DEFAULT_TOP_P = 0.95
+OLLAMA_DEFAULT_TOP_K = 64
+OLLAMA_SYSTEM_PROMPT = (
+    "You are a precise transcript formatter. Return only the requested Markdown "
+    "output. Do not include analysis, hidden thinking, or notes about your process."
+)
+
+
+def _positive_int_setting(*values, default: int) -> int:
+    for value in values:
+        if value in (None, ""):
+            continue
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            return parsed
+    return default
+
+
+def _positive_float_setting(*values, default: float) -> float:
+    for value in values:
+        if value in (None, ""):
+            continue
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            return parsed
+    return default
+
+
+def _string_setting(*values, default: str) -> str:
+    for value in values:
+        if value not in (None, ""):
+            return str(value)
+    return default
+
+
+def _calculate_ollama_chunk_budget(
+    *,
+    num_ctx: int,
+    base_prompt: str,
+    first_chunk_prompt: str,
+    previous_context_tokens: int,
+    overlap_tokens: int,
+    response_reserve_tokens: int = 0,
+    context_reserve_tokens: int = 0,
+    safety_reserve_tokens: int = 0,
+    min_chunk_tokens: int = 0,
+    max_chunk_tokens: int = 0,
+) -> int:
+    prompt_tokens = max(
+        estimate_token_count(base_prompt), estimate_token_count(first_chunk_prompt)
+    )
+    response_reserve = response_reserve_tokens or min(
+        max(1024, num_ctx // 3), 4096
+    )
+    context_reserve = context_reserve_tokens or min(
+        previous_context_tokens + overlap_tokens + max(250, num_ctx // 50),
+        max(300, num_ctx // 5),
+    )
+    safety_reserve = safety_reserve_tokens or max(128, num_ctx // 20)
+    budget = (
+        num_ctx
+        - prompt_tokens
+        - response_reserve
+        - context_reserve
+        - safety_reserve
+    )
+
+    min_budget = min_chunk_tokens or min(1200, max(500, num_ctx // 4))
+    max_budget = max_chunk_tokens or max(min_budget, num_ctx // 2)
+    max_budget = max(min_budget, max_budget)
+    return max(min_budget, min(budget, max_budget))
+
+
+def _build_ollama_continuation_context(
+    *, rolling_context: str, previous_chunk_tail: str
+) -> str:
+    parts = [
+        "Continuation context for consistency only. Do not repeat this context in the output."
+    ]
+    if rolling_context:
+        parts.append(f"Recent formatted output context:\n{rolling_context}")
+    if previous_chunk_tail:
+        parts.append(f"Immediate previous transcript tail:\n{previous_chunk_tail}")
+    parts.append("New transcript text to process:")
+    return "\n\n".join(parts) + "\n"
 
 
 class LLMStrategy(ABC):
@@ -423,25 +523,124 @@ class OllamaStrategy(LLMStrategy):
             tuple[str, str]: Refined text and description
         """
 
-        # Use environment variables with kwargs as fallback
-        model_name = kwargs.get("model_name", os.getenv("OLLAMA_MODEL", "gemma4:26b"))
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
-        chunking_strategy = kwargs.get("chunking_strategy", "word")
-        
-        # Configure chunk size depending on the model
-        if "gemma4" in model_name.lower():
-            chunk_size = kwargs.get("chunk_size", 12000)  # Capped at 12k to prevent OOM
-        else:
-            chunk_size = kwargs.get("chunk_size", 2500)  # Increased chunk size to better utilize 4096 context
+        ollama_config = get_llm_model_config("ollama", category)
+        model_name = _string_setting(
+            kwargs.get("model_name"),
+            os.getenv("OLLAMA_MODEL"),
+            ollama_config.get("model_name"),
+            default="gemma4:26b",
+        )
+        chunking_strategy = _string_setting(
+            kwargs.get("chunking_strategy"),
+            os.getenv("OLLAMA_CHUNKING_STRATEGY"),
+            ollama_config.get("chunking_strategy"),
+            default="token",
+        )
+        model_key = model_name.lower()
 
-        # For backward compatibility, check both host and base_url parameters
-        base_url = kwargs.get(
-            "base_url", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        num_ctx = _positive_int_setting(
+            kwargs.get("num_ctx"),
+            os.getenv("OLLAMA_NUM_CTX"),
+            ollama_config.get("num_ctx"),
+            default=OLLAMA_DEFAULT_NUM_CTX,
+        )
+        previous_context_tokens = _positive_int_setting(
+            kwargs.get("previous_context_tokens"),
+            os.getenv("OLLAMA_PREVIOUS_CONTEXT_TOKENS"),
+            ollama_config.get("previous_context_tokens"),
+            default=OLLAMA_DEFAULT_PREVIOUS_CONTEXT_TOKENS,
+        )
+        overlap_tokens = _positive_int_setting(
+            kwargs.get("overlap_tokens"),
+            os.getenv("OLLAMA_OVERLAP_TOKENS"),
+            ollama_config.get("overlap_tokens"),
+            default=OLLAMA_DEFAULT_OVERLAP_TOKENS,
+        )
+        fixed_chunk_tokens = _positive_int_setting(
+            kwargs.get("chunk_size"),
+            os.getenv("OLLAMA_CHUNK_TOKENS"),
+            os.getenv("OLLAMA_CHUNK_SIZE"),
+            ollama_config.get("chunk_tokens"),
+            ollama_config.get("chunk_size"),
+            default=0,
+        )
+        response_reserve_tokens = _positive_int_setting(
+            kwargs.get("response_reserve_tokens"),
+            os.getenv("OLLAMA_RESPONSE_RESERVE_TOKENS"),
+            ollama_config.get("response_reserve_tokens"),
+            default=0,
+        )
+        context_reserve_tokens = _positive_int_setting(
+            kwargs.get("context_reserve_tokens"),
+            os.getenv("OLLAMA_CONTEXT_RESERVE_TOKENS"),
+            ollama_config.get("context_reserve_tokens"),
+            default=0,
+        )
+        safety_reserve_tokens = _positive_int_setting(
+            kwargs.get("safety_reserve_tokens"),
+            os.getenv("OLLAMA_SAFETY_RESERVE_TOKENS"),
+            ollama_config.get("safety_reserve_tokens"),
+            default=0,
+        )
+        min_chunk_tokens = _positive_int_setting(
+            kwargs.get("min_chunk_tokens"),
+            os.getenv("OLLAMA_MIN_CHUNK_TOKENS"),
+            ollama_config.get("min_chunk_tokens"),
+            default=0,
+        )
+        max_chunk_tokens = _positive_int_setting(
+            kwargs.get("max_chunk_tokens"),
+            os.getenv("OLLAMA_MAX_CHUNK_TOKENS"),
+            ollama_config.get("max_chunk_tokens"),
+            default=0,
+        )
+        temperature = _positive_float_setting(
+            kwargs.get("temperature"),
+            os.getenv("OLLAMA_TEMPERATURE"),
+            ollama_config.get("temperature"),
+            default=OLLAMA_DEFAULT_TEMPERATURE,
+        )
+        top_p = _positive_float_setting(
+            kwargs.get("top_p"),
+            os.getenv("OLLAMA_TOP_P"),
+            ollama_config.get("top_p"),
+            default=OLLAMA_DEFAULT_TOP_P,
+        )
+        top_k = _positive_int_setting(
+            kwargs.get("top_k"),
+            os.getenv("OLLAMA_TOP_K"),
+            ollama_config.get("top_k"),
+            default=OLLAMA_DEFAULT_TOP_K,
+        )
+        system_prompt = _string_setting(
+            kwargs.get("system_prompt"),
+            os.getenv("OLLAMA_SYSTEM_PROMPT"),
+            ollama_config.get("system_prompt"),
+            default=OLLAMA_SYSTEM_PROMPT,
         )
 
-        max_retries = kwargs.get("max_retries", 3)
-        retry_delay = kwargs.get("retry_delay", 2)
+        base_url = _string_setting(
+            kwargs.get("base_url"),
+            kwargs.get("host"),
+            os.getenv("OLLAMA_BASE_URL"),
+            ollama_config.get("base_url"),
+            default="http://localhost:11434",
+        )
+
+        max_retries = _positive_int_setting(
+            kwargs.get("max_retries"),
+            os.getenv("OLLAMA_MAX_RETRIES"),
+            ollama_config.get("max_retries"),
+            default=3,
+        )
+        retry_delay = _positive_int_setting(
+            kwargs.get("retry_delay"),
+            os.getenv("OLLAMA_RETRY_DELAY_SECONDS"),
+            ollama_config.get("retry_delay_seconds"),
+            default=2,
+        )
 
         # Get category-specific prompts
         category_prompt = CATEGORY_PROMPTS.get(category, "")
@@ -454,15 +653,34 @@ class OllamaStrategy(LLMStrategy):
         # Prepare first chunk prompt with description request
         first_chunk_prompt = FIRST_CHUNK_TEMPLATE.format(base_prompt=base_prompt)
 
+        if fixed_chunk_tokens:
+            chunk_token_budget = fixed_chunk_tokens
+        else:
+            chunk_token_budget = _calculate_ollama_chunk_budget(
+                num_ctx=num_ctx,
+                base_prompt=base_prompt,
+                first_chunk_prompt=first_chunk_prompt,
+                previous_context_tokens=previous_context_tokens,
+                overlap_tokens=overlap_tokens,
+                response_reserve_tokens=response_reserve_tokens,
+                context_reserve_tokens=context_reserve_tokens,
+                safety_reserve_tokens=safety_reserve_tokens,
+                min_chunk_tokens=min_chunk_tokens,
+                max_chunk_tokens=max_chunk_tokens,
+            )
+
         # Get chunking strategy
         chunker = ChunkingStrategyFactory.get_strategy(
-            chunking_strategy, chunk_size=chunk_size
+            chunking_strategy,
+            chunk_size=chunk_token_budget,
+            max_tokens=chunk_token_budget,
         )
         chunks = chunker.chunk_text(transcript)
 
         # Process each chunk
         final_output = []
-        previous_response = ""
+        rolling_context = ""
+        previous_chunk_tail = ""
         description = "No description available"
 
         url = f"{base_url}/api/generate"
@@ -470,12 +688,15 @@ class OllamaStrategy(LLMStrategy):
             print(
                 f"Transcript is too long, splitting into {len(chunks)} chunks for processing."
             )
+        logger.info(
+            f"Ollama context: num_ctx={num_ctx}, chunk_budget~{chunk_token_budget} tokens, chunks={len(chunks)}"
+        )
         for i, chunk in enumerate(chunks):
             # Prepare prompt with context if needed
-            if previous_response:
-                context_prompt = (
-                    "The following text is a continuation... "
-                    f"Previous response:\n{previous_response}\n\nNew text to process(Do Not Repeat the Previous response:):\n"
+            if rolling_context or previous_chunk_tail:
+                context_prompt = _build_ollama_continuation_context(
+                    rolling_context=rolling_context,
+                    previous_chunk_tail=previous_chunk_tail,
                 )
             else:
                 context_prompt = ""
@@ -484,23 +705,35 @@ class OllamaStrategy(LLMStrategy):
             template = first_chunk_prompt if i == 0 else base_prompt
 
             # Create full prompt
-            full_prompt = f"{context_prompt}{template}\n\n{chunk}"
+            full_prompt = f"{template}\n\n{context_prompt}{chunk}"
 
             # Advanced configuration for Gemma 4 models
-            if "gemma4" in model_name.lower():
+            if "gemma4" in model_key:
                 data = {
-                    "model": model_name, 
-                    "prompt": full_prompt, 
-                    "system": "<|think|>",
+                    "model": model_name,
+                    "prompt": full_prompt,
+                    "system": system_prompt,
                     "stream": False,
                     "options": {
-                        "temperature": 1.0,
-                        "top_p": 0.95,
-                        "top_k": 64
-                    }
+                        "num_ctx": num_ctx,
+                        "temperature": temperature,
+                        "top_p": top_p,
+                        "top_k": top_k,
+                    },
                 }
             else:
-                data = {"model": model_name, "prompt": full_prompt, "stream": False}
+                data = {
+                    "model": model_name,
+                    "prompt": full_prompt,
+                    "system": system_prompt,
+                    "stream": False,
+                    "options": {
+                        "num_ctx": num_ctx,
+                        "temperature": temperature,
+                        "top_p": top_p,
+                        "top_k": top_k,
+                    },
+                }
 
             for attempt in range(max_retries):
                 try:
@@ -519,7 +752,16 @@ class OllamaStrategy(LLMStrategy):
                     if i == 0 and chunk_description:
                         description = chunk_description
 
-                    previous_response = processed_text
+                    rolling_context = clip_text_to_token_budget(
+                        processed_text,
+                        previous_context_tokens,
+                        from_end=True,
+                    )
+                    previous_chunk_tail = clip_text_to_token_budget(
+                        chunk,
+                        overlap_tokens,
+                        from_end=True,
+                    )
                     final_output.append(processed_text)
                     break
 
