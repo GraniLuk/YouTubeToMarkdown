@@ -18,6 +18,23 @@ _cache_max_age = 300  # Maximum age of cache in seconds (5 minutes)
 # Cache statistics
 _cache_stats = {"hits": 0, "misses": 0, "last_hit": None, "last_miss": None}
 
+DEFAULT_SHORT_MAX_WORDS = 1600
+DEFAULT_MEDIUM_MAX_WORDS = 2500
+
+
+def _positive_int_setting(*values, default: int) -> int:
+    """Return the first positive integer from the provided values."""
+    for value in values:
+        if value in (None, ""):
+            continue
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            return parsed
+    return default
+
 
 def _get_config_path() -> str:
     """Return the path to the channels configuration file."""
@@ -262,8 +279,26 @@ def get_transcript_length_category(transcript_length: int, category: str) -> str
     strategy_config = get_llm_strategy_config(category)
     thresholds = strategy_config.get("length_thresholds", {})
 
-    short_max = thresholds.get("short_max", 1000)
-    medium_max = thresholds.get("medium_max", 3000)
+    short_max = _positive_int_setting(
+        os.getenv("LLM_SHORT_MAX_WORDS"),
+        os.getenv("TRANSCRIPT_SHORT_MAX_WORDS"),
+        thresholds.get("short_max"),
+        default=DEFAULT_SHORT_MAX_WORDS,
+    )
+    medium_max = _positive_int_setting(
+        os.getenv("LLM_MEDIUM_MAX_WORDS"),
+        os.getenv("TRANSCRIPT_MEDIUM_MAX_WORDS"),
+        thresholds.get("medium_max"),
+        default=DEFAULT_MEDIUM_MAX_WORDS,
+    )
+
+    if short_max > medium_max:
+        logger.warning(
+            f"Invalid transcript length thresholds: short_max={short_max} "
+            f"is greater than medium_max={medium_max}. Using defaults."
+        )
+        short_max = DEFAULT_SHORT_MAX_WORDS
+        medium_max = DEFAULT_MEDIUM_MAX_WORDS
 
     if transcript_length <= short_max:
         return "short"

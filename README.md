@@ -78,6 +78,8 @@ Make sure to set up your environment variables in a .env file:
 - SUMMARIES_PATH
 - GOOGLE_DRIVE_FOLDER_ID (optional)
 - PERPLEXITY_API_KEY (optional, used as fallback for rate limits)
+- LLM_SHORT_MAX_WORDS (optional, threshold for "short" transcripts)
+- LLM_MEDIUM_MAX_WORDS (optional, threshold for "medium" transcripts)
  
 ### Retry Logic (LLM Resilience)
 
@@ -306,6 +308,15 @@ YT2MD offers several configuration options for power users:
 ### LLM Strategy Configuration
 
 The tool intelligently selects different LLM providers based on transcript length and category. This behavior can be customized in the configuration.
+
+Transcript length thresholds are machine-local `.env` settings:
+
+```text
+LLM_SHORT_MAX_WORDS=1600
+LLM_MEDIUM_MAX_WORDS=2500
+```
+
+The values are word counts. Transcripts at or below `LLM_SHORT_MAX_WORDS` are routed as `short`; transcripts at or below `LLM_MEDIUM_MAX_WORDS` are routed as `medium`; anything larger is routed as `long`.
 
 ### Customizing Prompts
 

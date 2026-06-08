@@ -16,31 +16,26 @@ llm_strategies:
     
     # Strategy for selecting models based on transcript length
     strategy_by_length:
-      short:  # Short transcripts (< 1000 characters)
+      short:  # Controlled by LLM_SHORT_MAX_WORDS
         primary: 
           provider: "ollama"
         fallback:
           provider: "gemini"
           model_type: "primary"
-      medium: # Medium transcripts (1000-3000 characters)
+      medium: # Controlled by LLM_MEDIUM_MAX_WORDS
         primary:
           provider: "gemini"
           model_type: "primary"
         fallback:
           provider: "gemini"
           model_type: "fallback"
-      long:   # Long transcripts (> 3000 characters)
+      long:   # Above LLM_MEDIUM_MAX_WORDS
         primary:
           provider: "gemini"
           model_type: "primary"
         fallback:
           provider: "openrouter"
       
-    # Default thresholds for length categorization
-    length_thresholds:
-      short_max: 1600    # Max word counts for short transcripts
-      medium_max: 2500   # Max word counts for medium transcripts
-        
   # Category-specific overrides
   IT:
     strategy_by_length:
