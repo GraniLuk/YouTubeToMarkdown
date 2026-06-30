@@ -171,6 +171,41 @@ def _enforce_download_delay() -> None:
     _last_download_time = time.time()
 
 
+def _get_ytdlp_base_opts() -> dict:
+    """Return common yt-dlp options required for YouTube JS challenge solving."""
+    return {
+        "quiet": True,
+        "no_warnings": True,
+        "remote_components": ["ejs:github"],
+        "js_runtimes": {"node": {}},
+    }
+
+
+def _get_ytdlp_auth_opts() -> dict:
+    """Return yt-dlp authentication options from environment configuration."""
+    cookies_file = os.getenv("COOKIES_FILE", "")
+    if cookies_file and os.path.exists(cookies_file):
+        logger.debug(f"📝 Configured to use cookies from file: {cookies_file}")
+        return {"cookiefile": cookies_file}
+
+    cookies_from_browser = os.getenv("COOKIES_FROM_BROWSER", "").lower()
+    if cookies_from_browser and cookies_from_browser not in (
+        "false",
+        "0",
+        "no",
+        "off",
+    ):
+        browser_name = (
+            cookies_from_browser
+            if cookies_from_browser not in ("true", "1", "yes", "on")
+            else "brave"
+        )
+        logger.debug(f"📝 Configured to use cookies from {browser_name} browser")
+        return {"cookiesfrombrowser": (browser_name,)}
+
+    return {}
+
+
 def _download_audio_ytdlp(video_url: str) -> Optional[str]:
     """
     Download audio from YouTube video using yt-dlp.
@@ -193,9 +228,8 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
     # First, check video metadata without downloading
     logger.debug("Checking video metadata (live status, duration)...")
     try:
-        # Include remote-components to enable e.g. EJS GitHub component support
         with yt_dlp.YoutubeDL(
-            {"quiet": True, "no_warnings": True, "remote_components": ["ejs:github"]}
+            {**_get_ytdlp_base_opts(), **_get_ytdlp_auth_opts()}
         ) as ydl:  # type: ignore[arg-type]
             info = ydl.extract_info(video_url, download=False)
 
@@ -260,47 +294,11 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
                 "preferredquality": "192",
             }
         ],
-        "quiet": True,
-        "no_warnings": True,
         "no_color": True,
-        # Pass remote components option to yt-dlp (equivalent to CLI "--remote-components ejs:github")
-        "remote_components": ["ejs:github"],
         "extract_audio": True,
+        **_get_ytdlp_base_opts(),
+        **_get_ytdlp_auth_opts(),
     }
-
-    # Add cookies from file or browser if enabled
-    cookies_file = os.getenv("COOKIES_FILE", "")
-    if cookies_file and os.path.exists(cookies_file):
-        try:
-            ydl_opts["cookiefile"] = cookies_file
-            logger.debug(f"📝 Configured to use cookies from file: {cookies_file}")
-        except Exception as e:
-            logger.warning(
-                f"Could not configure cookies file '{cookies_file}': {str(e)}"
-            )
-    else:
-        cookies_from_browser = os.getenv("COOKIES_FROM_BROWSER", "").lower()
-        if cookies_from_browser and cookies_from_browser not in (
-            "false",
-            "0",
-            "no",
-            "off",
-        ):
-            # Use brave browser cookies by default, or other browser if specified
-            browser_name = (
-                cookies_from_browser
-                if cookies_from_browser not in ("true", "1", "yes", "on")
-                else "brave"
-            )
-            try:
-                ydl_opts["cookiesfrombrowser"] = (browser_name,)
-                logger.debug(
-                    f"📝 Configured to use cookies from {browser_name} browser"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Could not configure browser cookies from {browser_name}: {str(e)}"
-                )
 
     # Get retry configuration
     try:
