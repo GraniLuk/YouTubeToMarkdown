@@ -273,7 +273,6 @@ class GeminiStrategy(LLMStrategy):
 
         # Process each chunk
         final_output = []
-        previous_interaction_id = None
         description = "No description available"
 
         # Get category-specific prompts
@@ -289,7 +288,7 @@ class GeminiStrategy(LLMStrategy):
 
         for i, chunk in enumerate(chunks):
             # Prepare prompt with context if needed
-            if previous_interaction_id:
+            if final_output:
                 context_prompt = (
                     "The following text is a continuation of the previous transcript chunk. "
                     "Process it maintaining consistency with the previous output. "
@@ -314,35 +313,28 @@ class GeminiStrategy(LLMStrategy):
                     }
                     if thinking_level:
                         gen_config_params["thinking_config"] = types.ThinkingConfig(thinking_level=thinking_level)
-                    
-                    kwargs_interactions = {
-                        "model": model_name,
-                        "input": full_prompt,
-                        "generation_config": types.GenerateContentConfig(**gen_config_params),
-                    }
-                    if previous_interaction_id:
-                        kwargs_interactions["previous_interaction_id"] = (
-                            previous_interaction_id
-                        )
 
-                    response = client.interactions.create(**kwargs_interactions)
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=full_prompt,
+                        config=types.GenerateContentConfig(**gen_config_params),
+                    )
 
-                    # Store interaction ID for next chunk
-                    if hasattr(response, "id") and response.id:
-                        previous_interaction_id = response.id
+                    text = getattr(response, "text", "") or ""
+                    if not text and hasattr(response, "candidates") and response.candidates:
+                        for candidate in response.candidates:
+                            content = getattr(candidate, "content", None)
+                            parts = getattr(content, "parts", None)
+                            if not parts:
+                                continue
+                            for part in parts:
+                                part_text = getattr(part, "text", None)
+                                if part_text:
+                                    text += part_text
 
-                    # Extract text from steps (new schema) or outputs (legacy schema)
-                    text = ""
-                    if hasattr(response, "steps") and response.steps:
-                        for step in response.steps:
-                            if hasattr(step, "content") and step.content:
-                                for item in step.content:
-                                    if hasattr(item, "text") and item.text:
-                                        text += item.text
-                    elif hasattr(response, "outputs") and response.outputs:
-                        for output in response.outputs:
-                            if hasattr(output, "text") and output.text:
-                                text += output.text
+                    if not text:
+                        raise ValueError("Gemini returned an empty response")
+
                     processed_text, chunk_description = self.process_model_response(
                         text, i == 0
                     )

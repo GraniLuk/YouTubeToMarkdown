@@ -5,27 +5,9 @@ import pytest
 from yt2md.llm_strategies import GeminiStrategy
 
 
-class DummyOutput:
-    def __init__(self, text: str):
-        self.text = text
-
-
-class DummyStepContent:
-    def __init__(self, text: str):
-        self.text = text
-
-
-class DummyStep:
-    def __init__(self, text: str):
-        self.type = "model_output"
-        self.content = [DummyStepContent(text)]
-
-
 class DummyResp:
-    def __init__(self, text: str, interaction_id: str = "test_id"):
-        self.steps = [DummyStep(text)]
-        self.outputs = [DummyOutput(text)]
-        self.id = interaction_id
+    def __init__(self, text: str):
+        self.text = text
 
 
 def make_error(msg):
@@ -38,9 +20,9 @@ def test_gemini_retry_success_on_second_attempt(monkeypatch):
     attempts = {"count": 0}
 
     class DummyClient:
-        class interactions:  # type: ignore
+        class models:  # type: ignore
             @staticmethod
-            def create(**kwargs):  # noqa: D401
+            def generate_content(**kwargs):  # noqa: D401
                 attempts["count"] += 1
                 if attempts["count"] < 2:
                     raise make_error("503 UNAVAILABLE The model is overloaded")
@@ -59,9 +41,9 @@ def test_gemini_retry_exhaust(monkeypatch):
     strategy = GeminiStrategy()
 
     class DummyClientFail:
-        class interactions:  # type: ignore
+        class models:  # type: ignore
             @staticmethod
-            def create(**kwargs):  # noqa: D401
+            def generate_content(**kwargs):  # noqa: D401
                 raise make_error("503 service unavailable again")
 
     with mock.patch("google.genai.Client", return_value=DummyClientFail()):
