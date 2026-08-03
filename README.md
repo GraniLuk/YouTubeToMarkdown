@@ -69,6 +69,16 @@ yt2md --category AI --max-videos 30
 yt2md --kindle --category IT --days 1
 ```
 
+### PowerShell Tab Completion
+
+To enable Tab key (`<Tab>`) parameter auto-completion in PowerShell / Windows Terminal, run:
+
+```powershell
+.\setup-completion.ps1
+```
+
+Then reload your profile by running `. $PROFILE` or opening a new terminal window.
+
 You can also filter videos by title for specific channels by adding `title_filters` to the channel configuration in `channels.yaml`. See the Channel Configuration section below for details.
 
 Make sure to set up your environment variables in a .env file:

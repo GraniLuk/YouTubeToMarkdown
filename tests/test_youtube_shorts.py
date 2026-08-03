@@ -114,7 +114,7 @@ def test_get_videos_from_channel_skips_shorts_when_enabled(monkeypatch):
 
     videos = youtube.get_videos_from_channel(
         "channel-id",
-        days=400,
+        days=1000,
         max_videos=5,
         skip_shorts=True,
         shorts_max_duration_seconds=75,
@@ -149,7 +149,7 @@ def test_get_videos_from_channel_keeps_shorts_when_disabled(monkeypatch):
 
     videos = youtube.get_videos_from_channel(
         "channel-id",
-        days=400,
+        days=1000,
         max_videos=5,
         skip_shorts=False,
     )

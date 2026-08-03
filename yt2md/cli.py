@@ -85,6 +85,11 @@ def create_parser():
         type=str,
         help="Override the OpenRouter model to use (e.g., 'meta-llama/llama-4-maverick:free')",
     )
+    parser.add_argument(
+        "--skip-summarize-shorts",
+        action="store_true",
+        help="Skip Ollama/LLM summarization for short videos and create a minimal watch note with link instead",
+    )
     return parser
 
 

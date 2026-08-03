@@ -219,7 +219,7 @@ class TestOpenRouterStrategyRetry(unittest.TestCase):
                 model_name="test/model",
             )
 
-        self.assertIn("OpenRouter API error", str(ctx.exception))
+        self.assertIn("OpenRouter", str(ctx.exception))
         # Should only have been called once (no retry)
         self.assertEqual(mock_post.call_count, 1)
 

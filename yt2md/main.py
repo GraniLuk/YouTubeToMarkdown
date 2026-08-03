@@ -119,6 +119,7 @@ def run_main(args):
             prefer_auto_generated=getattr(args, "auto_generated", False),
             force_openrouter=getattr(args, "openrouter", False),
             openrouter_model=getattr(args, "openrouter_model", None),
+            skip_summarize_shorts=getattr(args, "skip_summarize_shorts", False),
         )
 
         # Kindle single URL explicit send (even if below threshold)

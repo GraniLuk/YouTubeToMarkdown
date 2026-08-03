@@ -4,6 +4,7 @@ import time
 import colorama
 
 from yt2md.AI import analyze_transcript_by_length
+from yt2md.config import get_transcript_length_category
 from yt2md.file_operations import save_to_markdown
 from yt2md.logger import colored_text, get_logger
 from yt2md.youtube import get_youtube_transcript
@@ -24,6 +25,7 @@ def process_videos(
     prefer_auto_generated: bool = False,
     force_openrouter: bool = False,
     openrouter_model: str | None = None,
+    skip_summarize_shorts: bool = False,
 ):
     """
     Process a list of videos, logging progress count in the existing log about processing each video.
@@ -34,6 +36,7 @@ def process_videos(
         prefer_auto_generated: if True, prefer auto-generated transcripts over manual ones
         force_openrouter: if True, force using OpenRouter for transcript processing
         openrouter_model: override the OpenRouter model name
+        skip_summarize_shorts: if True, skip LLM summarization for short videos and create watch note
     """
     total = len(videos_to_process)
     start_time = time.time()
@@ -74,6 +77,7 @@ def process_videos(
             prefer_auto_generated=prefer_auto_generated,
             force_openrouter=force_openrouter,
             openrouter_model=openrouter_model,
+            skip_summarize_shorts=skip_summarize_shorts,
         )
         if res:
             all_results.extend(res)
@@ -114,6 +118,7 @@ def process_video(
     prefer_auto_generated=False,
     force_openrouter=False,
     openrouter_model=None,
+    skip_summarize_shorts=False,
 ):
     """
     Process a single video: get transcript, analyze with appropriate LLM based on transcript length, and save to markdown.
@@ -135,6 +140,7 @@ def process_video(
         prefer_auto_generated: If True, prefer auto-generated transcripts over manual ones
         force_openrouter: If True, force using OpenRouter for transcript processing
         openrouter_model: Override the OpenRouter model name
+        skip_summarize_shorts: If True, skip LLM summarization for short videos and create watch note
 
     Returns:
         list: Paths to the saved file(s) or None if processing failed
@@ -163,6 +169,46 @@ def process_video(
                 f"Transcript length: {transcript_length} words", colorama.Fore.CYAN
             )
         )
+
+        should_skip_shorts_summary = (
+            skip_summarize_shorts
+            or os.getenv("SKIP_SUMMARIZE_SHORTS", "").lower() in ("true", "1", "yes")
+        )
+
+        if should_skip_shorts_summary:
+            length_category = get_transcript_length_category(transcript_length, category)
+            if length_category == "short":
+                logger.info(
+                    colored_text(
+                        f"Short video detected ({transcript_length} words). Skipping LLM summarization as requested.",
+                        colorama.Fore.YELLOW,
+                    )
+                )
+                minimal_content = (
+                    f"# {video_title}\n\n"
+                    f"**Link:** [{video_url}]({video_url})\n\n"
+                    f"## Description\nShort video ({transcript_length} words). Watch directly on YouTube.\n"
+                )
+                description = f"Short video ({transcript_length} words). Watch directly on YouTube."
+                saved_file_path = save_to_markdown(
+                    video_title,
+                    video_url,
+                    minimal_content,
+                    author_name,
+                    published_date,
+                    description,
+                    category,
+                    suffix="Watch",
+                    skip_verification=skip_verification,
+                )
+                if saved_file_path:
+                    logger.debug(f"Saved minimal watch note to: {saved_file_path}")
+                    saved_files.append(saved_file_path)
+
+                result = []
+                for path in saved_files:
+                    result.append({'path': path, 'word_count': transcript_length})
+                return result
 
         # Measure execution time for transcript analysis
         start_time = time.time()
