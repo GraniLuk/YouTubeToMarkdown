@@ -122,7 +122,7 @@ def fetch_or_create_rss_xml(dbx: dropbox.Dropbox, rss_path: str = "/podcast.xml"
         root = ET.fromstring(xml_content)
         return ET.ElementTree(root)
     except Exception as e:
-        logger.info(f"Plik {rss_path} nie istnieje jeszcze na Dropboxie ({type(e).__name__}). Tworzenie nowego feedu RSS...")
+        logger.debug(f"Plik {rss_path} nie istnieje na Dropboxie ({type(e).__name__}). Tworzenie nowego feedu RSS...")
         root = ET.Element("rss", {
             "version": "2.0",
             "xmlns:itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd",
@@ -291,7 +291,7 @@ def process_podcast_download(video_url: str) -> None:
 
         # 4. Get direct raw URL for audio
         audio_raw_url = get_direct_raw_link(dbx, dropbox_audio_path)
-        logger.info(f"🔗 Wygenerowano link do audio: {audio_raw_url}")
+        logger.debug(f"Direct raw audio URL: {audio_raw_url}")
 
         # 5. Fetch or create podcast.xml
         tree = fetch_or_create_rss_xml(dbx, "/podcast.xml")
@@ -326,16 +326,17 @@ def process_podcast_download(video_url: str) -> None:
         # 8. Get direct raw URL for podcast.xml
         rss_raw_url = get_direct_raw_link(dbx, "/podcast.xml")
 
-        # 9. Summary for User
-        GREEN = "\033[92m"
-        BOLD = "\033[1m"
-        RESET = "\033[0m"
+        # 9. Structured Summary
+        import colorama
+        from yt2md.logger import colored_text
 
-        print(f"\n{GREEN}{BOLD}======== PODCAST PROCESSED SUCCESSFULLY! ========{RESET}")
-        print(f"🎵 Tytuł: {video_title}")
-        print(f"📁 Plik: {dropbox_audio_path}")
-        print(f"\n{BOLD}📡 Twój Adres URL Kanału RSS dla AntennaPod:{RESET}")
-        print(f"{GREEN}{rss_raw_url}{RESET}")
-        print("=====================================================\n")
-        print("Wklej powyższy adres URL w aplikacji AntennaPod (Dodaj podcast przez URL).")
-        print("Będziesz musiał to zrobić tylko raz – przy kolejnych filmach wystarczy kliknąć 'Odśwież' w AntennaPod!\n")
+        logger.info("=" * 60)
+        logger.info(colored_text("PODCAST PROCESSED SUCCESSFULLY!", colorama.Fore.GREEN + colorama.Style.BRIGHT))
+        logger.info("=" * 60)
+        logger.info(colored_text(f"Title: {video_title}", colorama.Fore.CYAN))
+        logger.info(colored_text(f"File:  {dropbox_audio_path}", colorama.Fore.CYAN))
+        logger.info("-" * 60)
+        logger.info(colored_text("AntennaPod RSS Feed URL:", colorama.Fore.YELLOW + colorama.Style.BRIGHT))
+        logger.info(colored_text(rss_raw_url, colorama.Fore.GREEN + colorama.Style.BRIGHT))
+        logger.info("=" * 60)
+
