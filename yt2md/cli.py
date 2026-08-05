@@ -90,6 +90,11 @@ def create_parser():
         action="store_true",
         help="Skip Ollama/LLM summarization for short videos and create a minimal watch note with link instead",
     )
+    parser.add_argument(
+        "--podcast",
+        action="store_true",
+        help="Download YouTube video audio, upload to Dropbox, and update podcast RSS feed for AntennaPod",
+    )
     return parser
 
 

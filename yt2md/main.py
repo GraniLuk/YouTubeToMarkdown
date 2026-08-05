@@ -21,8 +21,9 @@ logger = get_logger("main")
 
 # Load environment variables
 env_path = os.path.join(get_script_dir(), ".env")
-if not load_dotenv(env_path):
-    raise Exception(f"Could not load .env file from {env_path}")
+if not os.path.exists(env_path):
+    env_path = os.path.join(os.path.dirname(get_script_dir()), ".env")
+load_dotenv(env_path)
 
 # Verify API keys are loaded
 api_key = os.getenv("GEMINI_API_KEY")
@@ -73,6 +74,16 @@ def run_main(args):
     videos_to_process = []  # List to hold all videos and their processing parameters
 
     try:
+        # Handle podcast export mode
+        if getattr(args, "podcast", False):
+            if not args.url:
+                logger.error("Dla trybu --podcast wymagany jest parametr --url <YouTube_URL>")
+                print("Błąd: Tryb --podcast wymaga podania adresu URL wideo za pomocą --url")
+                sys.exit(1)
+            from yt2md.podcast import process_podcast_download
+            process_podcast_download(args.url)
+            return
+
         # Collect videos based on command line arguments
         if args.url:
             kindle_mode = getattr(args, "kindle", False)
