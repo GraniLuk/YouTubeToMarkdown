@@ -75,15 +75,27 @@ def upload_file_to_dropbox(
     CHUNK_SIZE = 4 * 1024 * 1024  # 4MB chunks for max stability on variable upload speeds
 
     def _log_progress(current_bytes: int, total_bytes: int) -> None:
+        import sys
+        import colorama
+
         pct = (current_bytes / total_bytes) * 100
         mb_curr = current_bytes / (1024 * 1024)
         mb_total = total_bytes / (1024 * 1024)
-        bar_len = 20
+        bar_len = 25
         filled_len = int(bar_len * current_bytes // total_bytes)
         bar = "█" * filled_len + "░" * (bar_len - filled_len)
-        logger.info(
-            f"📤 Postęp wysyłania: [{bar}] {mb_curr:.1f} / {mb_total:.1f} MB ({pct:.0f}%)"
+
+        logger.debug(f"Upload progress: [{bar}] {mb_curr:.1f}/{mb_total:.1f}MB ({pct:.0f}%)")
+
+        colored_bar = f"{colorama.Fore.CYAN}[{bar}]{colorama.Style.RESET_ALL}"
+        colored_pct = f"{colorama.Fore.GREEN}{pct:.0f}%{colorama.Style.RESET_ALL}"
+        sys.stdout.write(
+            f"\r📤 Postęp wysyłania: {colored_bar} {mb_curr:.1f} / {mb_total:.1f} MB ({colored_pct})   "
         )
+        sys.stdout.flush()
+        if current_bytes >= total_bytes:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
 
     with open(local_path, "rb") as f:
         if file_size <= SINGLE_UPLOAD_LIMIT:
