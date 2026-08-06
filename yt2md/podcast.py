@@ -34,7 +34,7 @@ def get_dropbox_client() -> dropbox.Dropbox:
     refresh_token = os.getenv("DROPBOX_REFRESH_TOKEN")
     app_key = os.getenv("DROPBOX_APP_KEY")
     app_secret = os.getenv("DROPBOX_APP_SECRET")
-    timeout = 90  # 90 seconds timeout for HTTP requests
+    timeout = 300  # 5 minutes timeout for HTTP requests
 
     if access_token:
         logger.debug("Using DROPBOX_ACCESS_TOKEN for authentication")
@@ -72,7 +72,7 @@ def upload_file_to_dropbox(
     )
 
     SINGLE_UPLOAD_LIMIT = 8 * 1024 * 1024  # 8MB single request limit
-    CHUNK_SIZE = 16 * 1024 * 1024  # 16MB optimal chunks for speed and stability
+    CHUNK_SIZE = 4 * 1024 * 1024  # 4MB chunks for max stability on variable upload speeds
 
     def _log_progress(current_bytes: int, total_bytes: int) -> None:
         pct = (current_bytes / total_bytes) * 100
