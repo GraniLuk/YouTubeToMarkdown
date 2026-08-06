@@ -489,6 +489,13 @@ def process_podcast_download(video_url: str) -> None:
         # 8. Get direct raw URL for podcast.xml
         rss_raw_url = get_direct_raw_link(dbx, "/podcast.xml")
 
+        # 8b. Update local video index so yt2md collector skips this video ID
+        try:
+            from yt2md.video_index import update_video_index
+            update_video_index(video_id, "PODCAST_PROCESSED")
+        except Exception as index_err:
+            logger.warning(f"Could not update video index: {index_err}")
+
         # 9. Structured Summary
         import colorama
 
@@ -537,11 +544,28 @@ def process_podcast_subscriptions(
 
     logger.info(f"Znaleziono {len(videos_to_process)} filmów z kanałów podcastowych.")
 
-    # Get Dropbox client and check existing RSS feed guids
+    # Get local processed video IDs
+    try:
+        from yt2md.video_index import get_processed_video_ids
+        local_processed_ids = get_processed_video_ids()
+    except Exception:
+        local_processed_ids = set()
+
+    # Get Dropbox client and check existing RSS feed guids & links
     dbx = get_dropbox_client()
     tree = fetch_or_create_rss_xml(dbx, "/podcast.xml")
     root = tree.getroot()
-    existing_guids = set(guid.text for guid in root.findall(".//item/guid") if guid.text)
+
+    existing_guids = set()
+    for item_elem in root.findall(".//item"):
+        guid_elem = item_elem.find("guid")
+        if guid_elem is not None and guid_elem.text:
+            existing_guids.add(guid_elem.text.strip())
+        link_elem = item_elem.find("link")
+        if link_elem is not None and link_elem.text:
+            link_url = link_elem.text.strip()
+            if "v=" in link_url:
+                existing_guids.add(link_url.split("v=")[1].split("&")[0])
 
     processed_count = 0
     for video_tuple in videos_to_process:
@@ -555,8 +579,8 @@ def process_podcast_subscriptions(
         elif "youtu.be/" in video_url:
             video_id = video_url.split("youtu.be/")[1].split("?")[0]
 
-        if video_id and video_id in existing_guids:
-            logger.info(f"⏭️ Odcinek '{video_title}' (ID: {video_id}) znajduje się już w RSS. Pomijanie.")
+        if video_id and (video_id in local_processed_ids or video_id in existing_guids):
+            logger.info(f"⏭️ Odcinek '{video_title}' (ID: {video_id}) był już przetworzony. Pomijanie.")
             continue
 
         logger.info(f"🎙️ Nowy odcinek podcastu: '{video_title}' ({video_url})")
@@ -564,4 +588,5 @@ def process_podcast_subscriptions(
         processed_count += 1
 
     if processed_count == 0:
-        logger.info("Wszystkie nowe odcinki z subskrypcji podcastowych znajdują się już w RSS.")
+        logger.info("Wszystkie nowe odcinki z subskrypcji podcastowych zostały już dodane wcześniej.")
+
