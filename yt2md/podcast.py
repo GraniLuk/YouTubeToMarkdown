@@ -34,16 +34,18 @@ def get_dropbox_client() -> dropbox.Dropbox:
     refresh_token = os.getenv("DROPBOX_REFRESH_TOKEN")
     app_key = os.getenv("DROPBOX_APP_KEY")
     app_secret = os.getenv("DROPBOX_APP_SECRET")
+    timeout = 900  # 15 minutes timeout for large audio files
 
     if access_token:
         logger.debug("Using DROPBOX_ACCESS_TOKEN for authentication")
-        return dropbox.Dropbox(access_token)
+        return dropbox.Dropbox(access_token, timeout=timeout)
     elif refresh_token and app_key and app_secret:
         logger.debug("Using DROPBOX_REFRESH_TOKEN with App Key/Secret for authentication")
         return dropbox.Dropbox(
             oauth2_refresh_token=refresh_token,
             app_key=app_key,
             app_secret=app_secret,
+            timeout=timeout,
         )
     else:
         raise ValueError(
@@ -58,30 +60,70 @@ def sanitize_filename(filename: str) -> str:
 
 
 def upload_file_to_dropbox(dbx: dropbox.Dropbox, local_path: str, dropbox_path: str) -> None:
-    """Upload a local file to Dropbox using simple upload for files <= 150MB, or chunked upload for larger files."""
+    """Upload a local file to Dropbox using retries and chunked session for large files."""
     file_size = os.path.getsize(local_path)
-    logger.info(f"📤 Wysyłanie pliku na Dropbox: {dropbox_path} ({file_size / (1024*1024):.2f} MB)...")
+    file_size_mb = file_size / (1024 * 1024)
+    logger.info(f"📤 Wysyłanie pliku na Dropbox: {dropbox_path} ({file_size_mb:.2f} MB)...")
 
-    # Dropbox API v2 supports single call files_upload up to 150 MB
-    SINGLE_UPLOAD_LIMIT = 150 * 1024 * 1024  # 150MB
-    CHUNK_SIZE = 32 * 1024 * 1024           # 32MB chunks for files > 150MB
+    SINGLE_UPLOAD_LIMIT = 150 * 1024 * 1024  # 150MB single request limit
+    CHUNK_SIZE = 64 * 1024 * 1024           # 64MB max speed chunks
 
     with open(local_path, "rb") as f:
         if file_size <= SINGLE_UPLOAD_LIMIT:
-            dbx.files_upload(f.read(), dropbox_path, mode=WriteMode.overwrite)
+            # Simple upload with retries
+            for attempt in range(1, 4):
+                try:
+                    f.seek(0)
+                    dbx.files_upload(f.read(), dropbox_path, mode=WriteMode.overwrite)
+                    return
+                except Exception as e:
+                    if attempt == 3:
+                        raise e
+                    logger.warning(f"⚠️ Błąd wysyłania (próba {attempt}/3): {e}. Ponawianie za 5s...")
+                    time.sleep(5)
         else:
-            upload_session_start_result = dbx.files_upload_session_start(f.read(CHUNK_SIZE))
+            # Chunked upload session for large files with retries per chunk
+            logger.info(f"Plik powyżej 150MB ({file_size_mb:.1f}MB) - wysyłanie w dużych paczkach po 64MB z automatycznym ponawianiem...")
+
+            session_start_data = f.read(CHUNK_SIZE)
+            upload_session_start_result = None
+
+            for attempt in range(1, 4):
+                try:
+                    upload_session_start_result = dbx.files_upload_session_start(session_start_data)
+                    break
+                except Exception as e:
+                    if attempt == 3:
+                        raise e
+                    logger.warning(f"⚠️ Błąd startu sesji uploadu (próba {attempt}/3): {e}. Ponawianie za 5s...")
+                    time.sleep(5)
+
+            if upload_session_start_result is None:
+                raise RuntimeError("Nie udało się rozpocząć sesji wysyłania do Dropboxa.")
+
             cursor = dropbox.files.UploadSessionCursor(
                 session_id=upload_session_start_result.session_id, offset=f.tell()
             )
             commit = dropbox.files.CommitInfo(path=dropbox_path, mode=WriteMode.overwrite)
 
             while f.tell() < file_size:
-                if (file_size - f.tell()) <= CHUNK_SIZE:
-                    dbx.files_upload_session_finish(f.read(CHUNK_SIZE), cursor, commit)
-                else:
-                    dbx.files_upload_session_append_v2(f.read(CHUNK_SIZE), cursor)
-                    cursor.offset = f.tell()
+                chunk = f.read(CHUNK_SIZE)
+                is_last_chunk = f.tell() >= file_size
+
+                for attempt in range(1, 4):
+                    try:
+                        if is_last_chunk:
+                            dbx.files_upload_session_finish(chunk, cursor, commit)
+                        else:
+                            dbx.files_upload_session_append_v2(chunk, cursor)
+                            cursor.offset = f.tell()
+                        break
+                    except Exception as e:
+                        if attempt == 3:
+                            raise e
+                        logger.warning(f"⚠️ Błąd wysyłania fragmentu pliku (próba {attempt}/3): {e}. Ponawianie za 5s...")
+                        time.sleep(5)
+
 
 
 def get_direct_raw_link(dbx: dropbox.Dropbox, dropbox_path: str) -> str:
