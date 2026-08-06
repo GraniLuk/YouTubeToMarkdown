@@ -507,10 +507,61 @@ def process_podcast_download(video_url: str) -> None:
         logger.info("-" * 60)
         logger.info(
             colored_text(
-                "AntennaPod RSS Feed URL:", colorama.Fore.YELLOW + colorama.Style.BRIGHT
+                "AntennaPod RSS Feed URL:",
+                colorama.Fore.YELLOW + colorama.Style.BRIGHT,
             )
         )
         logger.info(
             colored_text(rss_raw_url, colorama.Fore.GREEN + colorama.Style.BRIGHT)
         )
         logger.info("=" * 60)
+
+
+def process_podcast_subscriptions(
+    days: int = 3, channel_name: Optional[str] = None, max_videos: int = 10
+) -> None:
+    """Collect new videos from subscribed Podcast channels and export to Dropbox RSS."""
+    logger.info("📡 Sprawdzanie subskrypcji podcastów (kategoria: Podcast w channels.yaml)...")
+    from yt2md.video_collector import collect_videos_from_category
+
+    videos_to_process = collect_videos_from_category(
+        category="Podcast",
+        days=days,
+        channel_name=channel_name,
+        max_videos=max_videos,
+    )
+
+    if not videos_to_process:
+        logger.info("Brak nowych filmów w subskrypcjach kategorii Podcast.")
+        return
+
+    logger.info(f"Znaleziono {len(videos_to_process)} filmów z kanałów podcastowych.")
+
+    # Get Dropbox client and check existing RSS feed guids
+    dbx = get_dropbox_client()
+    tree = fetch_or_create_rss_xml(dbx, "/podcast.xml")
+    root = tree.getroot()
+    existing_guids = set(guid.text for guid in root.findall(".//item/guid") if guid.text)
+
+    processed_count = 0
+    for video_tuple in videos_to_process:
+        video_url = video_tuple[0]
+        video_title = video_tuple[1]
+
+        # Extract YouTube video ID
+        video_id = None
+        if "v=" in video_url:
+            video_id = video_url.split("v=")[1].split("&")[0]
+        elif "youtu.be/" in video_url:
+            video_id = video_url.split("youtu.be/")[1].split("?")[0]
+
+        if video_id and video_id in existing_guids:
+            logger.info(f"⏭️ Odcinek '{video_title}' (ID: {video_id}) znajduje się już w RSS. Pomijanie.")
+            continue
+
+        logger.info(f"🎙️ Nowy odcinek podcastu: '{video_title}' ({video_url})")
+        process_podcast_download(video_url)
+        processed_count += 1
+
+    if processed_count == 0:
+        logger.info("Wszystkie nowe odcinki z subskrypcji podcastowych znajdują się już w RSS.")

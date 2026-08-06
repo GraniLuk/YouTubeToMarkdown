@@ -207,8 +207,22 @@ News:
     language_code: pl
     output_language: Polish
     title_filters:
-      - "Ojciec"
-      - "NIEPOPRAWNIK"
+        - "Ojciec"
+        - "NIEPOPRAWNIK"
+    skip_shorts: true
+
+Podcast:
+  - id: UCoXxgqIOTa8qCM7Hd7RiURw
+    name: Imponderabilia
+    language_code: pl
+    output_language: Polish
+
+  - id: UCIfI7Yo22SMKp5PraztHM6w
+    name: Kanal Sportowy
+    language_code: pl
+    output_language: Polish
+    title_filters:
+      - "Oktagon Live"
     skip_shorts: true
 
 # Category Color Configuration
@@ -233,6 +247,9 @@ category_colors:
     style: "DIM"
   News: 
     color: "RED"
+    style: "BRIGHT"
+  Podcast: 
+    color: "YELLOW"
     style: "BRIGHT"
   Uncategorized: 
     color: "BLUE"

@@ -74,15 +74,32 @@ def run_main(args):
     videos_to_process = []  # List to hold all videos and their processing parameters
 
     try:
-        # Handle podcast export mode
+        # Handle explicit podcast export mode
         if getattr(args, "podcast", False):
-            if not args.url:
-                logger.error("Dla trybu --podcast wymagany jest parametr --url <YouTube_URL>")
-                print("Błąd: Tryb --podcast wymaga podania adresu URL wideo za pomocą --url")
-                sys.exit(1)
-            from yt2md.podcast import process_podcast_download
-            process_podcast_download(args.url)
+            from yt2md.podcast import process_podcast_download, process_podcast_subscriptions
+            if args.url:
+                process_podcast_download(args.url)
+            else:
+                process_podcast_subscriptions(
+                    days=args.days,
+                    channel_name=args.channel,
+                    max_videos=args.max_videos,
+                )
             return
+
+        # Automatically check and process podcast subscriptions in standard run
+        if not args.url and (not args.category or args.category == "Podcast"):
+            try:
+                from yt2md.config import load_channels_by_category
+                if load_channels_by_category("Podcast"):
+                    from yt2md.podcast import process_podcast_subscriptions
+                    process_podcast_subscriptions(
+                        days=args.days,
+                        channel_name=args.channel,
+                        max_videos=args.max_videos,
+                    )
+            except Exception as e:
+                logger.warning(f"Podcast subscription processing warning: {e}")
 
         # Collect videos based on command line arguments
         if args.url:
