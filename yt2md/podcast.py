@@ -74,6 +74,8 @@ def upload_file_to_dropbox(
     SINGLE_UPLOAD_LIMIT = 8 * 1024 * 1024  # 8MB single request limit
     CHUNK_SIZE = 4 * 1024 * 1024  # 4MB chunks for max stability on variable upload speeds
 
+    upload_start_time = time.time()
+
     def _log_progress(current_bytes: int, total_bytes: int) -> None:
         import sys
         import colorama
@@ -81,16 +83,30 @@ def upload_file_to_dropbox(
         pct = (current_bytes / total_bytes) * 100
         mb_curr = current_bytes / (1024 * 1024)
         mb_total = total_bytes / (1024 * 1024)
-        bar_len = 25
+        bar_len = 20
         filled_len = int(bar_len * current_bytes // total_bytes)
         bar = "█" * filled_len + "░" * (bar_len - filled_len)
+
+        elapsed = time.time() - upload_start_time
+        if elapsed > 0 and current_bytes > 0:
+            speed_mbps = (current_bytes / (1024 * 1024)) / elapsed
+            remaining_bytes = total_bytes - current_bytes
+            eta_secs = remaining_bytes / (current_bytes / elapsed) if current_bytes > 0 else 0
+            if eta_secs >= 60:
+                eta_str = f"{int(eta_secs // 60)}m {int(eta_secs % 60):02d}s"
+            else:
+                eta_str = f"{int(eta_secs)}s"
+            meta_str = f" • {speed_mbps:.1f} MB/s • ETA: {eta_str}"
+        else:
+            meta_str = " • ETA: --"
 
         logger.debug(f"Upload progress: [{bar}] {mb_curr:.1f}/{mb_total:.1f}MB ({pct:.0f}%)")
 
         colored_bar = f"{colorama.Fore.CYAN}[{bar}]{colorama.Style.RESET_ALL}"
         colored_pct = f"{colorama.Fore.GREEN}{pct:.0f}%{colorama.Style.RESET_ALL}"
+        colored_meta = f"{colorama.Fore.YELLOW}{meta_str}{colorama.Style.RESET_ALL}"
         sys.stdout.write(
-            f"\r📤 Postęp wysyłania: {colored_bar} {mb_curr:.1f} / {mb_total:.1f} MB ({colored_pct})   "
+            f"\r📤 Postęp wysyłania: {colored_bar} {mb_curr:.1f} / {mb_total:.1f} MB ({colored_pct}){colored_meta}   "
         )
         sys.stdout.flush()
         if current_bytes >= total_bytes:
