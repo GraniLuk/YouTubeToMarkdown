@@ -6,7 +6,7 @@ import winsound
 
 from dotenv import load_dotenv
 
-from yt2md.cli import parse_args  # Import parse_args directly
+from yt2md.cli import parse_args, parse_categories  # Import parse_args directly
 from yt2md.file_operations import get_script_dir
 from yt2md.logger import get_logger, setup_logging
 from yt2md.reporting import display_video_processing_summary
@@ -72,23 +72,27 @@ def run_main(args):
     setup_logging(level=log_level)
 
     videos_to_process = []  # List to hold all videos and their processing parameters
+    categories = parse_categories(args.category)
 
     try:
         # Handle explicit podcast export mode
-        if getattr(args, "podcast", False):
+        podcast_mode = getattr(args, "podcast", False)
+        if podcast_mode:
             from yt2md.podcast import process_podcast_download, process_podcast_subscriptions
             if args.url:
                 process_podcast_download(args.url)
+                return
             else:
                 process_podcast_subscriptions(
                     days=args.days,
                     channel_name=args.channel,
                     max_videos=args.max_videos,
                 )
-            return
+                if not categories:
+                    return
 
         # Automatically check and process podcast subscriptions in standard run
-        if not args.url and (not args.category or args.category == "Podcast"):
+        elif not args.url and (not categories or "Podcast" in categories):
             try:
                 from yt2md.config import load_channels_by_category
                 if load_channels_by_category("Podcast"):
@@ -115,11 +119,11 @@ def run_main(args):
                 args.url,
                 language_code=args.language,
                 skip_verification=args.skip_verification,
-                category=args.category,
+                category=categories[0] if categories else None,
             )
-        elif args.category:
+        elif categories:
             videos_to_process = collect_videos_from_category(
-                args.category,
+                categories,
                 args.days,
                 channel_name=args.channel,
                 max_videos=args.max_videos,

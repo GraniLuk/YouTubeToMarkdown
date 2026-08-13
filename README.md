@@ -47,6 +47,9 @@ After installation, you can use the `yt2md` command from anywhere:
 # Process videos from channels in a category
 yt2md --category IT --days 7
 
+# Process videos from multiple categories (comma or space separated)
+yt2md --category Fitness, News --days 1 --skip-summarize-shorts
+
 # Process a single video
 yt2md --url "https://www.youtube.com/watch?v=..."
 

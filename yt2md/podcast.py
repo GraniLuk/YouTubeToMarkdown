@@ -23,12 +23,19 @@ from yt2md.logger import get_logger
 
 logger = get_logger("podcast")
 
+ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+CONTENT_NS = "http://purl.org/rss/1.0/modules/content/"
+
+ET.register_namespace("itunes", ITUNES_NS)
+ET.register_namespace("content", CONTENT_NS)
+
+
 
 def get_dropbox_client() -> dropbox.Dropbox:
     """Initialize and return a Dropbox client using environment variables.
 
-    Supports either DROPBOX_ACCESS_TOKEN directly, or
-    DROPBOX_REFRESH_TOKEN + DROPBOX_APP_KEY + DROPBOX_APP_SECRET.
+    Supports either DROPBOX_REFRESH_TOKEN + DROPBOX_APP_KEY + DROPBOX_APP_SECRET (recommended),
+    or DROPBOX_ACCESS_TOKEN directly.
     """
     access_token = os.getenv("DROPBOX_ACCESS_TOKEN")
     refresh_token = os.getenv("DROPBOX_REFRESH_TOKEN")
@@ -36,10 +43,7 @@ def get_dropbox_client() -> dropbox.Dropbox:
     app_secret = os.getenv("DROPBOX_APP_SECRET")
     timeout = 300  # 5 minutes timeout for HTTP requests
 
-    if access_token:
-        logger.debug("Using DROPBOX_ACCESS_TOKEN for authentication")
-        return dropbox.Dropbox(access_token, timeout=timeout)
-    elif refresh_token and app_key and app_secret:
+    if refresh_token and app_key and app_secret:
         logger.debug(
             "Using DROPBOX_REFRESH_TOKEN with App Key/Secret for authentication"
         )
@@ -49,6 +53,9 @@ def get_dropbox_client() -> dropbox.Dropbox:
             app_secret=app_secret,
             timeout=timeout,
         )
+    elif access_token:
+        logger.debug("Using DROPBOX_ACCESS_TOKEN for authentication")
+        return dropbox.Dropbox(access_token, timeout=timeout)
     else:
         raise ValueError(
             "Brak konfiguracji Dropbox API w pliku .env!\n"
@@ -122,14 +129,9 @@ def upload_file_to_dropbox(
                     dbx.files_upload(f.read(), dropbox_path, mode=WriteMode.overwrite)
                     _log_progress(file_size, file_size)
                     return
-                except ApiError as e:
-                    if "expired_access_token" in str(e):
-                        raise RuntimeError(
-                            "🔑 Twój token dostępowy Dropbox (DROPBOX_ACCESS_TOKEN) wygasł! Wygeneruj nowy w panelu App Console lub ustaw DROPBOX_REFRESH_TOKEN."
-                        ) from e
-                    if attempt == 3:
-                        raise e
                 except Exception as e:
+                    if _is_auth_error(e):
+                        _raise_auth_error(e)
                     if attempt == 3:
                         raise e
                     logger.warning(
@@ -147,14 +149,9 @@ def upload_file_to_dropbox(
                         session_start_data
                     )
                     break
-                except ApiError as e:
-                    if "expired_access_token" in str(e):
-                        raise RuntimeError(
-                            "🔑 Twój token dostępowy Dropbox (DROPBOX_ACCESS_TOKEN) wygasł! Wygeneruj nowy w panelu App Console lub ustaw DROPBOX_REFRESH_TOKEN."
-                        ) from e
-                    if attempt == 3:
-                        raise e
                 except Exception as e:
+                    if _is_auth_error(e):
+                        _raise_auth_error(e)
                     if attempt == 3:
                         raise e
                     logger.warning(
@@ -189,14 +186,9 @@ def upload_file_to_dropbox(
                             cursor.offset = f.tell()
                         _log_progress(f.tell(), file_size)
                         break
-                    except ApiError as e:
-                        if "expired_access_token" in str(e):
-                            raise RuntimeError(
-                                "🔑 Twój token dostępowy Dropbox (DROPBOX_ACCESS_TOKEN) wygasł! Wygeneruj nowy w panelu App Console lub ustaw DROPBOX_REFRESH_TOKEN."
-                            ) from e
-                        if attempt == 3:
-                            raise e
                     except Exception as e:
+                        if _is_auth_error(e):
+                            _raise_auth_error(e)
                         if attempt == 3:
                             raise e
                         logger.warning(
@@ -212,7 +204,9 @@ def get_direct_raw_link(dbx: dropbox.Dropbox, dropbox_path: str) -> str:
             dropbox_path
         )
         url = shared_link_metadata.url
-    except Exception:
+    except Exception as e:
+        if _is_auth_error(e):
+            _raise_auth_error(e)
         # Link already exists or creation failed, try listing existing shared links
         try:
             links = dbx.sharing_list_shared_links(path=dropbox_path).links
@@ -223,6 +217,8 @@ def get_direct_raw_link(dbx: dropbox.Dropbox, dropbox_path: str) -> str:
                     f"Nie udało się utworzyć ani pobrać udostępnionego linku dla {dropbox_path}"
                 )
         except Exception as err:
+            if _is_auth_error(err):
+                _raise_auth_error(err)
             raise err
 
     # Convert link to direct raw link
@@ -238,38 +234,83 @@ def get_direct_raw_link(dbx: dropbox.Dropbox, dropbox_path: str) -> str:
     return raw_url
 
 
+def _is_auth_error(e: Exception) -> bool:
+    """Check if an exception indicates a Dropbox authentication/token error."""
+    err_str = str(e).lower()
+    type_name = type(e).__name__.lower()
+    if (
+        "expired_access_token" in err_str
+        or "invalid_access_token" in err_str
+        or "autherror" in type_name
+        or "autherror" in err_str
+        or "validationerror" in type_name
+        or "catch-all tag" in err_str
+    ):
+        return True
+    return False
+
+
+def _raise_auth_error(e: Exception) -> None:
+    raise RuntimeError(
+        "🔑 Twój token dostępowy Dropbox (DROPBOX_ACCESS_TOKEN) wygasł lub jest nieprawidłowy!\n"
+        "Wygeneruj nowy token w panelu Dropbox App Console lub w pliku .env skonfiguruj bezterminowy zestaw (DROPBOX_REFRESH_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET)."
+    ) from e
+
+
+def _is_file_not_found_error(e: Exception) -> bool:
+    """Check if exception from Dropbox API is a file not found error."""
+    if isinstance(e, ApiError):
+        if hasattr(e, "error") and e.error.is_path():
+            path_err = e.error.get_path()
+            if path_err.is_not_found():
+                return True
+    err_str = str(e).lower()
+    if "not_found" in err_str or "not found" in err_str or "path_not_found" in err_str:
+        return True
+    return False
+
+
 def fetch_or_create_rss_xml(
     dbx: dropbox.Dropbox, rss_path: str = "/podcast.xml"
 ) -> ET.ElementTree:
     """Download existing podcast.xml from Dropbox or create a new RSS 2.0 structure."""
-    try:
-        _, res = dbx.files_download(rss_path)
-        xml_content = res.content
-        logger.debug("Pobrano istniejący plik podcast.xml z Dropboxa")
-        root = ET.fromstring(xml_content)
-        return ET.ElementTree(root)
-    except Exception as e:
-        logger.debug(
-            f"Plik {rss_path} nie istnieje na Dropboxie ({type(e).__name__}). Tworzenie nowego feedu RSS..."
-        )
-        root = ET.Element(
-            "rss",
-            {
-                "version": "2.0",
-                "xmlns:itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd",
-                "xmlns:content": "http://purl.org/rss/1.0/modules/content/",
-            },
-        )
-        channel = ET.SubElement(root, "channel")
-        title = ET.SubElement(channel, "title")
-        title.text = "YT2MD Podcast Feed"
-        link = ET.SubElement(channel, "link")
-        link.text = "https://github.com/GraniLuk/YouTubeToMarkdown"
-        desc = ET.SubElement(channel, "description")
-        desc.text = "Pobrane utworów audio z YouTube dla AntennaPod"
-        lang = ET.SubElement(channel, "language")
-        lang.text = "pl-pl"
-        return ET.ElementTree(root)
+    for attempt in range(1, 4):
+        try:
+            _, res = dbx.files_download(rss_path)
+            xml_content = res.content
+            logger.debug("Pobrano istniejący plik podcast.xml z Dropboxa")
+            root = ET.fromstring(xml_content)
+            return ET.ElementTree(root)
+        except Exception as e:
+            if _is_auth_error(e):
+                _raise_auth_error(e)
+
+            if _is_file_not_found_error(e):
+                logger.info(
+                    f"ℹ️ Plik {rss_path} nie istnieje na Dropboxie. Tworzenie nowego feedu RSS..."
+                )
+                root = ET.Element("rss", {"version": "2.0"})
+                channel = ET.SubElement(root, "channel")
+                title = ET.SubElement(channel, "title")
+                title.text = "YT2MD Podcast Feed"
+                link = ET.SubElement(channel, "link")
+                link.text = "https://github.com/GraniLuk/YouTubeToMarkdown"
+                desc = ET.SubElement(channel, "description")
+                desc.text = "Pobrane utworów audio z YouTube dla AntennaPod"
+                lang = ET.SubElement(channel, "language")
+                lang.text = "pl-pl"
+                return ET.ElementTree(root)
+
+            if attempt < 3:
+                logger.warning(
+                    f"⚠️ Błąd pobierania {rss_path} z Dropboxa (próba {attempt}/3): {e}. Ponawianie za 3s..."
+                )
+                time.sleep(3)
+            else:
+                logger.error(
+                    f"❌ Błąd pobierania {rss_path} z Dropboxa po 3 próbach: {e}"
+                )
+                raise e
 
 
 def update_rss_feed(
@@ -332,7 +373,7 @@ def update_rss_feed(
     )
 
     if duration_seconds > 0:
-        itunes_duration = ET.SubElement(item, "itunes:duration")
+        itunes_duration = ET.SubElement(item, f"{{{ITUNES_NS}}}duration")
         m, s = divmod(duration_seconds, 60)
         h, m = divmod(m, 60)
         itunes_duration.text = (
@@ -393,12 +434,17 @@ def clean_old_episodes(
         channel.remove(item)
 
 
-def process_podcast_download(video_url: str) -> None:
+def process_podcast_download(
+    video_url: str,
+    dbx: Optional[dropbox.Dropbox] = None,
+    tree: Optional[ET.ElementTree] = None,
+) -> ET.ElementTree:
     """Download YouTube audio, upload to Dropbox, update RSS feed and display link."""
     logger.info(f"🎧 Przetwarzanie trybu Podcast dla: {video_url}")
 
-    # 1. Initialize Dropbox client
-    dbx = get_dropbox_client()
+    # 1. Initialize Dropbox client if not provided
+    if dbx is None:
+        dbx = get_dropbox_client()
 
     # 2. Extract metadata and download audio using yt-dlp (prefer native m4a without re-encoding)
     base_opts = _get_ytdlp_base_opts()
@@ -455,8 +501,9 @@ def process_podcast_download(video_url: str) -> None:
         audio_raw_url = get_direct_raw_link(dbx, dropbox_audio_path)
         logger.debug(f"Direct raw audio URL: {audio_raw_url}")
 
-        # 5. Fetch or create podcast.xml
-        tree = fetch_or_create_rss_xml(dbx, "/podcast.xml")
+        # 5. Fetch or create podcast.xml if not provided
+        if tree is None:
+            tree = fetch_or_create_rss_xml(dbx, "/podcast.xml")
 
         # 6. Update RSS feed
         update_rss_feed(
@@ -523,6 +570,8 @@ def process_podcast_download(video_url: str) -> None:
         )
         logger.info("=" * 60)
 
+        return tree
+
 
 def process_podcast_subscriptions(
     days: int = 3, channel_name: Optional[str] = None, max_videos: int = 10
@@ -544,28 +593,9 @@ def process_podcast_subscriptions(
 
     logger.info(f"Znaleziono {len(videos_to_process)} filmów z kanałów podcastowych.")
 
-    # Get local processed video IDs
-    try:
-        from yt2md.video_index import get_processed_video_ids
-        local_processed_ids = get_processed_video_ids()
-    except Exception:
-        local_processed_ids = set()
-
-    # Get Dropbox client and check existing RSS feed guids & links
+    # Get Dropbox client and fetch existing RSS feed
     dbx = get_dropbox_client()
     tree = fetch_or_create_rss_xml(dbx, "/podcast.xml")
-    root = tree.getroot()
-
-    existing_guids = set()
-    for item_elem in root.findall(".//item"):
-        guid_elem = item_elem.find("guid")
-        if guid_elem is not None and guid_elem.text:
-            existing_guids.add(guid_elem.text.strip())
-        link_elem = item_elem.find("link")
-        if link_elem is not None and link_elem.text:
-            link_url = link_elem.text.strip()
-            if "v=" in link_url:
-                existing_guids.add(link_url.split("v=")[1].split("&")[0])
 
     processed_count = 0
     for video_tuple in videos_to_process:
@@ -579,12 +609,25 @@ def process_podcast_subscriptions(
         elif "youtu.be/" in video_url:
             video_id = video_url.split("youtu.be/")[1].split("?")[0]
 
-        if video_id and (video_id in local_processed_ids or video_id in existing_guids):
-            logger.info(f"⏭️ Odcinek '{video_title}' (ID: {video_id}) był już przetworzony. Pomijanie.")
+        # Re-check existing guids from current in-memory tree
+        existing_guids = set()
+        root = tree.getroot()
+        for item_elem in root.findall(".//item"):
+            guid_elem = item_elem.find("guid")
+            if guid_elem is not None and guid_elem.text:
+                existing_guids.add(guid_elem.text.strip())
+            link_elem = item_elem.find("link")
+            if link_elem is not None and link_elem.text:
+                link_url = link_elem.text.strip()
+                if "v=" in link_url:
+                    existing_guids.add(link_url.split("v=")[1].split("&")[0])
+
+        if video_id and video_id in existing_guids:
+            logger.info(f"⏭️ Odcinek '{video_title}' (ID: {video_id}) już istnieje w RSS. Pomijanie.")
             continue
 
         logger.info(f"🎙️ Nowy odcinek podcastu: '{video_title}' ({video_url})")
-        process_podcast_download(video_url)
+        tree = process_podcast_download(video_url, dbx=dbx, tree=tree)
         processed_count += 1
 
     if processed_count == 0:

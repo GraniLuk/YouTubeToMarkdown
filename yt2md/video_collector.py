@@ -1,8 +1,9 @@
 """Module for collecting videos from various sources like URLs or YouTube channels."""
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from yt2md.channel import Channel
+from yt2md.cli import parse_categories
 from yt2md.config import load_all_channels, load_channels_by_category
 from yt2md.logger import get_logger
 from yt2md.youtube import get_video_details_from_url, get_videos_from_channel
@@ -15,7 +16,7 @@ def collect_videos_from_url(
     url: str,
     language_code: str = "en",
     skip_verification: bool = False,
-    category: Optional[str] = None,
+    category: Optional[Union[str, List[str]]] = None,
 ) -> List[Tuple]:
     """
     Collect video details from a specific URL.
@@ -47,6 +48,9 @@ def collect_videos_from_url(
         else "Polish"
     )
 
+    parsed_cats = parse_categories(category) if category else []
+    cat_str = ", ".join(parsed_cats) if parsed_cats else category
+
     # Return as a list of one tuple for consistency with other collection methods
     return [
         (
@@ -56,19 +60,22 @@ def collect_videos_from_url(
             channel_name,
             language_code,
             output_language,
-            category,
+            cat_str,
         )
     ]
 
 
 def collect_videos_from_category(
-    category: str, days: int, channel_name: Optional[str] = None, max_videos: int = 10
+    category: Union[str, List[Union[str, List[str]]]],
+    days: int,
+    channel_name: Optional[str] = None,
+    max_videos: int = 10,
 ) -> List[Tuple]:
     """
-    Collect videos from channels in a specified category.
+    Collect videos from channels in specified category or categories.
 
     Args:
-        category: Category name (IT, Crypto, AI, Fitness, Trading, News)
+        category: Category name or list/comma-separated categories (e.g. 'Fitness', 'Fitness, News', ['Fitness', 'News'])
         days: Number of days to look back for videos
         channel_name: Optional specific channel name to filter within the category
         max_videos: Maximum number of videos to collect per channel
@@ -76,31 +83,43 @@ def collect_videos_from_category(
     Returns:
         List of tuples with video details
     """
-    logger.info(f"Processing videos from category: {category}")
-    channels = load_channels_by_category(category)
+    categories = parse_categories(category)
+    if not categories:
+        logger.warning("No valid categories provided")
+        return []
+
+    logger.info(f"Processing videos from categories: {', '.join(categories)}")
     videos_to_process = []
+    seen_channel_ids = set()
 
-    if not channels:
-        logger.warning(f"No channels found for category: {category}")
-        return videos_to_process
-
-    # Filter by channel name if specified
-    if channel_name:
-        channels = [ch for ch in channels if ch.name.lower() == channel_name.lower()]
+    for cat in categories:
+        channels = load_channels_by_category(cat)
         if not channels:
-            logger.warning(
-                f"Channel '{channel_name}' not found in category '{category}'"
-            )
-            return videos_to_process
-        logger.info(f"Processing channel: {channel_name} in {category} category...")
-    else:
-        logger.info(f"Processing {category} channels...")
+            logger.warning(f"No channels found for category: {cat}")
+            continue
 
-    # Collect videos from all channels in the category
-    for channel in channels:
-        videos_to_process.extend(
-            _collect_videos_from_single_channel(channel, days, max_videos)
-        )
+        # Filter by channel name if specified
+        if channel_name:
+            filtered = [ch for ch in channels if ch.name.lower() == channel_name.lower()]
+            if not filtered:
+                logger.warning(
+                    f"Channel '{channel_name}' not found in category '{cat}'"
+                )
+                continue
+            channels = filtered
+            logger.info(f"Processing channel: {channel_name} in {cat} category...")
+        else:
+            logger.info(f"Processing {cat} channels...")
+
+        # Collect videos from all channels in the category avoiding duplicates
+        for channel in channels:
+            if channel.id in seen_channel_ids:
+                logger.debug(f"Skipping already processed channel ID: {channel.id}")
+                continue
+            seen_channel_ids.add(channel.id)
+            videos_to_process.extend(
+                _collect_videos_from_single_channel(channel, days, max_videos)
+            )
 
     return videos_to_process
 

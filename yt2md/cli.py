@@ -12,8 +12,9 @@ def create_parser():
     parser.add_argument(
         "--category",
         type=str,
-        choices=["IT", "Crypto", "AI", "Fitness", "Trading", "News", "Podcast"],
-        help="Category of channels to process (IT, Crypto, AI, Fitness, Trading, News or Podcast)",
+        nargs="+",
+        action="append",
+        help="Category or categories of channels to process (e.g. IT, Fitness, News or Fitness,News)",
     )
     parser.add_argument(
         "--url",
@@ -96,6 +97,36 @@ def create_parser():
         help="Download YouTube video audio, upload to Dropbox, and update podcast RSS feed for AntennaPod",
     )
     return parser
+
+
+def parse_categories(category_arg) -> list[str]:
+    """Parse and clean category CLI argument(s) into a list of unique category names.
+
+    Supports single categories ('Fitness'), comma-separated strings ('Fitness, News' or 'Fitness,News'),
+    space-separated lists (['Fitness', 'News']), and repeated flags ([['Fitness'], ['News']]).
+    """
+    if not category_arg:
+        return []
+
+    raw_items = []
+
+    def _extract(item):
+        if isinstance(item, (list, tuple)):
+            for sub in item:
+                _extract(sub)
+        elif item is not None:
+            raw_items.append(str(item))
+
+    _extract(category_arg)
+
+    categories = []
+    for item in raw_items:
+        for part in item.split(","):
+            cleaned = part.strip()
+            if cleaned and cleaned not in categories:
+                categories.append(cleaned)
+
+    return categories
 
 
 def parse_args(args=None):
