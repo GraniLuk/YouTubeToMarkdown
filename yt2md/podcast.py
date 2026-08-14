@@ -399,39 +399,55 @@ def clean_old_episodes(
         return
 
     items = channel.findall("item")
-    if len(items) <= max_episodes:
-        return
 
-    logger.info(
-        f"🧹 Przekroczono limit {max_episodes} odcinków w RSS (obecnie: {len(items)}). Czyszczenie najstarszych..."
-    )
-    excess_items = items[max_episodes:]
+    # 1. Trim items in channel XML if exceeding max_episodes
+    if len(items) > max_episodes:
+        logger.info(
+            f"🧹 Przekroczono limit {max_episodes} odcinków w RSS (obecnie: {len(items)}). Czyszczenie najstarszych..."
+        )
+        excess_items = items[max_episodes:]
+        for item in excess_items:
+            channel.remove(item)
 
-    for item in excess_items:
-        enclosure = item.find("enclosure")
-        title_elem = item.find("title")
-        ep_title = title_elem.text if title_elem is not None else "Nieznany odcinek"
+    # 2. Collect active video IDs from current RSS items
+    active_video_ids = set()
+    for item_elem in channel.findall("item"):
+        guid_elem = item_elem.find("guid")
+        if guid_elem is not None and guid_elem.text:
+            active_video_ids.add(guid_elem.text.strip())
 
-        if enclosure is not None:
-            url = enclosure.get("url", "")
-            if url:
-                parsed_path = urlparse(url).path
-                filename = os.path.basename(unquote(parsed_path))
-                if filename and filename.endswith(
-                    (".mp3", ".m4a", ".webm", ".opus", ".ogg")
-                ):
-                    dropbox_file_path = f"/{filename}"
+    # 3. Clean up orphaned audio files on Dropbox that are not in active_video_ids
+    try:
+        res = dbx.files_list_folder("")
+        audio_exts = (".mp3", ".m4a", ".webm", ".opus", ".ogg")
+        for entry in res.entries:
+            if not isinstance(entry, dropbox.files.FileMetadata):
+                continue
+            filename = entry.name
+            if filename.lower().endswith(audio_exts):
+                # Check if any active video_id is part of this filename
+                is_active = any(
+                    f"_{vid}." in filename
+                    or filename.rsplit(".", 1)[0].endswith(f"_{vid}")
+                    for vid in active_video_ids
+                )
+                if not is_active:
+                    logger.info(
+                        f"🗑️ Usuwanie starego pliku z Dropboxa: /{filename}..."
+                    )
                     try:
+                        dbx.files_delete_v2(f"/{filename}")
                         logger.info(
-                            f"🗑️ Automatyczne usuwanie pliku z Dropboxa: {dropbox_file_path} ('{ep_title}')"
+                            f"✅ Pomyślnie usunięto plik z Dropboxa: /{filename}"
                         )
-                        dbx.files_delete_v2(dropbox_file_path)
                     except Exception as e:
-                        logger.warning(
-                            f"Nie udało się usunąć pliku {dropbox_file_path} z Dropboxa: {e}"
+                        logger.error(
+                            f"❌ Nie udało się usunąć pliku /{filename} z Dropboxa: {e}"
                         )
-
-        channel.remove(item)
+    except Exception as e:
+        logger.warning(
+            f"Nie udało się pobrać listy plików z Dropboxa do czyszczenia: {e}"
+        )
 
 
 def process_podcast_download(

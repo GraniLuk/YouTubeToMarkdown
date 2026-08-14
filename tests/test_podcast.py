@@ -83,8 +83,17 @@ class TestPodcastRssFeed(unittest.TestCase):
 
     def test_clean_old_episodes(self):
         """Test that old excess episodes beyond max_episodes are cleaned up and deleted from Dropbox."""
+        import dropbox.files
         dbx_mock = MagicMock()
         dbx_mock.files_download.side_effect = Exception("not found")
+
+        mock_entries = []
+        for i in range(1, 6):
+            f_meta = MagicMock(spec=dropbox.files.FileMetadata)
+            f_meta.name = f"Episode_{i}_id{i}.m4a"
+            mock_entries.append(f_meta)
+        dbx_mock.files_list_folder.return_value = MagicMock(entries=mock_entries)
+
         tree = fetch_or_create_rss_xml(dbx_mock, "/podcast.xml")
         for i in range(1, 6):
             update_rss_feed(
