@@ -88,7 +88,8 @@ def collect_videos_from_category(
         logger.warning("No valid categories provided")
         return []
 
-    logger.info(f"Processing videos from categories: {', '.join(categories)}")
+    if categories != ["Podcast"]:
+        logger.info(f"Processing videos from categories: {', '.join(categories)}")
     videos_to_process = []
     seen_channel_ids = set()
 

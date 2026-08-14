@@ -79,6 +79,17 @@ class TestCollectVideosFromCategory(unittest.TestCase):
         self.assertEqual(result[1][0], "http://news1")
         self.assertEqual(result[1][6], "News")
 
+    @patch("yt2md.video_collector.logger")
+    @patch("yt2md.video_collector.load_channels_by_category")
+    def test_collect_videos_podcast_category_log_skipped(self, mock_load_channels, mock_logger):
+        mock_load_channels.return_value = []
+        collect_videos_from_category("Podcast", days=1)
+        
+        # Verify logger.info was not called with "Processing videos from categories:"
+        for call_args in mock_logger.info.call_args_list:
+            msg = call_args[0][0]
+            self.assertNotIn("Processing videos from categories:", msg)
+
 
 class TestMainWithCategoriesAndPodcast(unittest.TestCase):
     @patch.dict("os.environ", {"GEMINI_API_KEY": "mock_key"})
@@ -101,6 +112,29 @@ class TestMainWithCategoriesAndPodcast(unittest.TestCase):
         mock_podcast_sub.assert_called_once_with(days=1, channel_name=None, max_videos=10)
         
         # Video collection should still be called for Fitness and News categories
+        mock_collect.assert_called_once_with(["Fitness", "News"], 1, channel_name=None, max_videos=10)
+
+    @patch.dict("os.environ", {"GEMINI_API_KEY": "mock_key"})
+    @patch("yt2md.main.setup_logging")
+    @patch("yt2md.config.load_channels_by_category", return_value=[MagicMock()])
+    @patch("yt2md.podcast.process_podcast_subscriptions")
+    @patch("yt2md.main.collect_videos_from_category")
+    @patch("yt2md.main.display_video_processing_summary")
+    @patch("yt2md.processor.process_videos")
+    def test_run_main_with_podcast_in_categories_filters_podcast_from_markdown(
+        self, mock_process_videos, mock_display_summary, mock_collect, mock_podcast_sub, mock_load_cat, mock_logging
+    ):
+        from yt2md.main import run_main
+        args = parse_args(["--category", "Fitness, News, Podcast", "--days", "1"])
+        
+        mock_collect.return_value = [("http://vid1", "Vid 1", "2026-08-06", "Chan", "en", "English", "Fitness")]
+        
+        run_main(args)
+
+        # Podcast RSS sync should be called
+        mock_podcast_sub.assert_called_once_with(days=1, channel_name=None, max_videos=10)
+        
+        # Video collection should filter out Podcast and only collect Fitness and News
         mock_collect.assert_called_once_with(["Fitness", "News"], 1, channel_name=None, max_videos=10)
 
 

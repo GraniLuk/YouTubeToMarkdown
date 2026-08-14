@@ -122,12 +122,17 @@ def run_main(args):
                 category=categories[0] if categories else None,
             )
         elif categories:
-            videos_to_process = collect_videos_from_category(
-                categories,
-                args.days,
-                channel_name=args.channel,
-                max_videos=args.max_videos,
-            )
+            # Filter out Podcast category as podcast channels were already processed for RSS feed
+            markdown_categories = [c for c in categories if c != "Podcast"]
+            if markdown_categories:
+                videos_to_process = collect_videos_from_category(
+                    markdown_categories,
+                    args.days,
+                    channel_name=args.channel,
+                    max_videos=args.max_videos,
+                )
+            else:
+                videos_to_process = []
         else:
             videos_to_process = collect_videos_from_all_channels(
                 args.days, max_videos=args.max_videos
