@@ -70,6 +70,21 @@ yt2md --category AI --max-videos 30
 
 # Send the latest generated note to Kindle (EPUB auto-conversion)
 yt2md --kindle --category IT --days 1
+
+# Process a YouTube playlist for Markdown note generation
+yt2md --url "https://www.youtube.com/playlist?list=PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Podcast Mode: Sync all podcast channels & playlists from channels.yaml to Dropbox RSS
+yt2md --podcast
+
+# Podcast Mode: Process a single video ad-hoc
+yt2md --podcast --url "https://www.youtube.com/watch?v=..."
+
+# Podcast Mode: Process a full playlist ad-hoc (public, unlisted, or private with cookies.txt)
+yt2md --podcast --url "https://www.youtube.com/playlist?list=PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Podcast Mode: Process a specific podcast playlist/channel by name from channels.yaml
+yt2md --podcast --channel "Moja Playlista"
 ```
 
 ### PowerShell Tab Completion

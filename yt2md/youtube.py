@@ -1204,3 +1204,137 @@ def get_video_details_from_url(
         logger.error(f"Error getting video details for URL {url}: {str(e)}")
 
     return None
+
+
+def extract_playlist_id(url_or_id: str) -> Optional[str]:
+    """Extract playlist ID from a URL or return the ID if already an ID."""
+    if not url_or_id:
+        return None
+    url_or_id = url_or_id.strip()
+    match = re.search(r"[?&]list=([a-zA-Z0-9_-]+)", url_or_id)
+    if match:
+        return match.group(1)
+    if re.match(r"^(PL|UU|FL|RD|WL|LL)[a-zA-Z0-9_-]+$", url_or_id):
+        return url_or_id
+    return None
+
+
+def is_playlist_url(url_or_id: str) -> bool:
+    """Check if the given string is a playlist URL or playlist ID."""
+    if not url_or_id:
+        return False
+    url_or_id = url_or_id.strip()
+    if url_or_id.startswith(("PL", "UU", "FL", "RD", "WL", "LL")) and len(url_or_id) > 10:
+        return True
+    if "playlist?list=" in url_or_id or "/playlist/" in url_or_id:
+        return True
+    if "list=" in url_or_id and "v=" not in url_or_id:
+        return True
+    return False
+
+
+def get_videos_from_playlist(
+    playlist_id_or_url: str,
+    max_videos: int = 10,
+    skip_verification: bool = False,
+    channel_name: Optional[str] = None,
+) -> list[tuple[str, str, str, str]]:
+    """
+    Get unprocessed videos from a YouTube playlist using yt-dlp.
+    Supports public, unlisted, and private playlists (using cookies if configured).
+
+    Args:
+        playlist_id_or_url (str): YouTube playlist ID or full playlist URL
+        max_videos (int): Maximum number of videos to collect (default: 10, 0 or negative for unlimited)
+        skip_verification (bool): If True, skip checking if videos were already processed
+        channel_name (str, optional): Default channel/playlist name to use if not found in metadata
+
+    Returns:
+        list[tuple[str, str, str, str]]: List of (video_url, video_title, published_date, channel_name)
+    """
+    import yt_dlp
+    from yt2md.audio_fallback import _get_ytdlp_auth_opts, _get_ytdlp_base_opts
+
+    playlist_id_or_url = playlist_id_or_url.strip()
+    if not playlist_id_or_url:
+        return []
+
+    if playlist_id_or_url.startswith("http://") or playlist_id_or_url.startswith("https://"):
+        playlist_url = playlist_id_or_url
+    else:
+        playlist_url = f"https://www.youtube.com/playlist?list={playlist_id_or_url}"
+
+    logger.info(f"📋 Pobieranie zawartości playlisty: {playlist_url}")
+
+    base_opts = _get_ytdlp_base_opts()
+    auth_opts = _get_ytdlp_auth_opts()
+
+    ydl_opts = {
+        **base_opts,
+        **auth_opts,
+        "extract_flat": "in_playlist",
+        "skip_download": True,
+        "quiet": True,
+        "no_warnings": True,
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(playlist_url, download=False)
+    except Exception as exc:
+        logger.error(f"Nie udało się pobrać informacji o playliście {playlist_url}: {exc}")
+        return []
+
+    if not info:
+        logger.warning(f"Brak informacji dla playlisty: {playlist_url}")
+        return []
+
+    playlist_title = info.get("title") or channel_name or "YouTube Playlist"
+    raw_entries = info.get("entries") or []
+
+    if not isinstance(raw_entries, list):
+        raw_entries = list(raw_entries)
+
+    logger.debug(f"Znaleziono {len(raw_entries)} elementów na playliście '{playlist_title}'")
+
+    processed_video_ids = get_processed_video_ids(skip_verification)
+
+    unprocessed_videos = []
+    for entry in raw_entries:
+        if not entry:
+            continue
+        video_id = entry.get("id")
+        if not video_id:
+            continue
+        if video_id in processed_video_ids:
+            logger.debug(f"Video {video_id} already processed, skipping.")
+            continue
+
+        title = entry.get("title") or f"Video {video_id}"
+        raw_date = entry.get("upload_date") or entry.get("published_date")
+        if raw_date and len(raw_date) == 8 and raw_date.isdigit():
+            published_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:]}"
+        else:
+            published_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+        uploader = entry.get("uploader") or entry.get("channel") or playlist_title
+        video_url = entry.get("url")
+        if not video_url or not video_url.startswith("http"):
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+        unprocessed_videos.append((video_url, title, published_date, uploader))
+
+    # Reverse order so older added videos in playlist are processed before newer ones (chronological queue)
+    unprocessed_videos.reverse()
+
+    if max_videos and max_videos > 0 and len(unprocessed_videos) > max_videos:
+        logger.info(
+            f"Ograniczono liczbę filmów do przetworzenia do {max_videos} (z {len(unprocessed_videos)} oczekujących)"
+        )
+        unprocessed_videos = unprocessed_videos[:max_videos]
+
+    logger.info(
+        f"Znaleziono {len(unprocessed_videos)} nowych filmów do przetworzenia z playlisty '{playlist_title}'"
+    )
+    return unprocessed_videos
+

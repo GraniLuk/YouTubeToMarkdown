@@ -78,9 +78,22 @@ def run_main(args):
         # Handle explicit podcast export mode
         podcast_mode = getattr(args, "podcast", False)
         if podcast_mode:
-            from yt2md.podcast import process_podcast_download, process_podcast_subscriptions
+            from yt2md.podcast import (
+                process_podcast_download,
+                process_podcast_playlist,
+                process_podcast_subscriptions,
+            )
+            from yt2md.youtube import is_playlist_url
+
             if args.url:
-                process_podcast_download(args.url)
+                if is_playlist_url(args.url):
+                    process_podcast_playlist(
+                        args.url,
+                        max_videos=args.max_videos,
+                        skip_verification=args.skip_verification,
+                    )
+                else:
+                    process_podcast_download(args.url)
                 return
             else:
                 process_podcast_subscriptions(
@@ -107,8 +120,11 @@ def run_main(args):
 
         # Collect videos based on command line arguments
         if args.url:
+            from yt2md.youtube import is_playlist_url
+            is_playlist = is_playlist_url(args.url)
+
             kindle_mode = getattr(args, "kindle", False)
-            if kindle_mode and not args.skip_verification:
+            if kindle_mode and not is_playlist and not args.skip_verification:
                 try:
                     from yt2md.email.kindle import resend_latest_for_video_url
                     if resend_latest_for_video_url(args.url):
@@ -120,6 +136,7 @@ def run_main(args):
                 language_code=args.language,
                 skip_verification=args.skip_verification,
                 category=categories[0] if categories else None,
+                max_videos=args.max_videos,
             )
         elif categories:
             # Filter out Podcast category as podcast channels were already processed for RSS feed

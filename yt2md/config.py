@@ -120,6 +120,7 @@ def _create_channel(channel_data: Dict[str, Any], category: str) -> Channel:
         name=channel_data["name"],
         title_filters=channel_data.get("title_filters", []),
         skip_shorts=channel_data.get("skip_shorts", False),
+        is_playlist=channel_data.get("is_playlist"),
     )
 
 

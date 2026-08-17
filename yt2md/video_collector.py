@@ -6,7 +6,12 @@ from yt2md.channel import Channel
 from yt2md.cli import parse_categories
 from yt2md.config import load_all_channels, load_channels_by_category
 from yt2md.logger import get_logger
-from yt2md.youtube import get_video_details_from_url, get_videos_from_channel
+from yt2md.youtube import (
+    get_video_details_from_url,
+    get_videos_from_channel,
+    get_videos_from_playlist,
+    is_playlist_url,
+)
 
 # Get logger for this module
 logger = get_logger("video_collector")
@@ -17,28 +22,21 @@ def collect_videos_from_url(
     language_code: str = "en",
     skip_verification: bool = False,
     category: Optional[Union[str, List[str]]] = None,
+    max_videos: int = 10,
 ) -> List[Tuple]:
     """
-    Collect video details from a specific URL.
+    Collect video details from a specific URL or playlist.
 
     Args:
-        url: YouTube video URL
+        url: YouTube video URL or playlist URL
         language_code: Language code for the transcript
         skip_verification: Whether to skip verification of already processed videos
         category: Optional category for the video
+        max_videos: Maximum number of videos to collect if URL is a playlist
 
     Returns:
-        List containing a single tuple with video details if successful, empty list otherwise
+        List containing tuples with video details
     """
-    logger.info(f"Processing single video URL: {url}")
-    video_details = get_video_details_from_url(url, skip_verification)
-
-    if not video_details:
-        logger.warning("Could not retrieve video details or video already processed")
-        return []
-
-    video_url, video_title, published_date, channel_name = video_details
-
     # Determine output language based on language code
     output_language = (
         "English"
@@ -50,6 +48,38 @@ def collect_videos_from_url(
 
     parsed_cats = parse_categories(category) if category else []
     cat_str = ", ".join(parsed_cats) if parsed_cats else category
+
+    # Check if URL is a playlist
+    if is_playlist_url(url):
+        logger.info(f"Processing playlist URL: {url}")
+        playlist_videos = get_videos_from_playlist(
+            url, max_videos=max_videos, skip_verification=skip_verification
+        )
+        if not playlist_videos:
+            logger.warning("No unprocessed videos found in playlist")
+            return []
+
+        return [
+            (
+                vid_url,
+                vid_title,
+                pub_date,
+                ch_name,
+                language_code,
+                output_language,
+                cat_str,
+            )
+            for vid_url, vid_title, pub_date, ch_name in playlist_videos
+        ]
+
+    logger.info(f"Processing single video URL: {url}")
+    video_details = get_video_details_from_url(url, skip_verification)
+
+    if not video_details:
+        logger.warning("Could not retrieve video details or video already processed")
+        return []
+
+    video_url, video_title, published_date, channel_name = video_details
 
     # Return as a list of one tuple for consistency with other collection methods
     return [
@@ -152,7 +182,7 @@ def _collect_videos_from_single_channel(
     channel: Channel, days: int, max_videos: int = 10
 ) -> List[Tuple]:
     """
-    Helper function to collect videos from a single channel.
+    Helper function to collect videos from a single channel or playlist.
 
     Args:
         channel: Channel object with id, name, language_code, etc.
@@ -163,6 +193,38 @@ def _collect_videos_from_single_channel(
         List of tuples with video details
     """
     videos_to_process = []
+
+    if getattr(channel, "is_playlist", False):
+        logger.debug(f"Getting videos from playlist: {channel.name} ({channel.id})")
+        playlist_videos = get_videos_from_playlist(
+            channel.id,
+            max_videos=max_videos,
+            skip_verification=False,
+            channel_name=channel.name,
+        )
+        for url, title, published_date, uploader in playlist_videos:
+            if channel.title_filters and not any(
+                filter_text.lower() in title.lower()
+                for filter_text in channel.title_filters
+            ):
+                logger.debug(
+                    f"Skipping video '{title}' as it does not match any title filters: {channel.title_filters}"
+                )
+                continue
+
+            videos_to_process.append(
+                (
+                    url,
+                    title,
+                    published_date,
+                    channel.name or uploader,
+                    channel.language_code,
+                    channel.output_language,
+                    channel.category,
+                )
+            )
+        return videos_to_process
+
     logger.debug(f"Getting videos from channel: {channel.name}")
     # We set max_pages to a large number (100) to effectively keep paginating until we hit max_videos
     channel_videos = get_videos_from_channel(

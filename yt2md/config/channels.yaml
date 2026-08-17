@@ -225,6 +225,19 @@ Podcast:
       - "Oktagon Live"
     skip_shorts: true
 
+  - id: PLEwqJX3F70lnKvTDlQKNuo-yo7uLjjZi9
+    name: Moja Playlista Podcastowa
+    language_code: pl
+    output_language: Polish
+
+  # Example YouTube Playlist (public, unlisted, or private with cookies.txt):
+  # - id: PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  #   name: Moja Playlista Podcastowa
+  #   language_code: pl
+  #   output_language: Polish
+  #   is_playlist: true # optional: auto-detected if id starts with PL/UU/FL/RD/WL
+
+
 # Category Color Configuration
 category_colors:
   default: 

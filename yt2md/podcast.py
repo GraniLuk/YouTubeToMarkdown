@@ -649,3 +649,69 @@ def process_podcast_subscriptions(
     if processed_count == 0:
         logger.info("Wszystkie nowe odcinki z subskrypcji podcastowych zostały już dodane wcześniej.")
 
+
+def process_podcast_playlist(
+    playlist_url_or_id: str,
+    dbx: Optional[dropbox.Dropbox] = None,
+    tree: Optional[ET.ElementTree] = None,
+    max_videos: int = 10,
+    skip_verification: bool = False,
+) -> Optional[ET.ElementTree]:
+    """Download audio for new/unprocessed videos from a YouTube playlist and update podcast RSS feed."""
+    logger.info(f"🎧 Przetwarzanie playlisty dla trybu Podcast: {playlist_url_or_id}")
+    from yt2md.youtube import get_videos_from_playlist
+
+    videos_to_process = get_videos_from_playlist(
+        playlist_url_or_id,
+        max_videos=max_videos,
+        skip_verification=skip_verification,
+    )
+
+    if not videos_to_process:
+        logger.info("Brak nowych filmów do przetworzenia w playliście.")
+        if tree is None and dbx is not None:
+            tree = fetch_or_create_rss_xml(dbx, "/podcast.xml")
+        return tree
+
+    if dbx is None:
+        dbx = get_dropbox_client()
+    if tree is None:
+        tree = fetch_or_create_rss_xml(dbx, "/podcast.xml")
+
+    processed_count = 0
+    for video_url, video_title, _published_date, _uploader in videos_to_process:
+        video_id = None
+        if "v=" in video_url:
+            video_id = video_url.split("v=")[1].split("&")[0]
+        elif "youtu.be/" in video_url:
+            video_id = video_url.split("youtu.be/")[1].split("?")[0]
+
+        # Re-check existing guids from current in-memory tree
+        existing_guids = set()
+        root = tree.getroot()
+        for item_elem in root.findall(".//item"):
+            guid_elem = item_elem.find("guid")
+            if guid_elem is not None and guid_elem.text:
+                existing_guids.add(guid_elem.text.strip())
+            link_elem = item_elem.find("link")
+            if link_elem is not None and link_elem.text:
+                link_url = link_elem.text.strip()
+                if "v=" in link_url:
+                    existing_guids.add(link_url.split("v=")[1].split("&")[0])
+
+        if video_id and video_id in existing_guids and not skip_verification:
+            logger.info(f"⏭️ Odcinek '{video_title}' (ID: {video_id}) już istnieje w RSS. Pomijanie.")
+            continue
+
+        logger.info(f"🎙️ Nowy odcinek podcastu z playlisty: '{video_title}' ({video_url})")
+        try:
+            tree = process_podcast_download(video_url, dbx=dbx, tree=tree)
+            processed_count += 1
+        except Exception as e:
+            logger.error(f"❌ Błąd podczas przetwarzania filmu '{video_title}' ({video_url}): {e}")
+            continue
+
+    logger.info(f"✅ Zakończono przetwarzanie playlisty. Pomyślnie dodano {processed_count} odcinków.")
+    return tree
+
+
