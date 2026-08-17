@@ -201,6 +201,7 @@ def _collect_videos_from_single_channel(
             max_videos=max_videos,
             skip_verification=False,
             channel_name=channel.name,
+            title_filters=channel.title_filters,
         )
         for url, title, published_date, uploader in playlist_videos:
             if channel.title_filters and not any(
@@ -233,6 +234,7 @@ def _collect_videos_from_single_channel(
         max_pages=100,
         max_videos=max_videos,
         skip_shorts=channel.skip_shorts,
+        title_filters=channel.title_filters,
     )
     logger.debug(
         f"Found {len(channel_videos)} videos from {channel.name} in the last {days} days"

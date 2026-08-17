@@ -122,6 +122,44 @@ class TestPlaylistExtraction(unittest.TestCase):
         self.assertEqual(videos[0][2], "2026-08-12")
         self.assertEqual(videos[0][3], "Host A")
 
+    @patch("yt2md.youtube.get_processed_video_ids")
+    @patch("yt_dlp.YoutubeDL")
+    def test_get_videos_from_playlist_with_title_filters(self, mock_ydl_cls, mock_get_processed):
+        mock_get_processed.return_value = set()
+
+        mock_ydl_instance = MagicMock()
+        mock_ydl_cls.return_value.__enter__.return_value = mock_ydl_instance
+
+        mock_ydl_instance.extract_info.return_value = {
+            "title": "Channel Playlist",
+            "entries": [
+                {
+                    "id": "vid1",
+                    "title": "Match Highlights",
+                    "upload_date": "20260810",
+                    "uploader": "Channel",
+                    "url": "https://www.youtube.com/watch?v=vid1",
+                },
+                {
+                    "id": "vid2",
+                    "title": "Oktagon Live ep 1",
+                    "upload_date": "20260811",
+                    "uploader": "Channel",
+                    "url": "https://www.youtube.com/watch?v=vid2",
+                },
+            ],
+        }
+
+        videos = get_videos_from_playlist(
+            "PLtestplaylist",
+            max_videos=10,
+            title_filters=["Oktagon Live"],
+        )
+
+        self.assertEqual(len(videos), 1)
+        self.assertEqual(videos[0][0], "https://www.youtube.com/watch?v=vid2")
+        self.assertEqual(videos[0][1], "Oktagon Live ep 1")
+
     @patch("yt2md.video_collector.get_videos_from_playlist")
     def test_collect_videos_from_url_playlist(self, mock_get_playlist):
         mock_get_playlist.return_value = [

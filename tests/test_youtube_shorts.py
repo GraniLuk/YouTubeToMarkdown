@@ -156,3 +156,50 @@ def test_get_videos_from_channel_keeps_shorts_when_disabled(monkeypatch):
 
     assert len(videos) == 1
     assert videos[0][0].endswith("short123")
+
+
+def test_get_videos_from_channel_applies_title_filters_early(monkeypatch):
+    playlist_payload = {
+        "items": [
+            {
+                "contentDetails": {
+                    "videoId": "live_unrelated",
+                    "videoPublishedAt": "2025-02-01T12:00:00Z",
+                },
+                "snippet": {
+                    "title": "SOKOLNICKI KRYTYKUJE VAR",
+                    "publishedAt": "2025-02-01T12:00:00Z",
+                },
+            },
+            {
+                "contentDetails": {
+                    "videoId": "live_oktagon",
+                    "videoPublishedAt": "2025-02-02T12:00:00Z",
+                },
+                "snippet": {
+                    "title": "OKTAGON LIVE | MACIEJ TURSKI",
+                    "publishedAt": "2025-02-02T12:00:00Z",
+                },
+            },
+        ]
+    }
+    # Video details should only be fetched for live_oktagon because live_unrelated was filtered out by title
+    videos_payload = {
+        "items": [
+            {"id": "live_oktagon", "contentDetails": {"duration": "PT45M0S"}},
+        ]
+    }
+
+    _setup_common_mocks(monkeypatch, playlist_payload, videos_payload)
+
+    videos = youtube.get_videos_from_channel(
+        "channel-id",
+        days=1000,
+        max_videos=5,
+        title_filters=["Oktagon Live"],
+    )
+
+    assert len(videos) == 1
+    assert videos[0][0].endswith("live_oktagon")
+    assert "OKTAGON LIVE" in videos[0][1]
+

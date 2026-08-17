@@ -663,6 +663,7 @@ def get_videos_from_channel(
     max_videos: int = 10,
     skip_shorts: bool = False,
     shorts_max_duration_seconds: int = 120,
+    title_filters: Optional[list[str]] = None,
 ) -> list[tuple[str, str, str]]:
     """
     Get all unprocessed videos from a YouTube channel published in the last days.
@@ -676,6 +677,7 @@ def get_videos_from_channel(
         max_videos (int): Maximum number of videos to collect per channel (default: 10)
         skip_shorts (bool): If True, skip videos classified as YouTube Shorts
         shorts_max_duration_seconds (int): Duration threshold in seconds to classify videos as Shorts
+        title_filters (list[str], optional): List of title filter substrings
 
     Returns:
         list[tuple[str, str, str]]: A list of tuples containing (video_url, video_title, published_date) for each video
@@ -717,6 +719,7 @@ def get_videos_from_channel(
             max_videos=max_videos,
             channel_id=channel_id,
             start_date=start_date,
+            title_filters=title_filters,
         )
     else:
         logger.warning(
@@ -733,6 +736,7 @@ def get_videos_from_channel(
             max_pages=max_pages,
             max_videos=max_videos,
             start_date=start_date,
+            title_filters=title_filters,
         )
 
     _save_uploads_playlist_cache()
@@ -758,6 +762,7 @@ def _collect_videos_from_playlist(
     max_videos: int,
     channel_id: str,
     start_date: datetime,
+    title_filters: Optional[list[str]] = None,
 ) -> tuple[list[tuple[str, str, str]], int]:
     videos: list[tuple[str, str, str]] = []
     page_token: Optional[str] = None
@@ -851,6 +856,17 @@ def _collect_videos_from_playlist(
 
             all_items_older_than_window = False
 
+            if title_filters and not any(
+                filter_text.lower() in title.lower()
+                for filter_text in title_filters
+            ):
+                logger.debug(
+                    "Skipping video '%s' as it does not match any title filters: %s",
+                    title,
+                    title_filters,
+                )
+                continue
+
             if not skip_verification and video_id in processed_video_ids:
                 logger.debug("Video %s already processed. Skipping...", video_id)
                 continue
@@ -934,6 +950,7 @@ def _collect_videos_via_search(
     max_pages: int,
     max_videos: int,
     start_date: datetime,
+    title_filters: Optional[list[str]] = None,
 ) -> tuple[list[tuple[str, str, str]], int]:
     videos: list[tuple[str, str, str]] = []
     page_token: Optional[str] = None
@@ -1042,6 +1059,17 @@ def _collect_videos_via_search(
                     "Skipping search result %s from %s (before window)",
                     video_id,
                     published_at_dt,
+                )
+                continue
+
+            if title_filters and not any(
+                filter_text.lower() in title.lower()
+                for filter_text in title_filters
+            ):
+                logger.debug(
+                    "Skipping search result '%s' as it does not match any title filters: %s",
+                    title,
+                    title_filters,
                 )
                 continue
 
@@ -1280,6 +1308,7 @@ def get_videos_from_playlist(
     max_videos: int = 10,
     skip_verification: bool = False,
     channel_name: Optional[str] = None,
+    title_filters: Optional[list[str]] = None,
 ) -> list[tuple[str, str, str, str]]:
     """
     Get unprocessed videos from a YouTube playlist using yt-dlp.
@@ -1352,15 +1381,25 @@ def get_videos_from_playlist(
             logger.debug(f"Video {video_id} already processed, skipping.")
             continue
 
+        title = entry.get("title") or f"Video {video_id}"
+
+        if title_filters and not any(
+            filter_text.lower() in title.lower()
+            for filter_text in title_filters
+        ):
+            logger.debug(
+                "Skipping playlist video '%s' as it does not match any title filters: %s",
+                title,
+                title_filters,
+            )
+            continue
+
         live_status = entry.get("live_status")
         if live_status == "is_upcoming":
-            title = entry.get("title") or f"Video {video_id}"
             logger.info(
                 f"⏳ Pomijanie zaplanowanej transmisji z playlisty: '{title}' (live_status: is_upcoming)"
             )
             continue
-
-        title = entry.get("title") or f"Video {video_id}"
         raw_date = entry.get("upload_date") or entry.get("published_date")
         if raw_date and len(raw_date) == 8 and raw_date.isdigit():
             published_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:]}"
