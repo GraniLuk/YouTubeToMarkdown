@@ -131,6 +131,86 @@ class TestPodcastRssFeed(unittest.TestCase):
         self.assertEqual(dbx_mock.files_download.call_count, 3)
 
 
+class TestPodcastLiveStreamAndErrorHandling(unittest.TestCase):
+    def test_is_live_or_upcoming_error(self):
+        from yt2md.youtube import _is_live_or_upcoming_error
+        import yt_dlp
+
+        self.assertTrue(_is_live_or_upcoming_error(Exception("This live event will begin in 16 hours.")))
+        self.assertTrue(_is_live_or_upcoming_error(Exception("ERROR: [youtube] nur_f3lEEvE: This live event will begin in 16 hours.")))
+        self.assertTrue(_is_live_or_upcoming_error(yt_dlp.utils.DownloadError("This live event will begin in 2 days.")))
+        self.assertTrue(_is_live_or_upcoming_error(Exception("Premieres in 3 hours")))
+        self.assertTrue(_is_live_or_upcoming_error(Exception("Video is an upcoming live stream")))
+        self.assertFalse(_is_live_or_upcoming_error(Exception("File not found on disk")))
+        self.assertFalse(_is_live_or_upcoming_error(Exception("HTTP Error 404: Not Found")))
+
+    def test_process_podcast_subscriptions_skips_live_stream_and_continues(self):
+        from unittest.mock import patch
+        from yt2md.podcast import process_podcast_subscriptions
+        import yt_dlp
+
+        videos = [
+            ("https://www.youtube.com/watch?v=live123", "OKTAGON LIVE MMA", "2026-08-17", "Kanal"),
+            ("https://www.youtube.com/watch?v=vid1", "Podcast Episode 1", "2026-08-17", "Kanal"),
+            ("https://www.youtube.com/watch?v=vid2", "Podcast Episode 2", "2026-08-17", "Kanal"),
+        ]
+
+        dummy_tree = ET.ElementTree(ET.Element("rss", {"version": "2.0"}))
+        channel_elem = ET.SubElement(dummy_tree.getroot(), "channel")
+
+        with patch("yt2md.video_collector.collect_videos_from_category", return_value=videos), \
+             patch("yt2md.podcast.get_dropbox_client") as mock_get_dbx, \
+             patch("yt2md.podcast.fetch_or_create_rss_xml", return_value=dummy_tree), \
+             patch("yt2md.podcast.process_podcast_download") as mock_download:
+
+            mock_dbx = MagicMock()
+            mock_get_dbx.return_value = mock_dbx
+
+            # 1st video raises scheduled live event error; remaining 2 succeed
+            def side_effect(url, dbx=None, tree=None):
+                if "live123" in url:
+                    raise yt_dlp.utils.DownloadError("ERROR: [youtube] live123: This live event will begin in 16 hours.")
+                return tree
+
+            mock_download.side_effect = side_effect
+
+            # Should not raise exception and should process all 3 items (skipping 1st and processing 2nd & 3rd)
+            process_podcast_subscriptions(days=3)
+
+            self.assertEqual(mock_download.call_count, 3)
+
+    def test_process_podcast_subscriptions_handles_unexpected_error_and_continues(self):
+        from unittest.mock import patch
+        from yt2md.podcast import process_podcast_subscriptions
+
+        videos = [
+            ("https://www.youtube.com/watch?v=err1", "Corrupt Episode", "2026-08-17", "Kanal"),
+            ("https://www.youtube.com/watch?v=good1", "Valid Episode", "2026-08-17", "Kanal"),
+        ]
+
+        dummy_tree = ET.ElementTree(ET.Element("rss", {"version": "2.0"}))
+        channel_elem = ET.SubElement(dummy_tree.getroot(), "channel")
+
+        with patch("yt2md.video_collector.collect_videos_from_category", return_value=videos), \
+             patch("yt2md.podcast.get_dropbox_client") as mock_get_dbx, \
+             patch("yt2md.podcast.fetch_or_create_rss_xml", return_value=dummy_tree), \
+             patch("yt2md.podcast.process_podcast_download") as mock_download:
+
+            mock_dbx = MagicMock()
+            mock_get_dbx.return_value = mock_dbx
+
+            def side_effect(url, dbx=None, tree=None):
+                if "err1" in url:
+                    raise RuntimeError("Unexpected audio conversion error")
+                return tree
+
+            mock_download.side_effect = side_effect
+
+            process_podcast_subscriptions(days=3)
+
+            self.assertEqual(mock_download.call_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
 

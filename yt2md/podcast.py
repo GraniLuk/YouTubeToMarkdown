@@ -20,6 +20,7 @@ from dropbox.files import WriteMode
 
 from yt2md.audio_fallback import _get_ytdlp_auth_opts, _get_ytdlp_base_opts
 from yt2md.logger import get_logger
+from yt2md.youtube import _is_live_or_upcoming_error
 
 logger = get_logger("podcast")
 
@@ -643,8 +644,19 @@ def process_podcast_subscriptions(
             continue
 
         logger.info(f"🎙️ Nowy odcinek podcastu: '{video_title}' ({video_url})")
-        tree = process_podcast_download(video_url, dbx=dbx, tree=tree)
-        processed_count += 1
+        try:
+            tree = process_podcast_download(video_url, dbx=dbx, tree=tree)
+            processed_count += 1
+        except Exception as e:
+            if _is_live_or_upcoming_error(e):
+                logger.info(
+                    f"⏳ Pomijanie zaplanowanej transmisji live: '{video_title}' ({video_url}) - transmisja jeszcze się nie rozpoczęła."
+                )
+            else:
+                logger.error(
+                    f"❌ Błąd podczas przetwarzania podcastu '{video_title}' ({video_url}): {e}"
+                )
+            continue
 
     if processed_count == 0:
         logger.info("Wszystkie nowe odcinki z subskrypcji podcastowych zostały już dodane wcześniej.")
@@ -708,7 +720,14 @@ def process_podcast_playlist(
             tree = process_podcast_download(video_url, dbx=dbx, tree=tree)
             processed_count += 1
         except Exception as e:
-            logger.error(f"❌ Błąd podczas przetwarzania filmu '{video_title}' ({video_url}): {e}")
+            if _is_live_or_upcoming_error(e):
+                logger.info(
+                    f"⏳ Pomijanie zaplanowanej transmisji live z playlisty: '{video_title}' ({video_url}) - transmisja jeszcze się nie rozpoczęła."
+                )
+            else:
+                logger.error(
+                    f"❌ Błąd podczas przetwarzania filmu '{video_title}' ({video_url}): {e}"
+                )
             continue
 
     logger.info(f"✅ Zakończono przetwarzanie playlisty. Pomyślnie dodano {processed_count} odcinków.")

@@ -218,7 +218,19 @@ def _increment_failure_counter() -> None:
 def _is_live_or_upcoming_error(error: Exception) -> bool:
     """Check if exception indicates a live or upcoming video."""
     error_msg = str(error).lower()
-    return "live" in error_msg or "upcoming" in error_msg
+    return any(
+        kw in error_msg
+        for kw in (
+            "live event will begin",
+            "premieres in",
+            "is a live stream",
+            "live stream",
+            "upcoming",
+            "scheduled for",
+            "post-live",
+            "live",
+        )
+    )
 
 
 def _is_retryable_download_error(error: Exception) -> bool:
@@ -852,23 +864,21 @@ def _collect_videos_from_playlist(
                 }
             )
 
-            if skip_shorts:
-                video_ids_for_duration.append(video_id)
-
+        staged_video_ids = [item["video_id"] for item in staged_items]
         durations: dict[str, Optional[int]] = {}
-        if skip_shorts and video_ids_for_duration:
-            durations = _fetch_video_durations(video_ids_for_duration, api_key)
+        upcoming_ids: set[str] = set()
+        if staged_video_ids:
+            durations, upcoming_ids = _fetch_video_details(staged_video_ids, api_key)
 
         for staged in staged_items:
-            if len(videos) >= max_videos:
-                logger.info(
-                    "Reached maximum videos limit (%d) for channel %s",
-                    max_videos,
-                    channel_id,
-                )
-                break
-
             video_id = staged["video_id"]
+
+            if video_id in upcoming_ids:
+                logger.info(
+                    f"⏳ Pomijanie zaplanowanej transmisji live: '{staged['title']}' ({video_id}) - transmisja jeszcze się nie rozpoczęła."
+                )
+                continue
+
             if skip_shorts:
                 duration_seconds = durations.get(video_id)
                 if (
@@ -882,6 +892,14 @@ def _collect_videos_from_playlist(
                         channel_id,
                     )
                     continue
+
+            if len(videos) >= max_videos:
+                logger.info(
+                    "Reached maximum videos limit (%d) for channel %s",
+                    max_videos,
+                    channel_id,
+                )
+                break
 
             video_url = f"https://www.youtube.com/watch?v={video_id}"
             videos.append((video_url, staged["title"], staged["published_date"]))
@@ -1027,6 +1045,12 @@ def _collect_videos_via_search(
                 )
                 continue
 
+            if snippet.get("liveBroadcastContent") == "upcoming":
+                logger.info(
+                    f"⏳ Pomijanie zaplanowanej transmisji live: '{title}' ({video_id}) - transmisja jeszcze się nie rozpoczęła."
+                )
+                continue
+
             if not skip_verification and video_id in processed_video_ids:
                 logger.debug(
                     "Search result %s already processed. Skipping...", video_id
@@ -1066,6 +1090,9 @@ def _parse_iso8601_duration(duration: Optional[str]) -> Optional[int]:
     if not duration:
         return None
 
+    if duration in ("P0D", "PT0S", "P0Y0M0DT0H0M0S"):
+        return 0
+
     match = _DURATION_PATTERN.fullmatch(duration)
     if not match:
         logger.debug(f"Failed to parse ISO 8601 duration: {duration}")
@@ -1078,26 +1105,27 @@ def _parse_iso8601_duration(duration: Optional[str]) -> Optional[int]:
     return hours * 3600 + minutes * 60 + seconds
 
 
-def _fetch_video_durations(
+def _fetch_video_details(
     video_ids: list[str], api_key: Optional[str]
-) -> dict[str, Optional[int]]:
-    """Fetch the duration (in seconds) for the provided YouTube video IDs."""
+) -> tuple[dict[str, Optional[int]], set[str]]:
+    """Fetch durations and identify upcoming live stream IDs for YouTube video IDs."""
     if not video_ids:
-        return {}
+        return {}, set()
 
     if not api_key:
         logger.warning(
-            "YOUTUBE_API_KEY not set; cannot filter YouTube Shorts by duration."
+            "YOUTUBE_API_KEY not set; cannot fetch video details or filter live streams."
         )
-        return {vid: None for vid in video_ids}
+        return {vid: None for vid in video_ids}, set()
 
     base_url = "https://www.googleapis.com/youtube/v3/videos"
     durations: dict[str, Optional[int]] = {}
+    upcoming_ids: set[str] = set()
 
     for start in range(0, len(video_ids), 50):
         chunk = video_ids[start : start + 50]
         params = {
-            "part": "contentDetails",
+            "part": "contentDetails,snippet",
             "id": ",".join(chunk),
             "key": api_key,
         }
@@ -1108,7 +1136,7 @@ def _fetch_video_durations(
 
             if "error" in data:
                 logger.error(
-                    "YouTube API error fetching durations: %s",
+                    "YouTube API error fetching video details: %s",
                     data["error"].get("message", "Unknown error"),
                 )
                 continue
@@ -1116,19 +1144,33 @@ def _fetch_video_durations(
             for item in data.get("items", []):
                 vid = item.get("id")
                 content_details = item.get("contentDetails", {})
+                snippet = item.get("snippet", {})
                 duration_str = content_details.get("duration")
+                live_broadcast_content = snippet.get("liveBroadcastContent")
                 if vid:
-                    durations[vid] = _parse_iso8601_duration(duration_str)
+                    if live_broadcast_content == "upcoming" or duration_str == "P0D":
+                        upcoming_ids.add(vid)
+                        durations[vid] = 0
+                    else:
+                        durations[vid] = _parse_iso8601_duration(duration_str)
 
         except (
             Exception
         ) as exc:  # pragma: no cover - network errors are rare/hard to mock
-            logger.error(f"Error fetching video durations: {str(exc)}")
+            logger.error(f"Error fetching video details: {str(exc)}")
             break
 
     for vid in video_ids:
         durations.setdefault(vid, None)
 
+    return durations, upcoming_ids
+
+
+def _fetch_video_durations(
+    video_ids: list[str], api_key: Optional[str]
+) -> dict[str, Optional[int]]:
+    """Fetch the duration (in seconds) for the provided YouTube video IDs."""
+    durations, _ = _fetch_video_details(video_ids, api_key)
     return durations
 
 
@@ -1308,6 +1350,14 @@ def get_videos_from_playlist(
             continue
         if video_id in processed_video_ids:
             logger.debug(f"Video {video_id} already processed, skipping.")
+            continue
+
+        live_status = entry.get("live_status")
+        if live_status == "is_upcoming":
+            title = entry.get("title") or f"Video {video_id}"
+            logger.info(
+                f"⏳ Pomijanie zaplanowanej transmisji z playlisty: '{title}' (live_status: is_upcoming)"
+            )
             continue
 
         title = entry.get("title") or f"Video {video_id}"
