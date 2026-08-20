@@ -313,6 +313,10 @@ class GeminiStrategy(LLMStrategy):
                     }
                     if thinking_level:
                         gen_config_params["thinking_config"] = types.ThinkingConfig(thinking_level=thinking_level)
+                    if hasattr(types, "AutomaticFunctionCallingConfig"):
+                        gen_config_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=True)
+                    else:
+                        gen_config_params["automatic_function_calling"] = {"disable": True}
 
                     response = client.models.generate_content(
                         model=model_name,

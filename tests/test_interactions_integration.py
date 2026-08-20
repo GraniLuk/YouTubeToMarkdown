@@ -69,6 +69,8 @@ def test_generate_content_api_integration():
             assert "contents" in call
             assert "config" in call
             assert isinstance(call["config"], types.GenerateContentConfig)
+            assert call["config"].automatic_function_calling is not None
+            assert call["config"].automatic_function_calling.disable is True
             assert call["model"] == "test-model"
 
         # Verify description was extracted from first chunk
@@ -78,11 +80,11 @@ def test_generate_content_api_integration():
         assert "Chunk 1 response" in result_text
         assert "Chunk 2 response" in result_text
 
-        print(f"✓ Test passed! Made {len(call_log)} API calls with correct parameters")
-        print("✓ Verified continuation prompt chaining")
-        print("✓ Verified correct parameter names (contents, config)")
+        print(f"[OK] Test passed! Made {len(call_log)} API calls with correct parameters")
+        print("[OK] Verified continuation prompt chaining")
+        print("[OK] Verified correct parameter names (contents, config)")
 
 
 if __name__ == "__main__":
     test_generate_content_api_integration()
-    print("\n✅ All integration tests passed!")
+    print("\n[OK] All integration tests passed!")
