@@ -171,12 +171,12 @@ def analyze_transcript_by_length(
 ) -> dict[str, dict[str, str]]:
     """
     Analyze transcript using different strategies based on transcript length and category.
-    Cloud model names are fetched from configuration (channels.yaml).
+    Cloud model names are fetched from configuration (.env with optional category overrides).
 
     Strategy:
     - Determines primary and fallback models based on transcript length and content category
     - Model selection can be overridden using force_ollama, force_cloud, or force_openrouter
-    - Configuration is loaded from channels.yaml with category-specific overrides
+    - Configuration is loaded from .env with optional category-specific overrides
     - Supports provider+model configuration for flexible fallback (e.g., Gemini to different Gemini model)
     - OpenRouter serves as a fallback for Gemini rate limits and can be forced via CLI
 
@@ -210,29 +210,54 @@ def analyze_transcript_by_length(
         config = get_llm_model_config(provider, category)
         if provider == "gemini":
             if model_type == "primary":
-                return config.get("primary_model", "gemini-2.5-flash-preview-09-2025")
+                return (
+                    os.getenv("GEMINI_PRIMARY_MODEL")
+                    or os.getenv("GEMINI_MODEL")
+                    or config.get("primary_model", "gemini-3.6-flash")
+                )
             else:  # fallback
-                return config.get("fallback_model", "gemini-1.5-flash-8b")
+                return (
+                    os.getenv("GEMINI_FALLBACK_MODEL")
+                    or config.get("fallback_model", "gemini-3.5-flash")
+                )
         elif provider == "ollama":
-            return config.get("model_name", "ministral-3")
+            return (
+                os.getenv("OLLAMA_MODEL")
+                or config.get("model_name", "gemma4:26b")
+            )
         elif provider == "openrouter":
-            return config.get(
-                "model_name",
-                os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash-preview-04-17:free"),
+            return (
+                os.getenv("OPENROUTER_MODEL")
+                or config.get(
+                    "model_name", "nvidia/nemotron-3-ultra-550b-a55b:free"
+                )
+            )
+        elif provider == "perplexity":
+            return (
+                os.getenv("PERPLEXITY_MODEL")
+                or config.get("model_name", "sonar-pro")
             )
         return None
 
     # Ollama configuration
     ollama_config_from_file = get_llm_model_config("ollama", category)
-    effective_ollama_model = ollama_model or (
-        ollama_config_from_file.get("model_name")
-        if ollama_config_from_file
-        else "default_ollama_model"
+    effective_ollama_model = (
+        ollama_model
+        or os.getenv("OLLAMA_MODEL")
+        or (
+            ollama_config_from_file.get("model_name")
+            if ollama_config_from_file
+            else "gemma4:26b"
+        )
     )
-    effective_ollama_base_url = ollama_base_url or (
-        ollama_config_from_file.get("base_url")
-        if ollama_config_from_file
-        else "http://localhost:11434"
+    effective_ollama_base_url = (
+        ollama_base_url
+        or os.getenv("OLLAMA_BASE_URL")
+        or (
+            ollama_config_from_file.get("base_url")
+            if ollama_config_from_file
+            else "http://localhost:11434"
+        )
     )
     use_ollama = bool(effective_ollama_model and effective_ollama_base_url)
 

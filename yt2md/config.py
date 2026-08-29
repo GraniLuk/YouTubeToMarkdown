@@ -2,10 +2,21 @@ import os
 import time
 from typing import Any, Dict, List
 
+from dotenv import load_dotenv
 import yaml
 
 from .channel import Channel
 from .logger import get_logger
+
+# Load .env if present
+_possible_env_paths = [
+    os.path.join(os.path.dirname(__file__), ".env"),
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),
+]
+for _env_p in _possible_env_paths:
+    if os.path.exists(_env_p):
+        load_dotenv(_env_p)
+        break
 
 # Get logger for this module
 logger = get_logger("config")
@@ -20,6 +31,29 @@ _cache_stats = {"hits": 0, "misses": 0, "last_hit": None, "last_miss": None}
 
 DEFAULT_SHORT_MAX_WORDS = 1600
 DEFAULT_MEDIUM_MAX_WORDS = 2500
+
+DEFAULT_STRATEGY_BY_LENGTH = {
+    "short": {
+        "primary": {"provider": "ollama"},
+        "fallback": {"provider": "gemini", "model_type": "primary"},
+    },
+    "medium": {
+        "primary": {"provider": "gemini", "model_type": "primary"},
+        "fallback": {"provider": "gemini", "model_type": "fallback"},
+    },
+    "long": {
+        "primary": {"provider": "gemini", "model_type": "primary"},
+        "fallback": {"provider": "openrouter"},
+    },
+}
+
+
+def _string_setting(*values, default: str) -> str:
+    """Return the first non-empty string from the provided values."""
+    for value in values:
+        if value not in (None, ""):
+            return str(value)
+    return default
 
 
 def _positive_int_setting(*values, default: int) -> int:
@@ -183,7 +217,58 @@ def get_category_colors() -> Dict[str, Dict[str, str]]:
     return processed_colors
 
 
-def get_llm_strategy_config(category: str) -> Dict[str, Any]:
+def get_default_model_configs() -> Dict[str, Dict[str, Any]]:
+    """Return default model configurations populated from environment variables."""
+    return {
+        "gemini": {
+            "primary_model": _string_setting(
+                os.getenv("GEMINI_PRIMARY_MODEL"),
+                os.getenv("GEMINI_MODEL"),
+                default="gemini-3.6-flash",
+            ),
+            "fallback_model": _string_setting(
+                os.getenv("GEMINI_FALLBACK_MODEL"),
+                default="gemini-3.5-flash",
+            ),
+            "thinking_level": _string_setting(
+                os.getenv("GEMINI_THINKING_LEVEL"),
+                default="none",
+            ),
+        },
+        "ollama": {
+            "model_name": _string_setting(
+                os.getenv("OLLAMA_MODEL"),
+                default="gemma4:26b",
+            ),
+            "base_url": _string_setting(
+                os.getenv("OLLAMA_BASE_URL"),
+                default="http://localhost:11434",
+            ),
+        },
+        "openrouter": {
+            "model_name": _string_setting(
+                os.getenv("OPENROUTER_MODEL"),
+                default="nvidia/nemotron-3-ultra-550b-a55b:free",
+            ),
+            "base_url": _string_setting(
+                os.getenv("OPENROUTER_BASE_URL"),
+                default="https://openrouter.ai/api/v1/chat/completions",
+            ),
+        },
+        "perplexity": {
+            "model_name": _string_setting(
+                os.getenv("PERPLEXITY_MODEL"),
+                default="sonar-pro",
+            ),
+            "base_url": _string_setting(
+                os.getenv("PERPLEXITY_BASE_URL"),
+                default="https://api.perplexity.ai/chat/completions",
+            ),
+        },
+    }
+
+
+def get_llm_strategy_config(category: str = None) -> Dict[str, Any]:
     """
     Get LLM strategy configuration based on category.
 
@@ -196,65 +281,81 @@ def get_llm_strategy_config(category: str) -> Dict[str, Any]:
     config = _load_config()
     strategies_config = config.get("llm_strategies", {})
 
-    # Get default config
-    default_config = strategies_config.get("default", {})
+    # Default fallback strategy
+    default_config = {
+        "strategy_by_length": {
+            k: v.copy() for k, v in DEFAULT_STRATEGY_BY_LENGTH.items()
+        },
+        "model_configs": get_default_model_configs(),
+    }
+
+    # If channels.yaml has default strategies_config, merge it
+    if "default" in strategies_config:
+        yaml_default = strategies_config["default"]
+        if "strategy_by_length" in yaml_default:
+            default_config["strategy_by_length"].update(
+                yaml_default["strategy_by_length"]
+            )
+        if "length_thresholds" in yaml_default:
+            default_config["length_thresholds"] = yaml_default[
+                "length_thresholds"
+            ].copy()
+        if "model_configs" in yaml_default:
+            for m_type, m_cfg in yaml_default["model_configs"].items():
+                if m_type in default_config["model_configs"]:
+                    default_config["model_configs"][m_type].update(m_cfg)
+                else:
+                    default_config["model_configs"][m_type] = m_cfg
 
     # If no category provided or category not found, return default
     if not category or category not in strategies_config:
         return default_config
 
-    # Get category-specific config
+    # Get category-specific config from YAML if present
     category_config = strategies_config.get(category, {})
 
-    # Merge with default config (category overrides default)
-    merged_config = {}
-
-    # Deep merge strategy_by_length
-    if "strategy_by_length" in default_config:
-        merged_config["strategy_by_length"] = default_config[
-            "strategy_by_length"
-        ].copy()
-        if "strategy_by_length" in category_config:
-            for length_key, length_strategies in category_config[
-                "strategy_by_length"
-            ].items():
-                if length_key in merged_config["strategy_by_length"]:
-                    # Override existing length strategy
-                    merged_config["strategy_by_length"][length_key] = length_strategies
-                else:
-                    # Add new length strategy
-                    merged_config["strategy_by_length"][length_key] = length_strategies
-
-    # Copy length thresholds from default
+    # Deep copy default_config
+    merged_config = {
+        "strategy_by_length": {
+            k: v.copy() for k, v in default_config["strategy_by_length"].items()
+        },
+        "model_configs": {
+            k: v.copy() for k, v in default_config["model_configs"].items()
+        },
+    }
     if "length_thresholds" in default_config:
         merged_config["length_thresholds"] = default_config["length_thresholds"].copy()
-        if "length_thresholds" in category_config:
-            # Override with category-specific thresholds
-            merged_config["length_thresholds"].update(
-                category_config["length_thresholds"]
-            )
+
+    # Deep merge strategy_by_length
+    if "strategy_by_length" in category_config:
+        for length_key, length_strategies in category_config[
+            "strategy_by_length"
+        ].items():
+            merged_config["strategy_by_length"][length_key] = length_strategies
+
+    # Merge length_thresholds
+    if "length_thresholds" in category_config:
+        if "length_thresholds" not in merged_config:
+            merged_config["length_thresholds"] = {}
+        merged_config["length_thresholds"].update(category_config["length_thresholds"])
 
     # Deep merge model_configs
-    if "model_configs" in default_config:
-        merged_config["model_configs"] = default_config["model_configs"].copy()
-        if "model_configs" in category_config:
-            for model, model_config in category_config["model_configs"].items():
-                if model in merged_config["model_configs"]:
-                    # Merge model configs
-                    merged_config["model_configs"][model].update(model_config)
-                else:
-                    # Add new model config
-                    merged_config["model_configs"][model] = model_config
+    if "model_configs" in category_config:
+        for model, model_config in category_config["model_configs"].items():
+            if model in merged_config["model_configs"]:
+                merged_config["model_configs"][model].update(model_config)
+            else:
+                merged_config["model_configs"][model] = model_config
 
     return merged_config
 
 
-def get_llm_model_config(model_type: str, category: str) -> Dict[str, Any]:
+def get_llm_model_config(model_type: str, category: str = None) -> Dict[str, Any]:
     """
     Get configuration for a specific LLM model type based on category.
 
     Args:
-        model_type: Type of the model ('gemini', 'perplexity', 'ollama')
+        model_type: Type of the model ('gemini', 'perplexity', 'ollama', 'openrouter')
         category: The content category (if None, uses default config)
 
     Returns:
@@ -263,10 +364,15 @@ def get_llm_model_config(model_type: str, category: str) -> Dict[str, Any]:
     strategy_config = get_llm_strategy_config(category)
     model_configs = strategy_config.get("model_configs", {})
 
-    return model_configs.get(model_type, {})
+    if isinstance(model_configs, dict) and model_type in model_configs:
+        return model_configs[model_type]
+
+    # Fallback to default model configs if not in strategy_config
+    defaults = get_default_model_configs()
+    return defaults.get(model_type, {})
 
 
-def get_transcript_length_category(transcript_length: int, category: str) -> str:
+def get_transcript_length_category(transcript_length: int, category: str = None) -> str:
     """
     Determine length category of transcript based on its length and content category.
 
@@ -309,7 +415,7 @@ def get_transcript_length_category(transcript_length: int, category: str) -> str
         return "long"
 
 
-def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str, Any]:
+def get_llm_strategy_for_transcript(transcript: str, category: str = None) -> Dict[str, Any]:
     """
     Get recommended LLM strategy based on transcript length and category.
 
@@ -333,13 +439,16 @@ def get_llm_strategy_for_transcript(transcript: str, category: str) -> Dict[str,
         logger.warning(
             f"No LLM strategy found for {length_category} transcripts in category {category}"
         )
-        strategy = {
-            "primary": {
-                "provider": "gemini",
-                "model_type": "primary",
+        strategy = DEFAULT_STRATEGY_BY_LENGTH.get(
+            length_category,
+            {
+                "primary": {
+                    "provider": "gemini",
+                    "model_type": "primary",
+                },
+                "fallback": {"provider": "gemini", "model_type": "fallback"},
             },
-            "fallback": {"provider": "gemini", "model_type": "fallback"},
-        }
+        )
 
     return strategy
 

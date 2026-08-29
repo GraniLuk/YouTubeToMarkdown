@@ -215,5 +215,70 @@ class TestOllamaStrategy(unittest.TestCase):
         self.assertIn("first-response-tail", second_prompt)
 
 
+class TestConfigEnvResolution(unittest.TestCase):
+    """Test LLM model configuration resolution from environment variables."""
+
+    def test_gemini_config_reads_env(self):
+        """Gemini configuration should prioritize environment variables."""
+        from yt2md.config import get_llm_model_config
+
+        env = {
+            "GEMINI_PRIMARY_MODEL": "gemini-custom-primary",
+            "GEMINI_FALLBACK_MODEL": "gemini-custom-fallback",
+            "GEMINI_THINKING_LEVEL": "high",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            with patch("yt2md.config._load_config", return_value={}):
+                config = get_llm_model_config("gemini")
+                self.assertEqual(config["primary_model"], "gemini-custom-primary")
+                self.assertEqual(config["fallback_model"], "gemini-custom-fallback")
+                self.assertEqual(config["thinking_level"], "high")
+
+    def test_gemini_config_defaults(self):
+        """Gemini configuration should fall back to standard defaults."""
+        from yt2md.config import get_llm_model_config
+
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("yt2md.config._load_config", return_value={}):
+                config = get_llm_model_config("gemini")
+                self.assertEqual(config["primary_model"], "gemini-3.6-flash")
+                self.assertEqual(config["fallback_model"], "gemini-3.5-flash")
+                self.assertEqual(config["thinking_level"], "none")
+
+    def test_openrouter_config_reads_env(self):
+        """OpenRouter configuration should prioritize environment variables."""
+        from yt2md.config import get_llm_model_config
+
+        env = {
+            "OPENROUTER_MODEL": "custom/model:free",
+            "OPENROUTER_BASE_URL": "https://custom.openrouter.ai/v1",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            with patch("yt2md.config._load_config", return_value={}):
+                config = get_llm_model_config("openrouter")
+                self.assertEqual(config["model_name"], "custom/model:free")
+                self.assertEqual(config["base_url"], "https://custom.openrouter.ai/v1")
+
+    def test_strategy_by_length_defaults_without_yaml_config(self):
+        """Default strategy by length should be provided even when channels.yaml has no llm_strategies."""
+        from yt2md.config import get_llm_strategy_for_transcript
+
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("yt2md.config._load_config", return_value={}):
+                short_strategy = get_llm_strategy_for_transcript("short text", "IT")
+                self.assertEqual(short_strategy["primary"]["provider"], "ollama")
+                self.assertEqual(short_strategy["fallback"]["provider"], "gemini")
+
+                medium_words = " ".join(["word"] * 2000)
+                med_strategy = get_llm_strategy_for_transcript(medium_words, "IT")
+                self.assertEqual(med_strategy["primary"]["provider"], "gemini")
+                self.assertEqual(med_strategy["fallback"]["provider"], "gemini")
+
+                long_words = " ".join(["word"] * 3000)
+                long_strategy = get_llm_strategy_for_transcript(long_words, "IT")
+                self.assertEqual(long_strategy["primary"]["provider"], "gemini")
+                self.assertEqual(long_strategy["fallback"]["provider"], "openrouter")
+
+
 if __name__ == "__main__":
     unittest.main()

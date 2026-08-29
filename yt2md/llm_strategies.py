@@ -205,7 +205,12 @@ class GeminiStrategy(LLMStrategy):
 
         # Get Gemini config for thinking level
         gemini_config = get_llm_model_config("gemini", category)
-        thinking_level_str = gemini_config.get("thinking_level", "none").lower()
+        thinking_level_str = _string_setting(
+            kwargs.get("thinking_level"),
+            os.getenv("GEMINI_THINKING_LEVEL"),
+            gemini_config.get("thinking_level"),
+            default="none",
+        ).lower()
 
         # Map thinking level string to enum (using getattr for safety)
         thinking_level = None
@@ -388,9 +393,15 @@ class PerplexityStrategy(LLMStrategy):
             tuple[str, str]: Refined text and description
         """
         api_key = kwargs.get("api_key")
-        model_name = kwargs.get("model_name", "sonar-pro")
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
+        perplexity_config = get_llm_model_config("perplexity", category)
+        model_name = _string_setting(
+            kwargs.get("model_name"),
+            os.getenv("PERPLEXITY_MODEL"),
+            perplexity_config.get("model_name"),
+            default="sonar-pro",
+        )
         max_retries = kwargs.get("max_retries", 3)
         retry_delay = kwargs.get("retry_delay", 2)
         chunking_strategy = kwargs.get("chunking_strategy", "word")
@@ -410,7 +421,12 @@ class PerplexityStrategy(LLMStrategy):
         # Prepare first chunk prompt with description request
         first_chunk_prompt = FIRST_CHUNK_TEMPLATE.format(base_prompt=base_prompt)
 
-        url = "https://api.perplexity.ai/chat/completions"
+        url = _string_setting(
+            kwargs.get("base_url"),
+            os.getenv("PERPLEXITY_BASE_URL"),
+            perplexity_config.get("base_url"),
+            default="https://api.perplexity.ai/chat/completions",
+        )
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
@@ -794,18 +810,24 @@ class OpenRouterStrategy(LLMStrategy):
             tuple[str, str]: Refined text and description
         """
         api_key = kwargs.get("api_key")
-        model_name = kwargs.get(
-            "model_name",
-            os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash-preview-04-17:free"),
-        )
         output_language = kwargs.get("output_language", "English")
         category = kwargs.get("category", "IT")
+        openrouter_config = get_llm_model_config("openrouter", category)
+        model_name = _string_setting(
+            kwargs.get("model_name"),
+            os.getenv("OPENROUTER_MODEL"),
+            openrouter_config.get("model_name"),
+            default="nvidia/nemotron-3-ultra-550b-a55b:free",
+        )
         max_retries = kwargs.get("max_retries", 4)
         retry_delay = kwargs.get("retry_delay", 3)
         chunking_strategy = kwargs.get("chunking_strategy", "word")
         chunk_size = kwargs.get("chunk_size", 8000)
-        base_url = kwargs.get(
-            "base_url", "https://openrouter.ai/api/v1/chat/completions"
+        base_url = _string_setting(
+            kwargs.get("base_url"),
+            os.getenv("OPENROUTER_BASE_URL"),
+            openrouter_config.get("base_url"),
+            default="https://openrouter.ai/api/v1/chat/completions",
         )
 
         logger.debug(

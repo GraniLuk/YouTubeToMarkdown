@@ -101,13 +101,22 @@ You can also filter videos by title for specific channels by adding `title_filte
 
 Make sure to set up your environment variables in a .env file:
 
-- GEMINI_API_KEY
-- YOUTUBE_API_KEY
-- SUMMARIES_PATH
-- GOOGLE_DRIVE_FOLDER_ID (optional)
-- PERPLEXITY_API_KEY (optional, used as fallback for rate limits)
-- LLM_SHORT_MAX_WORDS (optional, threshold for "short" transcripts)
-- LLM_MEDIUM_MAX_WORDS (optional, threshold for "medium" transcripts)
+- `GEMINI_API_KEY`: API key for Google Gemini
+- `GEMINI_PRIMARY_MODEL`: Primary Gemini model (default: `gemini-3.6-flash`)
+- `GEMINI_FALLBACK_MODEL`: Fallback Gemini model (default: `gemini-3.5-flash`)
+- `GEMINI_THINKING_LEVEL`: Gemini thinking level (default: `none`)
+- `OLLAMA_MODEL`: Ollama model name (default: `gemma4:26b`)
+- `OLLAMA_BASE_URL`: Ollama API base URL (default: `http://localhost:11434`)
+- `OPENROUTER_API_KEY`: API key for OpenRouter (optional fallback)
+- `OPENROUTER_MODEL`: OpenRouter model name (default: `nvidia/nemotron-3-ultra-550b-a55b:free`)
+- `OPENROUTER_BASE_URL`: OpenRouter endpoint URL (default: `https://openrouter.ai/api/v1/chat/completions`)
+- `PERPLEXITY_API_KEY`: Perplexity API key (optional fallback)
+- `PERPLEXITY_MODEL`: Perplexity model name (default: `sonar-pro`)
+- `YOUTUBE_API_KEY`: YouTube Data API key
+- `SUMMARIES_PATH`: Output directory for generated markdown summaries
+- `GOOGLE_DRIVE_FOLDER_ID`: (optional)
+- `LLM_SHORT_MAX_WORDS`: (optional, threshold for "short" transcripts, default: 1600)
+- `LLM_MEDIUM_MAX_WORDS`: (optional, threshold for "medium" transcripts, default: 2500)
  
 ### Retry Logic (LLM Resilience)
 
@@ -333,18 +342,35 @@ YT2MD is ideal for:
 
 YT2MD offers several configuration options for power users:
 
-### LLM Strategy Configuration
+### LLM Strategy & Model Configuration
 
-The tool intelligently selects different LLM providers based on transcript length and category. This behavior can be customized in the configuration.
+The tool intelligently selects different LLM providers based on transcript length and category:
+- **Short transcripts** (<= `LLM_SHORT_MAX_WORDS`): Processed with local Ollama, falling back to Gemini Primary.
+- **Medium transcripts** (<= `LLM_MEDIUM_MAX_WORDS`): Processed with Gemini Primary, falling back to Gemini Fallback.
+- **Long transcripts** (> `LLM_MEDIUM_MAX_WORDS`): Processed with Gemini Primary, falling back to OpenRouter.
 
-Transcript length thresholds are machine-local `.env` settings:
+All model definitions and parameters are configured in your `.env` file:
 
 ```text
+# Gemini
+GEMINI_PRIMARY_MODEL=gemini-3.6-flash
+GEMINI_FALLBACK_MODEL=gemini-3.5-flash
+GEMINI_THINKING_LEVEL=none
+
+# Ollama
+OLLAMA_MODEL=gemma4:26b
+OLLAMA_BASE_URL=http://localhost:11434
+
+# OpenRouter
+OPENROUTER_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1/chat/completions
+
+# Length thresholds (word counts)
 LLM_SHORT_MAX_WORDS=1600
 LLM_MEDIUM_MAX_WORDS=2500
 ```
 
-The values are word counts. Transcripts at or below `LLM_SHORT_MAX_WORDS` are routed as `short`; transcripts at or below `LLM_MEDIUM_MAX_WORDS` are routed as `medium`; anything larger is routed as `long`.
+Transcripts at or below `LLM_SHORT_MAX_WORDS` are routed as `short`; transcripts at or below `LLM_MEDIUM_MAX_WORDS` are routed as `medium`; anything larger is routed as `long`.
 
 ### Customizing Prompts
 
