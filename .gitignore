@@ -17,3 +17,5 @@ setup-yt2md-schedule.ps1
 run-yt2md-daily.ps1
 yt2md_daily.log
 cookies.txt
+cookies_instagram.txt
+temp_audio/instagram_netscape_cookies.txt

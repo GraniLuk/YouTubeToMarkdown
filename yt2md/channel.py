@@ -12,6 +12,7 @@ class Channel:
         title_filters: Optional[list[str]] = None,
         skip_shorts: bool = False,
         is_playlist: Optional[bool] = None,
+        platform: str = "youtube",
     ):
         self.id = id
         self.language_code = language_code
@@ -20,6 +21,7 @@ class Channel:
         self.name = name
         self.title_filters = title_filters or []
         self.skip_shorts = skip_shorts
+        self.platform = (platform or "youtube").strip().lower()
         if is_playlist is not None:
             self.is_playlist = bool(is_playlist)
         else:
@@ -32,3 +34,7 @@ class Channel:
                 or "list=" in id
                 or "playlist" in id
             )
+
+    @property
+    def is_instagram(self) -> bool:
+        return self.platform == "instagram"

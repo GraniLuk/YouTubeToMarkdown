@@ -1203,6 +1203,14 @@ def _fetch_video_durations(
 
 
 def extract_video_id(url: str) -> Optional[str]:
+    """Extract unique ID from YouTube or Instagram video URL."""
+    if not url:
+        return None
+    # Instagram URLs
+    ig_match = re.search(r"instagram\.com/(?:reel|reels|p|tv)/([A-Za-z0-9_-]+)", url)
+    if ig_match:
+        return ig_match.group(1)
+
     # Extract video ID from different YouTube URL formats
     pattern = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
     match = re.search(pattern, url)

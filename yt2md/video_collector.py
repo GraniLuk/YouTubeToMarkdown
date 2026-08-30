@@ -5,6 +5,11 @@ from typing import List, Optional, Tuple, Union
 from yt2md.channel import Channel
 from yt2md.cli import parse_categories
 from yt2md.config import load_all_channels, load_channels_by_category
+from yt2md.instagram import (
+    get_reel_details_from_url,
+    get_reels_from_profile,
+    is_instagram_url,
+)
 from yt2md.logger import get_logger
 from yt2md.youtube import (
     get_video_details_from_url,
@@ -25,10 +30,10 @@ def collect_videos_from_url(
     max_videos: int = 10,
 ) -> List[Tuple]:
     """
-    Collect video details from a specific URL or playlist.
+    Collect video details from a specific URL, playlist, or Instagram reel.
 
     Args:
-        url: YouTube video URL or playlist URL
+        url: YouTube video URL, playlist URL, or Instagram Reel URL
         language_code: Language code for the transcript
         skip_verification: Whether to skip verification of already processed videos
         category: Optional category for the video
@@ -48,6 +53,27 @@ def collect_videos_from_url(
 
     parsed_cats = parse_categories(category) if category else []
     cat_str = ", ".join(parsed_cats) if parsed_cats else category
+
+    # Check if URL is from Instagram
+    if is_instagram_url(url):
+        logger.info(f"Processing Instagram URL: {url}")
+        reel_details = get_reel_details_from_url(url, skip_verification=skip_verification)
+        if not reel_details:
+            logger.warning("Could not retrieve Instagram reel details or reel already processed")
+            return []
+
+        reel_url, reel_title, published_date, uploader = reel_details
+        return [
+            (
+                reel_url,
+                reel_title,
+                published_date,
+                uploader,
+                language_code,
+                output_language,
+                cat_str,
+            )
+        ]
 
     # Check if URL is a playlist
     if is_playlist_url(url):
@@ -155,22 +181,46 @@ def collect_videos_from_category(
     return videos_to_process
 
 
-def collect_videos_from_all_channels(days: int, max_videos: int = 10) -> List[Tuple]:
+def collect_videos_from_all_channels(
+    days: int,
+    channel_name: Optional[str] = None,
+    max_videos: int = 10,
+) -> List[Tuple]:
     """
-    Collect videos from all configured channels.
+    Collect videos from all configured channels (optionally filtered by channel_name).
 
     Args:
         days: Number of days to look back for videos
+        channel_name: Optional specific channel name or ID to filter
         max_videos: Maximum number of videos to collect per channel
 
     Returns:
         List of tuples with video details
     """
-    logger.info("Processing videos from all channels")
     channels = load_all_channels()
+    if channel_name:
+        filtered = [
+            ch
+            for ch in channels
+            if ch.name.lower() == channel_name.lower()
+            or ch.id.lower() == channel_name.lower()
+        ]
+        if not filtered:
+            logger.warning(f"Channel '{channel_name}' not found in configuration")
+            return []
+        channels = filtered
+        logger.info(f"Processing channel: {channel_name}...")
+    else:
+        logger.info("Processing videos from all channels")
+
     videos_to_process = []
+    seen_channel_ids = set()
 
     for channel in channels:
+        if channel.id in seen_channel_ids:
+            logger.debug(f"Skipping already processed channel ID: {channel.id}")
+            continue
+        seen_channel_ids.add(channel.id)
         videos_to_process.extend(
             _collect_videos_from_single_channel(channel, days, max_videos)
         )
@@ -193,6 +243,30 @@ def _collect_videos_from_single_channel(
         List of tuples with video details
     """
     videos_to_process = []
+
+    if getattr(channel, "is_instagram", False) or getattr(channel, "platform", "") == "instagram":
+        logger.debug(f"Getting Instagram reels from: {channel.name} ({channel.id})")
+        reels = get_reels_from_profile(
+            channel.id,
+            days=days,
+            max_videos=max_videos,
+            skip_verification=False,
+            channel_name=channel.name,
+            title_filters=channel.title_filters,
+        )
+        for url, title, published_date, uploader in reels:
+            videos_to_process.append(
+                (
+                    url,
+                    title,
+                    published_date,
+                    channel.name or uploader,
+                    channel.language_code,
+                    channel.output_language,
+                    channel.category,
+                )
+            )
+        return videos_to_process
 
     if getattr(channel, "is_playlist", False):
         logger.debug(f"Getting videos from playlist: {channel.name} ({channel.id})")

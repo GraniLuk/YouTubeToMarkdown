@@ -180,15 +180,15 @@ def save_to_markdown(
 
     try:
         # Extract video ID from URL
-        video_id = video_url.split("?v=")[1].split("&")[0]
-        logger.debug(f"Extracted video ID: {video_id}")
-        # Update index file inside the main summaries directory
-        update_video_index(video_id, filepath, skip_verification)
-        logger.debug("Updated video index")
-    except IndexError:
-        # Handle case where URL doesn't have expected format
-        logger.warning(f"Could not extract video ID from URL: {video_url}")
-        pass
+        from yt2md.youtube import extract_video_id
+        video_id = extract_video_id(video_url)
+        if video_id:
+            logger.debug(f"Extracted video ID: {video_id}")
+            # Update index file inside the main summaries directory
+            update_video_index(video_id, filepath, skip_verification)
+            logger.debug("Updated video index")
+        else:
+            logger.warning(f"Could not extract video ID from URL: {video_url}")
     except Exception as e:
         logger.error(f"Error updating video index: {str(e)}")
 

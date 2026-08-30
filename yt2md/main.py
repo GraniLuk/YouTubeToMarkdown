@@ -108,7 +108,14 @@ def run_main(args):
         elif not args.url and (not categories or "Podcast" in categories):
             try:
                 from yt2md.config import load_channels_by_category
-                if load_channels_by_category("Podcast"):
+                podcast_channels = load_channels_by_category("Podcast")
+                should_check_podcasts = True
+                if args.channel:
+                    should_check_podcasts = any(
+                        ch.name.lower() == args.channel.lower() or ch.id.lower() == args.channel.lower()
+                        for ch in podcast_channels
+                    )
+                if podcast_channels and should_check_podcasts:
                     from yt2md.podcast import process_podcast_subscriptions
                     process_podcast_subscriptions(
                         days=args.days,
@@ -152,7 +159,9 @@ def run_main(args):
                 videos_to_process = []
         else:
             videos_to_process = collect_videos_from_all_channels(
-                args.days, max_videos=args.max_videos
+                args.days,
+                channel_name=args.channel,
+                max_videos=args.max_videos,
             )
 
         # Display summary of videos to process

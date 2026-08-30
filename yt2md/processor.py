@@ -6,6 +6,7 @@ import colorama
 from yt2md.AI import analyze_transcript_by_length
 from yt2md.config import get_transcript_length_category
 from yt2md.file_operations import save_to_markdown
+from yt2md.instagram import get_instagram_transcript, is_instagram_url
 from yt2md.logger import colored_text, get_logger
 from yt2md.youtube import get_youtube_transcript
 
@@ -155,9 +156,18 @@ def process_video(
         saved_files = []
 
         # Get transcript
-        transcript = get_youtube_transcript(video_url, language_code=language_code, prefer_auto_generated=prefer_auto_generated)
+        is_ig = is_instagram_url(video_url)
+        if is_ig:
+            transcript = get_instagram_transcript(
+                video_url, language_code=language_code, prefer_auto_generated=prefer_auto_generated
+            )
+        else:
+            transcript = get_youtube_transcript(
+                video_url, language_code=language_code, prefer_auto_generated=prefer_auto_generated
+            )
+
         if transcript is None:
-            # The error has already been logged in get_youtube_transcript
+            # The error has already been logged in extractor
             logger.error(
                 f"Error processing video {video_title}: Transcript extraction failed"
             )
@@ -184,12 +194,13 @@ def process_video(
                         colorama.Fore.YELLOW,
                     )
                 )
+                platform_label = "Instagram" if is_ig else "YouTube"
                 minimal_content = (
                     f"# {video_title}\n\n"
                     f"**Link:** [{video_url}]({video_url})\n\n"
-                    f"## Description\nShort video ({transcript_length} words). Watch directly on YouTube.\n"
+                    f"## Description\nShort video ({transcript_length} words). Watch directly on {platform_label}.\n"
                 )
-                description = f"Short video ({transcript_length} words). Watch directly on YouTube."
+                description = f"Short video ({transcript_length} words). Watch directly on {platform_label}."
                 saved_file_path = save_to_markdown(
                     video_title,
                     video_url,

@@ -181,12 +181,107 @@ def _get_ytdlp_base_opts() -> dict:
     }
 
 
-def _get_ytdlp_auth_opts() -> dict:
+def _resolve_existing_path(path_str: Optional[str]) -> Optional[str]:
+    """Resolve a file path checking cwd, project root, and package directory."""
+    if not path_str:
+        return None
+    path_str = path_str.strip()
+    if not path_str:
+        return None
+
+    if os.path.isabs(path_str) and os.path.exists(path_str):
+        return path_str
+
+    if os.path.exists(path_str):
+        return os.path.abspath(path_str)
+
+    # Check project root (parent directory of yt2md package)
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    cand = os.path.join(project_root, path_str)
+    if os.path.exists(cand):
+        return cand
+
+    # Check package directory
+    pkg_dir = os.path.abspath(os.path.dirname(__file__))
+    cand_pkg = os.path.join(pkg_dir, path_str)
+    if os.path.exists(cand_pkg):
+        return cand_pkg
+
+    return None
+
+
+def _prepare_cookie_file_if_needed(cookie_path: str) -> str:
+    """If cookie file contains only raw sessionid, convert to valid Netscape format for yt-dlp."""
+    try:
+        with open(cookie_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read().strip()
+
+        if not content:
+            return cookie_path
+
+        if content.startswith("# Netscape") or "\t" in content:
+            return cookie_path
+
+        # If it looks like a raw sessionid string (e.g. 1009909077%3A...) or sessionid=...
+        session_id = content
+        if "sessionid=" in session_id:
+            session_id = session_id.split("sessionid=")[1].split(";")[0].strip()
+        session_id = session_id.strip("'\"\r\n\t ")
+
+        if len(session_id) > 10:
+            user_id = session_id.split("%3A")[0] if "%3A" in session_id else session_id.split(":")[0]
+            cache_dir = os.getenv("AUDIO_CACHE_DIR", "temp_audio")
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            resolved_cache = os.path.join(project_root, "temp_audio")
+            os.makedirs(resolved_cache, exist_ok=True)
+            netscape_path = os.path.join(resolved_cache, "instagram_netscape_cookies.txt")
+
+            netscape_content = (
+                "# Netscape HTTP Cookie File\n"
+                f".instagram.com\tTRUE\t/\tTRUE\t2147483647\tsessionid\t{session_id}\n"
+                f".instagram.com\tTRUE\t/\tTRUE\t2147483647\tds_user_id\t{user_id}\n"
+            )
+            with open(netscape_path, "w", encoding="utf-8") as out_f:
+                out_f.write(netscape_content)
+            logger.debug(f"📝 Converted raw Instagram sessionid to Netscape format at: {netscape_path}")
+            return netscape_path
+    except Exception as exc:
+        logger.debug(f"Could not convert cookie file: {exc}")
+
+    return cookie_path
+
+
+def _get_ytdlp_auth_opts(url_or_platform: Optional[str] = None) -> dict:
     """Return yt-dlp authentication options from environment configuration."""
-    cookies_file = os.getenv("COOKIES_FILE", "")
-    if cookies_file and os.path.exists(cookies_file):
+    is_ig = False
+    if url_or_platform:
+        is_ig = url_or_platform == "instagram" or "instagram.com" in url_or_platform.lower()
+
+    if is_ig:
+        ig_env = os.getenv("INSTAGRAM_COOKIES_PATH") or os.getenv("INSTAGRAM_COOKIES_FILE")
+        ig_cookies = _resolve_existing_path(ig_env)
+        if ig_cookies:
+            cookie_file = _prepare_cookie_file_if_needed(ig_cookies)
+            logger.debug(f"📝 Configured to use Instagram cookies from file: {cookie_file}")
+            return {"cookiefile": cookie_file}
+
+        for cand in ["cookies_instagram.txt", "instagram_cookies.txt"]:
+            resolved_cand = _resolve_existing_path(cand)
+            if resolved_cand:
+                cookie_file = _prepare_cookie_file_if_needed(resolved_cand)
+                logger.debug(f"📝 Found Instagram cookies file: {cookie_file}")
+                return {"cookiefile": cookie_file}
+
+    cookies_env = os.getenv("COOKIES_FILE", "")
+    cookies_file = _resolve_existing_path(cookies_env)
+    if cookies_file:
         logger.debug(f"📝 Configured to use cookies from file: {cookies_file}")
         return {"cookiefile": cookies_file}
+
+    default_cookies = _resolve_existing_path("cookies.txt")
+    if default_cookies:
+        logger.debug(f"📝 Found cookies.txt: {default_cookies}")
+        return {"cookiefile": default_cookies}
 
     cookies_from_browser = os.getenv("COOKIES_FROM_BROWSER", "").lower()
     if cookies_from_browser and cookies_from_browser not in (
@@ -225,11 +320,14 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
     cache_dir = os.getenv("AUDIO_CACHE_DIR", "temp_audio")
     os.makedirs(cache_dir, exist_ok=True)
 
+    auth_opts = _get_ytdlp_auth_opts(video_url)
+    is_instagram = "instagram.com" in video_url.lower()
+
     # First, check video metadata without downloading
     logger.debug("Checking video metadata (live status, duration)...")
     try:
         with yt_dlp.YoutubeDL(
-            {**_get_ytdlp_base_opts(), **_get_ytdlp_auth_opts()}
+            {**_get_ytdlp_base_opts(), **auth_opts}
         ) as ydl:  # type: ignore[arg-type]
             info = ydl.extract_info(video_url, download=False)
 
@@ -246,15 +344,16 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
                     f"Video is {status_msg}, not available for download"
                 )
 
-            # Check video duration (skip very short videos)
+            # Check video duration (skip very short videos for YT, allow short reels for IG)
             duration = info.get("duration", 0)
+            default_min_duration = 3 if is_instagram else 30
             try:
-                min_duration = int(os.getenv("MIN_VIDEO_DURATION_SECONDS", "30"))
+                min_duration = int(os.getenv("MIN_VIDEO_DURATION_SECONDS", str(default_min_duration)))
             except ValueError:
                 logger.warning(
-                    "Invalid MIN_VIDEO_DURATION_SECONDS, using default 30 seconds"
+                    f"Invalid MIN_VIDEO_DURATION_SECONDS, using default {default_min_duration} seconds"
                 )
-                min_duration = 30
+                min_duration = default_min_duration
 
             if duration and duration < min_duration:
                 logger.warning(
@@ -297,7 +396,7 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
         "no_color": True,
         "extract_audio": True,
         **_get_ytdlp_base_opts(),
-        **_get_ytdlp_auth_opts(),
+        **auth_opts,
     }
 
     # Get retry configuration
