@@ -289,6 +289,41 @@ def analyze_transcript_by_length(
         primary = {"provider": "ollama", "model": effective_ollama_model}
 
     processed_cloud = False
+    attempted_gemini_models = set()
+
+    def try_gemini_model(model_name: str, purpose: str = "primary") -> bool:
+        """Attempt processing with a Gemini model. Returns True if succeeded."""
+        nonlocal processed_cloud
+        if not model_name or model_name in attempted_gemini_models:
+            return False
+        attempted_gemini_models.add(model_name)
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not gemini_api_key:
+            logger.warning("Gemini API key not configured/found. Skipping Gemini.")
+            return False
+        logger.info(
+            f"Attempting to use Gemini model: {model_name} for category: {category} ({purpose})"
+        )
+        try:
+            refined_text, description = analyze_transcript_with_gemini(
+                transcript=transcript,
+                api_key=gemini_api_key,
+                gemini_model_name=model_name,
+                output_language=output_language,
+                category=category,
+            )
+            results["cloud"] = {
+                "text": refined_text,
+                "description": description,
+                "model_name": model_name,
+                "provider": "gemini",
+            }
+            processed_cloud = True
+            logger.debug(f"Successfully processed with Gemini ({purpose}): {model_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Error during Gemini processing with {model_name}: {e}")
+            return False
 
     # Process with primary model
     if primary and primary["provider"] == "openrouter":
@@ -325,37 +360,17 @@ def analyze_transcript_by_length(
             primary_model_failed = True
 
     elif primary and primary["provider"] == "gemini" and not force_ollama:
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
         model_type = primary.get("model_type", "primary")
         model_name = get_model_name("gemini", model_type, category)
 
-        if gemini_api_key and model_name:
-            logger.info(
-                f"Attempting to use Gemini model: {model_name} for category: {category} (primary)"
-            )
-            try:
-                refined_text, description = analyze_transcript_with_gemini(
-                    transcript=transcript,
-                    api_key=gemini_api_key,
-                    gemini_model_name=model_name,
-                    output_language=output_language,
-                    category=category,
-                )
-                results["cloud"] = {
-                    "text": refined_text,
-                    "description": description,
-                    "model_name": model_name,
-                    "provider": "gemini",
-                }
-                processed_cloud = True
-                logger.debug(f"Successfully processed with Gemini: {model_name}")
-            except Exception as e:
-                logger.error(f"Error during Gemini processing with {model_name}: {e}")
-                primary_model_failed = True
-        else:
-            logger.warning(
-                "Gemini API key or model name not configured/found. Skipping Gemini."
-            )
+        success = try_gemini_model(model_name, "primary")
+        if not success:
+            # Fallback to secondary Gemini model if configured
+            fallback_gemini_model = get_model_name("gemini", "fallback", category)
+            if fallback_gemini_model and fallback_gemini_model not in attempted_gemini_models:
+                success = try_gemini_model(fallback_gemini_model, "gemini fallback")
+
+        if not success:
             primary_model_failed = True
 
     elif primary and primary["provider"] == "ollama" and not force_cloud:
@@ -421,65 +436,52 @@ def analyze_transcript_by_length(
                 )
 
         elif fallback["provider"] == "gemini" and not force_ollama:
-            gemini_api_key = os.getenv("GEMINI_API_KEY")
             model_type = fallback.get("model_type", "fallback")
             model_name = get_model_name("gemini", model_type, category)
 
-            if gemini_api_key and model_name:
-                logger.info(
-                    f"Attempting to use Gemini model: {model_name} for category: {category} (fallback)"
+            success = False
+            if model_name not in attempted_gemini_models:
+                success = try_gemini_model(model_name, "fallback")
+
+            if not success:
+                alt_gemini_model = get_model_name(
+                    "gemini",
+                    "fallback" if model_type == "primary" else "primary",
+                    category,
                 )
-                try:
-                    refined_text, description = analyze_transcript_with_gemini(
-                        transcript=transcript,
-                        api_key=gemini_api_key,
-                        gemini_model_name=model_name,
-                        output_language=output_language,
-                        category=category,
+                if alt_gemini_model and alt_gemini_model not in attempted_gemini_models:
+                    success = try_gemini_model(alt_gemini_model, "gemini fallback")
+
+            # If Gemini fallback also failed, try OpenRouter as last resort
+            if not success:
+                openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+                or_model = openrouter_model or get_model_name("openrouter", "primary", category)
+                if openrouter_api_key and or_model:
+                    logger.info(
+                        f"Gemini fallback failed, attempting OpenRouter as last resort: {or_model}"
                     )
-                    results["cloud"] = {
-                        "text": refined_text,
-                        "description": description,
-                        "model_name": model_name,
-                        "provider": "gemini",
-                    }
-                    processed_cloud = True
-                    logger.debug(
-                        f"Successfully processed with Gemini fallback: {model_name}"
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Error during Gemini fallback processing with {model_name}: {e}"
-                    )
-                    # If Gemini fallback also failed, try OpenRouter as last resort
-                    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-                    or_model = openrouter_model or get_model_name("openrouter", "primary", category)
-                    if openrouter_api_key and or_model:
-                        logger.info(
-                            f"Gemini fallback failed, attempting OpenRouter as last resort: {or_model}"
+                    try:
+                        refined_text, description = analyze_transcript_with_openrouter(
+                            transcript=transcript,
+                            api_key=openrouter_api_key,
+                            model_name=or_model,
+                            output_language=output_language,
+                            category=category,
                         )
-                        try:
-                            refined_text, description = analyze_transcript_with_openrouter(
-                                transcript=transcript,
-                                api_key=openrouter_api_key,
-                                model_name=or_model,
-                                output_language=output_language,
-                                category=category,
-                            )
-                            results["cloud"] = {
-                                "text": refined_text,
-                                "description": description,
-                                "model_name": or_model,
-                                "provider": "openrouter",
-                            }
-                            processed_cloud = True
-                            logger.debug(
-                                f"Successfully processed with OpenRouter last resort: {or_model}"
-                            )
-                        except Exception as or_e:
-                            logger.error(
-                                f"Error during OpenRouter last resort processing: {or_e}"
-                            )
+                        results["cloud"] = {
+                            "text": refined_text,
+                            "description": description,
+                            "model_name": or_model,
+                            "provider": "openrouter",
+                        }
+                        processed_cloud = True
+                        logger.debug(
+                            f"Successfully processed with OpenRouter last resort: {or_model}"
+                        )
+                    except Exception as or_e:
+                        logger.error(
+                            f"Error during OpenRouter last resort processing: {or_e}"
+                        )
             else:
                 logger.warning(
                     "Gemini API key or model name not configured/found for fallback."
