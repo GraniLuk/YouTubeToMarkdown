@@ -647,23 +647,21 @@ def get_instagram_transcript(
         prefer_auto_generated: Kept for API consistency with YouTube extractor
 
     Returns:
-        Combined transcript and post context string, or None if extraction fails
+        Combined transcript and post context string, or fallback string if extraction fails
     """
     logger.info(f"🎙️ Pobieranie transkrypcji audio dla rolki: {video_url}")
 
+    audio_transcript = None
     # Step 1: Transcribe audio using Whisper audio fallback
-    audio_transcript = extract_transcript_via_audio(
-        video_url, language_code=language_code
-    )
+    try:
+        audio_transcript = extract_transcript_via_audio(
+            video_url, language_code=language_code
+        )
+    except Exception as exc:
+        logger.debug(f"Audio fallback extraction skipped/failed for {video_url}: {exc}")
 
     # Step 2: Fetch post caption/description
     post_caption = get_instagram_post_caption(video_url)
-
-    if not audio_transcript and not post_caption:
-        logger.error(
-            f"Nie udało się uzyskać ani transkrypcji audio, ani opisu posta dla {video_url}"
-        )
-        return None
 
     if audio_transcript and post_caption:
         # Combine transcript with post caption context
@@ -674,9 +672,14 @@ def get_instagram_transcript(
         return combined
     elif audio_transcript:
         return audio_transcript
-    else:
+    elif post_caption:
         # Fallback to post caption if speech was not detected (e.g. background music only)
         logger.info(
             f"Brak transkrypcji audio dla {video_url}, użycie opisu posta jako treści"
         )
         return f"[Treść opisu posta]:\n{post_caption}"
+    else:
+        logger.info(
+            f"Brak transkrypcji i opisu dla {video_url}, utworzenie notatki bazowej"
+        )
+        return f"Rolka Instagram bez transkrypcji audio i opisu. Obejrzyj nagranie: {video_url}"

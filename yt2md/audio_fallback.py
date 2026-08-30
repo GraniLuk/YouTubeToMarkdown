@@ -346,14 +346,19 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
 
             # Check video duration (skip very short videos for YT, allow short reels for IG)
             duration = info.get("duration", 0)
-            default_min_duration = 3 if is_instagram else 30
-            try:
-                min_duration = int(os.getenv("MIN_VIDEO_DURATION_SECONDS", str(default_min_duration)))
-            except ValueError:
-                logger.warning(
-                    f"Invalid MIN_VIDEO_DURATION_SECONDS, using default {default_min_duration} seconds"
-                )
-                min_duration = default_min_duration
+            if is_instagram:
+                try:
+                    min_duration = int(os.getenv("MIN_INSTAGRAM_DURATION_SECONDS", "0"))
+                except ValueError:
+                    min_duration = 0
+            else:
+                try:
+                    min_duration = int(os.getenv("MIN_VIDEO_DURATION_SECONDS", "30"))
+                except ValueError:
+                    logger.warning(
+                        "Invalid MIN_VIDEO_DURATION_SECONDS, using default 30 seconds"
+                    )
+                    min_duration = 30
 
             if duration and duration < min_duration:
                 logger.warning(

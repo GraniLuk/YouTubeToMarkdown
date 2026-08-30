@@ -185,20 +185,29 @@ def process_video(
             or os.getenv("SKIP_SUMMARIZE_SHORTS", "").lower() in ("true", "1", "yes")
         )
 
-        if should_skip_shorts_summary:
+        try:
+            min_words_for_summary = int(os.getenv("MIN_WORDS_FOR_SUMMARY", "25"))
+        except ValueError:
+            min_words_for_summary = 25
+
+        is_too_sparse = transcript_length < min_words_for_summary
+
+        if should_skip_shorts_summary or is_too_sparse:
             length_category = get_transcript_length_category(transcript_length, category)
-            if length_category == "short":
+            if (should_skip_shorts_summary and length_category == "short") or is_too_sparse:
+                reason = "Sparse / no speech transcript" if is_too_sparse else "Short video"
                 logger.info(
                     colored_text(
-                        f"Short video detected ({transcript_length} words). Skipping LLM summarization as requested.",
+                        f"{reason} detected ({transcript_length} words). Adding directly to vault without LLM summarization.",
                         colorama.Fore.YELLOW,
                     )
                 )
                 platform_label = "Instagram" if is_ig else "YouTube"
+                cleaned_transcript = transcript.strip()
                 minimal_content = (
                     f"# {video_title}\n\n"
                     f"**Link:** [{video_url}]({video_url})\n\n"
-                    f"## Description\nShort video ({transcript_length} words). Watch directly on {platform_label}.\n"
+                    f"## Description\n{cleaned_transcript}\n"
                 )
                 description = f"Short video ({transcript_length} words). Watch directly on {platform_label}."
                 saved_file_path = save_to_markdown(
@@ -218,7 +227,7 @@ def process_video(
 
                 result = []
                 for path in saved_files:
-                    result.append({'path': path, 'word_count': transcript_length})
+                    result.append({"path": path, "word_count": transcript_length})
                 return result
 
         # Measure execution time for transcript analysis
