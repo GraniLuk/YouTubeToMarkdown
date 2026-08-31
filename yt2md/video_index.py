@@ -17,6 +17,13 @@ def get_processed_video_ids(skip_verification: bool = False) -> set[str]:
     processed_video_ids = set[str]()
     summaries_dir = os.getenv("SUMMARIES_PATH")
     if not summaries_dir:
+        from dotenv import load_dotenv
+        env_cand = os.path.abspath(os.path.join(os.path.dirname(__file__), ".env"))
+        if os.path.exists(env_cand):
+            load_dotenv(env_cand)
+        summaries_dir = os.getenv("SUMMARIES_PATH")
+
+    if not summaries_dir:
         raise ValueError("SUMMARIES_PATH environment variable is not set")
 
     index_file = os.path.join(summaries_dir, "video_index.txt")

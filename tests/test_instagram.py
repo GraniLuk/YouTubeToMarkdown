@@ -109,7 +109,7 @@ class TestInstagramModule(unittest.TestCase):
 
         self.assertIsNone(_parse_entry_date({}))
 
-    @patch("yt2md.instagram._get_reels_from_profile_web_api", return_value=[])
+    @patch("yt2md.instagram._get_reels_from_profile_web_api", return_value=None)
     @patch("yt2md.instagram.get_processed_video_ids")
     @patch("yt_dlp.YoutubeDL")
     def test_get_reels_from_profile(self, mock_ydl_cls, mock_get_processed, mock_web_api):
@@ -202,6 +202,13 @@ class TestInstagramModule(unittest.TestCase):
         self.assertEqual(reels[0][0], "https://www.instagram.com/reel/XYZ123/")
         self.assertEqual(reels[0][1], "Tytuł rolki z API")
         self.assertEqual(reels[0][3], "Bartek Kruk")
+
+    @patch("yt2md.instagram._get_reels_from_profile_web_api", return_value=[])
+    @patch("yt_dlp.YoutubeDL")
+    def test_get_reels_from_profile_empty_web_api_does_not_call_ytdlp(self, mock_ydl_cls, mock_web_api):
+        reels = get_reels_from_profile("bartekkruk_", days=3)
+        self.assertEqual(reels, [])
+        mock_ydl_cls.assert_not_called()
 
     @patch("yt2md.instagram.get_processed_video_ids")
     @patch("yt_dlp.YoutubeDL")

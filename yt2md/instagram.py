@@ -262,13 +262,17 @@ def _get_reels_from_profile_web_api(
     channel_name: Optional[str] = None,
     title_filters: Optional[List[str]] = None,
     cookie_file: Optional[str] = None,
-) -> List[Tuple[str, str, str, str]]:
-    """Fetch profile reels directly from Instagram Web Feed API using cookies."""
+) -> Optional[List[Tuple[str, str, str, str]]]:
+    """
+    Fetch profile reels directly from Instagram Web Feed API using cookies.
+    Returns list of reels on success (can be empty if none found / all processed),
+    or None if the API request itself fails.
+    """
     import requests
 
     cookies = _extract_cookies_dict_from_file(cookie_file)
     if not cookies:
-        return []
+        return None
 
     session = requests.Session()
     for k, v in cookies.items():
@@ -300,72 +304,91 @@ def _get_reels_from_profile_web_api(
 
         if not user_pk:
             logger.debug(f"Could not resolve user PK for @{username}")
-            return []
+            return None
 
-        # 2. Query user feed
-        feed_url = f"https://www.instagram.com/api/v1/feed/user/{user_pk}/"
-        feed_resp = session.get(feed_url, headers=headers, timeout=15)
-        if feed_resp.status_code != 200:
-            logger.debug(f"Feed request returned status {feed_resp.status_code}")
-            return []
-
-        items = feed_resp.json().get("items", [])
+        # 2. Query user feed with pagination support
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         processed_ids = get_processed_video_ids(skip_verification)
         collected: List[Tuple[str, str, str, str]] = []
+        max_id = None
+        has_more = True
 
-        for it in items:
-            code = it.get("code")
-            if not code:
-                continue
+        while has_more and len(collected) < max_videos:
+            feed_url = f"https://www.instagram.com/api/v1/feed/user/{user_pk}/"
+            if max_id:
+                feed_url += f"?max_id={max_id}"
 
-            media_type = it.get("media_type")
-            is_video = media_type == 2 or bool(it.get("video_versions"))
-            if not is_video:
-                continue
+            feed_resp = session.get(feed_url, headers=headers, timeout=15)
+            if feed_resp.status_code != 200:
+                logger.debug(f"Feed request returned status {feed_resp.status_code}")
+                # If we already collected some items, return them, else None
+                return collected if collected else None
 
-            if code in processed_ids:
-                logger.debug(f"Pominięto już przetworzoną rolkę ID: {code}")
-                continue
+            feed_json = feed_resp.json()
+            items = feed_json.get("items", [])
+            if not items:
+                break
 
-            taken_at = it.get("taken_at")
-            if taken_at:
-                dt = datetime.fromtimestamp(taken_at, tz=timezone.utc)
-                if dt < cutoff_date:
-                    logger.debug(
-                        f"Pominięto rolkę {code} z daty {dt.strftime('%Y-%m-%d')} (starsza niż {days} dni)"
-                    )
-                    continue
-                pub_date_str = dt.strftime("%Y-%m-%d")
-            else:
-                pub_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-            reel_url = f"https://www.instagram.com/reel/{code}/"
-
-            caption_obj = it.get("caption") or {}
-            caption_text = (
-                caption_obj.get("text", "")
-                if isinstance(caption_obj, dict)
-                else str(caption_obj)
-            )
-            first_line = caption_text.strip().split("\n")[0].strip() if caption_text else ""
-            first_line = re.sub(r"^#+\s*", "", first_line).strip()
-            title = first_line[:100] if len(first_line) > 3 else f"Instagram Reel #{code}"
-
-            if title_filters:
-                combined_text = f"{title} {caption_text}".lower()
-                if not any(f.lower() in combined_text for f in title_filters):
+            reached_cutoff = False
+            for it in items:
+                code = it.get("code")
+                if not code:
                     continue
 
-            collected.append((reel_url, title, pub_date_str, display_name))
-            if len(collected) >= max_videos:
+                is_pinned = bool(it.get("timeline_pinned_user_ids") or it.get("is_pinned"))
+                media_type = it.get("media_type")
+                is_video = media_type == 2 or bool(it.get("video_versions"))
+                if not is_video:
+                    continue
+
+                taken_at = it.get("taken_at")
+                if taken_at:
+                    dt = datetime.fromtimestamp(taken_at, tz=timezone.utc)
+                    if dt < cutoff_date:
+                        # Pinned posts can have ancient dates at top of profile - do not abort pagination on them
+                        if not is_pinned:
+                            reached_cutoff = True
+                        continue
+                    pub_date_str = dt.strftime("%Y-%m-%d")
+                else:
+                    pub_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+                if code in processed_ids:
+                    logger.debug(f"Pominięto już przetworzoną rolkę ID: {code}")
+                    continue
+
+                reel_url = f"https://www.instagram.com/reel/{code}/"
+
+                caption_obj = it.get("caption") or {}
+                caption_text = (
+                    caption_obj.get("text", "")
+                    if isinstance(caption_obj, dict)
+                    else str(caption_obj)
+                )
+                first_line = caption_text.strip().split("\n")[0].strip() if caption_text else ""
+                first_line = re.sub(r"^#+\s*", "", first_line).strip()
+                title = first_line[:100] if len(first_line) > 3 else f"Instagram Reel #{code}"
+
+                if title_filters:
+                    combined_text = f"{title} {caption_text}".lower()
+                    if not any(f.lower() in combined_text for f in title_filters):
+                        continue
+
+                collected.append((reel_url, title, pub_date_str, display_name))
+                if len(collected) >= max_videos:
+                    break
+
+            if reached_cutoff or not feed_json.get("more_available"):
+                break
+            max_id = feed_json.get("next_max_id")
+            if not max_id:
                 break
 
         logger.info(f"Zebrano {len(collected)} nowych rolek dla @{username}")
         return collected
     except Exception as exc:
         logger.debug(f"Instagram Web API fetch error: {exc}")
-        return []
+        return None
 
 
 def get_reels_from_profile(
@@ -410,7 +433,7 @@ def get_reels_from_profile(
         title_filters=title_filters,
         cookie_file=cookie_file,
     )
-    if reels_api:
+    if reels_api is not None:
         return reels_api
 
     # Strategy 2: yt-dlp profile extractor
