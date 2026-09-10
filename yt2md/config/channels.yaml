@@ -146,6 +146,12 @@ Fitness:
     language_code: pl
     output_language: Polish
 
+  - id: fit_recenzje
+    name: Fit Recenzje
+    platform: instagram
+    language_code: pl
+    output_language: Polish    
+
 News:
   - id: UClhEl4bMD8_escGCCTmRAYg
     name: Kanal Zero

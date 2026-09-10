@@ -6,6 +6,7 @@ from yt2md.channel import Channel
 from yt2md.config import _create_channel, load_channels_by_category
 from yt2md.instagram import (
     _clean_title_from_post,
+    _get_reels_from_profile_selenium,
     _parse_entry_date,
     clean_instagram_username,
     extract_instagram_id,
@@ -91,9 +92,54 @@ class TestInstagramModule(unittest.TestCase):
             "5 ćwiczeń na zdrowe plecy",
         )
 
+        # "Video by <uploader>" should be recognized as generic and extract title from description
+        entry_video_by = {
+            "title": "Video by fit_recenzje",
+            "description": "Test nowego batona proteinowego!\nCzy warto kupić?",
+            "uploader": "fit_recenzje",
+            "id": "Dc_FCh0sb2c",
+        }
+        self.assertEqual(
+            _clean_title_from_post(entry_video_by, "default"),
+            "Test nowego batona proteinowego!",
+        )
+
+        # "Post by <uploader>" and "Reel by <uploader>" recognized as generic
+        entry_post_by = {
+            "title": "Post by bartekkruk_",
+            "description": "Poranny trening nóg #silownia #trening",
+            "uploader": "bartekkruk_",
+            "id": "DF2HwPvo1U5",
+        }
+        self.assertEqual(
+            _clean_title_from_post(entry_post_by, "default"),
+            "Poranny trening nóg",
+        )
+
+        # Skip leading sponsorship / ad disclaimer and hashtag-only lines
+        entry_sponsored = {
+            "title": "Video by fit_recenzje",
+            "description": "#reklama\n#fit #recenzje\nŚwietny deser wysokobiałkowy\nSkładniki poniżej...",
+            "uploader": "fit_recenzje",
+            "id": "Dc5imZvMfCc",
+        }
+        self.assertEqual(
+            _clean_title_from_post(entry_sponsored, "default"),
+            "Świetny deser wysokobiałkowy",
+        )
+
         # Fallback when description empty
         entry3 = {"title": "Instagram post #DF2HwPvo1U5", "description": "", "id": "DF2HwPvo1U5"}
         self.assertEqual(_clean_title_from_post(entry3, "default"), "default")
+
+        # Fallback when default_title is empty or "default" and id is present
+        self.assertEqual(
+            _clean_title_from_post(
+                {"title": "Video by fit_recenzje", "description": "", "id": "Dc_FCh0sb2c", "uploader": "fit_recenzje"},
+                "",
+            ),
+            "Instagram Reel #Dc_FCh0sb2c",
+        )
 
     def test_parse_entry_date(self):
         now_ts = 1739097891
@@ -109,10 +155,13 @@ class TestInstagramModule(unittest.TestCase):
 
         self.assertIsNone(_parse_entry_date({}))
 
+    @patch("yt2md.instagram._get_reels_from_profile_selenium", return_value=None)
     @patch("yt2md.instagram._get_reels_from_profile_web_api", return_value=None)
     @patch("yt2md.instagram.get_processed_video_ids")
     @patch("yt_dlp.YoutubeDL")
-    def test_get_reels_from_profile(self, mock_ydl_cls, mock_get_processed, mock_web_api):
+    def test_get_reels_from_profile(
+        self, mock_ydl_cls, mock_get_processed, mock_web_api, mock_selenium
+    ):
         mock_get_processed.return_value = {"ALREADY_PROCESSED"}
         mock_ydl_instance = MagicMock()
         mock_ydl_cls.return_value.__enter__.return_value = mock_ydl_instance
@@ -345,6 +394,25 @@ class TestChannelAndCollectorIntegration(unittest.TestCase):
         self.assertEqual(url, "https://www.instagram.com/reel/DF2HwPvo1U5/")
         self.assertEqual(title, "Rolka 1")
         self.assertEqual(uploader, "Bartek Kruk")
+        mock_get_reels.assert_called_with(
+            "bartekkruk_",
+            days=3,
+            max_videos=5,
+            skip_verification=False,
+            channel_name="Bartek Kruk",
+            title_filters=[],
+        )
+
+        # Test with skip_verification=True
+        _collect_videos_from_single_channel(ch, days=3, max_videos=5, skip_verification=True)
+        mock_get_reels.assert_called_with(
+            "bartekkruk_",
+            days=3,
+            max_videos=5,
+            skip_verification=True,
+            channel_name="Bartek Kruk",
+            title_filters=[],
+        )
 
     @patch("yt2md.video_collector.get_reels_from_profile")
     def test_collect_videos_from_all_channels_filtered(self, mock_get_reels):
@@ -362,6 +430,64 @@ class TestChannelAndCollectorIntegration(unittest.TestCase):
         vids = collect_videos_from_all_channels(days=7, channel_name="Bartek Kruk")
         self.assertEqual(len(vids), 1)
         self.assertEqual(vids[0][3], "Bartek Kruk")
+
+    def test_get_reels_from_profile_selenium_no_cookies(self):
+        with patch("yt2md.instagram._extract_cookies_dict_from_file", return_value={}):
+            res = _get_reels_from_profile_selenium("bartekkruk_")
+            self.assertIsNone(res)
+
+    @patch("yt2md.instagram._get_reels_from_profile_web_api", return_value=None)
+    @patch("yt2md.instagram._get_reels_from_profile_selenium", return_value=[])
+    @patch("yt_dlp.YoutubeDL")
+    def test_get_reels_from_profile_empty_selenium_does_not_call_ytdlp(
+        self, mock_ydl_cls, mock_selenium, mock_web_api
+    ):
+        reels = get_reels_from_profile("bartekkruk_", days=3)
+        self.assertEqual(reels, [])
+        mock_ydl_cls.assert_not_called()
+
+    @patch("yt2md.instagram.get_reel_details_from_url")
+    @patch("yt2md.instagram.get_processed_video_ids", return_value=set())
+    @patch("yt2md.instagram._extract_cookies_dict_from_file", return_value={"sessionid": "test"})
+    def test_get_reels_from_profile_selenium_success(
+        self, mock_cookies, mock_processed, mock_details
+    ):
+        mock_details.return_value = (
+            "https://www.instagram.com/reel/DF2HwPvo1U5/",
+            "Tytuł rolki",
+            datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "Bartek Kruk",
+        )
+
+        mock_driver = MagicMock()
+        mock_elem = MagicMock()
+        mock_elem.get_attribute.return_value = "https://www.instagram.com/reel/DF2HwPvo1U5/"
+        mock_driver.find_elements.return_value = [mock_elem]
+
+        with patch("selenium.webdriver.Chrome", return_value=mock_driver):
+            reels = _get_reels_from_profile_selenium("bartekkruk_", days=7, max_videos=5)
+            self.assertEqual(len(reels), 1)
+            self.assertEqual(reels[0][0], "https://www.instagram.com/reel/DF2HwPvo1U5/")
+            self.assertEqual(reels[0][1], "Tytuł rolki")
+            mock_driver.quit.assert_called_once()
+
+    @patch("yt2md.instagram._get_reels_from_profile_web_api", return_value=None)
+    @patch("yt2md.instagram._get_reels_from_profile_selenium")
+    def test_get_reels_from_profile_uses_selenium_when_web_api_fails(
+        self, mock_selenium, mock_web_api
+    ):
+        mock_selenium.return_value = [
+            (
+                "https://www.instagram.com/reel/DF2HwPvo1U5/",
+                "Tytuł rolki",
+                "2026-09-05",
+                "Bartek Kruk",
+            )
+        ]
+        reels = get_reels_from_profile("bartekkruk_", days=3)
+        self.assertEqual(len(reels), 1)
+        mock_web_api.assert_called_once()
+        mock_selenium.assert_called_once()
 
 
 if __name__ == "__main__":

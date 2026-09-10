@@ -149,19 +149,31 @@ def run_main(args):
             # Filter out Podcast category as podcast channels were already processed for RSS feed
             markdown_categories = [c for c in categories if c != "Podcast"]
             if markdown_categories:
+                collect_kwargs = {
+                    "channel_name": args.channel,
+                    "max_videos": args.max_videos,
+                    "skip_verification": args.skip_verification,
+                }
+                if getattr(args, "min_days", 0):
+                    collect_kwargs["min_days"] = args.min_days
                 videos_to_process = collect_videos_from_category(
                     markdown_categories,
                     args.days,
-                    channel_name=args.channel,
-                    max_videos=args.max_videos,
+                    **collect_kwargs,
                 )
             else:
                 videos_to_process = []
         else:
+            collect_kwargs = {
+                "channel_name": args.channel,
+                "max_videos": args.max_videos,
+                "skip_verification": args.skip_verification,
+            }
+            if getattr(args, "min_days", 0):
+                collect_kwargs["min_days"] = args.min_days
             videos_to_process = collect_videos_from_all_channels(
                 args.days,
-                channel_name=args.channel,
-                max_videos=args.max_videos,
+                **collect_kwargs,
             )
 
         # Display summary of videos to process

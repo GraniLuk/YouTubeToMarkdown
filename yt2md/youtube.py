@@ -664,6 +664,7 @@ def get_videos_from_channel(
     skip_shorts: bool = False,
     shorts_max_duration_seconds: int = 120,
     title_filters: Optional[list[str]] = None,
+    min_days: int = 0,
 ) -> list[tuple[str, str, str]]:
     """
     Get all unprocessed videos from a YouTube channel published in the last days.
@@ -678,6 +679,7 @@ def get_videos_from_channel(
         skip_shorts (bool): If True, skip videos classified as YouTube Shorts
         shorts_max_duration_seconds (int): Duration threshold in seconds to classify videos as Shorts
         title_filters (list[str], optional): List of title filter substrings
+        min_days (int): Minimum age of videos in days
 
     Returns:
         list[tuple[str, str, str]]: A list of tuples containing (video_url, video_title, published_date) for each video
@@ -702,6 +704,11 @@ def get_videos_from_channel(
     start_date = (datetime.now(timezone.utc) - timedelta(days=days)).replace(
         tzinfo=None
     )
+    min_date = (
+        (datetime.now(timezone.utc) - timedelta(days=min_days)).replace(tzinfo=None)
+        if min_days > 0
+        else None
+    )
 
     playlist_id = _get_uploads_playlist_id(channel_id, API_KEY)
     videos: list[tuple[str, str, str]] = []
@@ -720,6 +727,7 @@ def get_videos_from_channel(
             channel_id=channel_id,
             start_date=start_date,
             title_filters=title_filters,
+            min_date=min_date,
         )
     else:
         logger.warning(
@@ -737,6 +745,7 @@ def get_videos_from_channel(
             max_videos=max_videos,
             start_date=start_date,
             title_filters=title_filters,
+            min_date=min_date,
         )
 
     _save_uploads_playlist_cache()
@@ -763,6 +772,7 @@ def _collect_videos_from_playlist(
     channel_id: str,
     start_date: datetime,
     title_filters: Optional[list[str]] = None,
+    min_date: Optional[datetime] = None,
 ) -> tuple[list[tuple[str, str, str]], int]:
     videos: list[tuple[str, str, str]] = []
     page_token: Optional[str] = None
@@ -849,6 +859,14 @@ def _collect_videos_from_playlist(
             if published_at_dt < start_date:
                 logger.debug(
                     "Skipping video %s from %s (before window)",
+                    video_id,
+                    published_at_dt,
+                )
+                continue
+
+            if min_date and published_at_dt > min_date:
+                logger.debug(
+                    "Skipping video %s from %s (after min_date)",
                     video_id,
                     published_at_dt,
                 )
@@ -951,6 +969,7 @@ def _collect_videos_via_search(
     max_videos: int,
     start_date: datetime,
     title_filters: Optional[list[str]] = None,
+    min_date: Optional[datetime] = None,
 ) -> tuple[list[tuple[str, str, str]], int]:
     videos: list[tuple[str, str, str]] = []
     page_token: Optional[str] = None
@@ -970,6 +989,8 @@ def _collect_videos_via_search(
             "key": api_key,
             "maxResults": "50",
         }
+        if min_date:
+            params["publishedBefore"] = min_date.isoformat(timespec="seconds") + "Z"
         if page_token:
             params["pageToken"] = page_token
 

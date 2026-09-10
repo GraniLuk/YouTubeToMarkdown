@@ -10,6 +10,12 @@ def create_parser():
         "--days", type=int, default=3, help="Number of days to look back for videos"
     )
     parser.add_argument(
+        "--min-days",
+        type=int,
+        default=0,
+        help="Minimum age of videos in days (useful for date ranges, e.g. --days 150 --min-days 100)",
+    )
+    parser.add_argument(
         "--category",
         type=str,
         nargs="+",

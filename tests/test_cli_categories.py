@@ -112,7 +112,7 @@ class TestMainWithCategoriesAndPodcast(unittest.TestCase):
         mock_podcast_sub.assert_called_once_with(days=1, channel_name=None, max_videos=10)
         
         # Video collection should still be called for Fitness and News categories
-        mock_collect.assert_called_once_with(["Fitness", "News"], 1, channel_name=None, max_videos=10)
+        mock_collect.assert_called_once_with(["Fitness", "News"], 1, channel_name=None, max_videos=10, skip_verification=False)
 
     @patch.dict("os.environ", {"GEMINI_API_KEY": "mock_key"})
     @patch("yt2md.main.setup_logging")
@@ -135,7 +135,13 @@ class TestMainWithCategoriesAndPodcast(unittest.TestCase):
         mock_podcast_sub.assert_called_once_with(days=1, channel_name=None, max_videos=10)
         
         # Video collection should filter out Podcast and only collect Fitness and News
-        mock_collect.assert_called_once_with(["Fitness", "News"], 1, channel_name=None, max_videos=10)
+        mock_collect.assert_called_once_with(["Fitness", "News"], 1, channel_name=None, max_videos=10, skip_verification=False)
+
+    def test_parse_args_with_min_days(self):
+        args = parse_args(["--channel", "Fit Recenzje", "--days", "150", "--min-days", "100"])
+        self.assertEqual(args.channel, "Fit Recenzje")
+        self.assertEqual(args.days, 150)
+        self.assertEqual(args.min_days, 100)
 
 
 if __name__ == "__main__":

@@ -85,33 +85,115 @@ def get_instagram_profile_url(profile_id_or_url: str) -> str:
     return f"https://www.instagram.com/{username}/"
 
 
+_GENERIC_TITLE_PREFIX_PATTERN = re.compile(
+    r"^(?:video|post|reel|photo)\s+by\b|^instagram\s+(?:post|reel|video|photo)\b",
+    re.IGNORECASE,
+)
+
+_SPONSOR_WORDS = {
+    "reklama",
+    "wspolpraca",
+    "współpraca",
+    "platna wspolpraca",
+    "płatna współpraca",
+    "ad",
+    "sponsored",
+    "paid partnership",
+    "autopromocja",
+}
+
+
+def _extract_title_from_caption(
+    caption: Optional[str], fallback_title: str = ""
+) -> str:
+    """
+    Extract a clean, descriptive title from a post caption/description.
+    Skips hashtag-only lines, advertisement/sponsorship notices, and trims to <= 100 chars.
+    """
+    if not caption:
+        return fallback_title
+
+    for raw_line in caption.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        # Strip markdown syntax, bullets, leading hashes, dashes, tildes, quotes
+        cleaned = re.sub(r"^[#\s\-*•—–~\"'„”]+", "", line).strip()
+        if not cleaned:
+            continue
+
+        # Check if the line consists solely of hashtags (e.g. "#fit #gym #food")
+        tokens = line.split()
+        if tokens and all(t.startswith("#") for t in tokens):
+            continue
+
+        # Check if line is a common sponsorship/ad disclaimer
+        lower_cleaned = cleaned.lower()
+        if lower_cleaned in _SPONSOR_WORDS or any(
+            lower_cleaned.startswith(f"{w}:") or lower_cleaned.startswith(f"{w} -")
+            for w in _SPONSOR_WORDS
+        ):
+            continue
+
+        # Check if the line has actual alphanumeric content
+        if not any(c.isalnum() for c in cleaned):
+            continue
+
+        # Strip trailing hashtag clutter (e.g. "Delicious meal #yummy #lunch" -> "Delicious meal")
+        cleaned = re.sub(r"\s+#\w+.*$", "", cleaned).strip()
+
+        # Truncate to 100 chars cleanly
+        if len(cleaned) > 100:
+            truncated = cleaned[:97]
+            last_space = truncated.rfind(" ")
+            if last_space > 60:
+                cleaned = truncated[:last_space] + "..."
+            else:
+                cleaned = truncated + "..."
+
+        if len(cleaned) > 3 and any(c.isalnum() for c in cleaned):
+            return cleaned
+
+    return fallback_title
+
+
 def _clean_title_from_post(entry: Dict[str, Any], default_title: str) -> str:
     """Extract a descriptive and readable title from post metadata or description."""
-    title = entry.get("title") or ""
+    title = (entry.get("title") or "").strip()
     description = entry.get("description") or ""
+    uploader = (entry.get("uploader") or entry.get("channel") or "").strip()
+    post_id = str(entry.get("id") or "").strip()
 
-    # Check if title is generic (e.g. 'Instagram post #DF2HwPvo1U5' or just username)
-    is_generic = (
-        not title
-        or "Instagram post" in title
-        or title == entry.get("uploader")
-        or title == entry.get("id")
-    )
+    # Determine if title is generic
+    is_generic = False
+    if not title:
+        is_generic = True
+    elif _GENERIC_TITLE_PREFIX_PATTERN.search(title):
+        is_generic = True
+    elif "instagram post" in title.lower():
+        is_generic = True
+    elif uploader and title.lower() in (
+        uploader.lower(),
+        f"video by {uploader.lower()}",
+        f"post by {uploader.lower()}",
+        f"reel by {uploader.lower()}",
+    ):
+        is_generic = True
+    elif post_id and (title == post_id or title == f"#{post_id}"):
+        is_generic = True
+    elif title.lower() in ("instagram", "video", "reel", "post", "untitled", "untitled content"):
+        is_generic = True
 
-    if is_generic and description:
-        # Use first non-empty line of description as title
-        first_line = description.strip().split("\n")[0].strip()
-        # Remove markdown/hashtags at start
-        first_line = re.sub(r"^#+\s*", "", first_line).strip()
-        if len(first_line) > 100:
-            first_line = first_line[:97] + "..."
-        if len(first_line) > 3:
-            return first_line
+    if is_generic:
+        # Try extracting from description
+        fallback = default_title or (f"Instagram Reel #{post_id}" if post_id else "Instagram Reel")
+        extracted = _extract_title_from_caption(description)
+        if extracted:
+            return extracted
+        return fallback
 
-    if title and not is_generic:
-        return title
-
-    return default_title
+    return title
 
 
 def _parse_entry_date(entry: Dict[str, Any]) -> Optional[datetime]:
@@ -150,6 +232,9 @@ def _extract_cookies_dict_from_file(cookie_file: Optional[str]) -> Dict[str, str
                     continue
                 parts = line.split("\t")
                 if len(parts) >= 7:
+                    domain = parts[0].strip().lower()
+                    if "instagram.com" not in domain and "instagr.am" not in domain:
+                        continue
                     name = parts[5].strip()
                     val = parts[6].strip()
                     cookies[name] = val
@@ -234,9 +319,7 @@ def _get_reels_from_profile_instaloader(
             reel_url = f"https://www.instagram.com/reel/{post_id}/"
 
             caption = post.caption or ""
-            first_line = caption.strip().split("\n")[0].strip() if caption else ""
-            first_line = re.sub(r"^#+\s*", "", first_line).strip()
-            title = first_line[:100] if len(first_line) > 3 else f"Instagram Reel #{post_id}"
+            title = _extract_title_from_caption(caption, f"Instagram Reel #{post_id}")
 
             if title_filters:
                 combined_text = f"{title} {caption}".lower()
@@ -262,6 +345,7 @@ def _get_reels_from_profile_web_api(
     channel_name: Optional[str] = None,
     title_filters: Optional[List[str]] = None,
     cookie_file: Optional[str] = None,
+    min_days: int = 0,
 ) -> Optional[List[Tuple[str, str, str, str]]]:
     """
     Fetch profile reels directly from Instagram Web Feed API using cookies.
@@ -308,6 +392,11 @@ def _get_reels_from_profile_web_api(
 
         # 2. Query user feed with pagination support
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        min_date = (
+            datetime.now(timezone.utc) - timedelta(days=min_days)
+            if min_days > 0
+            else None
+        )
         processed_ids = get_processed_video_ids(skip_verification)
         collected: List[Tuple[str, str, str, str]] = []
         max_id = None
@@ -349,6 +438,8 @@ def _get_reels_from_profile_web_api(
                         if not is_pinned:
                             reached_cutoff = True
                         continue
+                    if min_date and dt > min_date:
+                        continue
                     pub_date_str = dt.strftime("%Y-%m-%d")
                 else:
                     pub_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -365,9 +456,7 @@ def _get_reels_from_profile_web_api(
                     if isinstance(caption_obj, dict)
                     else str(caption_obj)
                 )
-                first_line = caption_text.strip().split("\n")[0].strip() if caption_text else ""
-                first_line = re.sub(r"^#+\s*", "", first_line).strip()
-                title = first_line[:100] if len(first_line) > 3 else f"Instagram Reel #{code}"
+                title = _extract_title_from_caption(caption_text, f"Instagram Reel #{code}")
 
                 if title_filters:
                     combined_text = f"{title} {caption_text}".lower()
@@ -391,6 +480,251 @@ def _get_reels_from_profile_web_api(
         return None
 
 
+def _get_reels_from_profile_selenium(
+    username: str,
+    days: int = 3,
+    max_videos: int = 10,
+    skip_verification: bool = False,
+    channel_name: Optional[str] = None,
+    title_filters: Optional[List[str]] = None,
+    cookie_file: Optional[str] = None,
+    min_days: int = 0,
+) -> Optional[List[Tuple[str, str, str, str]]]:
+    """
+    Fallback method using Selenium headless Chrome to fetch reel URLs from /{username}/reels/.
+    Bypasses API 429 rate limits, broken yt-dlp profile extractors, and feedback_required errors.
+    Returns list of reels on success (can be empty if none found / all processed),
+    or None if Selenium failed or could not run.
+    """
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+    except ImportError:
+        logger.debug("selenium not installed, skipping selenium fallback")
+        return None
+
+    cookies = _extract_cookies_dict_from_file(cookie_file)
+    if not cookies:
+        logger.debug("No cookies available for Selenium Instagram fallback")
+        return None
+
+    logger.info(f"📸 Próba pobrania rolek przez Headless Chrome dla @{username}...")
+    driver = None
+    collected_urls: List[str] = []
+
+    try:
+        options = Options()
+        options.add_argument("--headless=new")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--mute-audio")
+        options.add_argument("--window-size=1920,1080")
+        options.add_argument(
+            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+        )
+
+        driver = webdriver.Chrome(options=options)
+
+        # First visit root to establish domain context for cookies
+        try:
+            driver.get("https://www.instagram.com/")
+        except Exception:
+            pass
+        time.sleep(1.5)
+
+        for k, v in cookies.items():
+            try:
+                driver.add_cookie(
+                    {
+                        "name": k,
+                        "value": v,
+                        "domain": ".instagram.com",
+                        "path": "/",
+                    }
+                )
+            except Exception:
+                pass
+
+        # Navigate to reels page
+        reels_url = f"https://www.instagram.com/{username}/reels/"
+        try:
+            driver.get(reels_url)
+        except Exception:
+            pass
+        time.sleep(3.0)
+
+        # Scroll and collect reel links
+        processed_ids = get_processed_video_ids(skip_verification)
+        seen_codes = set()
+        unprocessed_candidate_count = 0
+        no_new_links_count = 0
+        max_scrolls = max(25, int(days * 0.4))
+
+        for scroll_i in range(max_scrolls):
+            raw_hrefs = []
+            try:
+                raw_hrefs = driver.execute_script(
+                    "return Array.from(document.querySelectorAll('a')).map(a => a.href || '')"
+                )
+            except Exception:
+                raw_hrefs = []
+
+            if not isinstance(raw_hrefs, list) or not raw_hrefs:
+                try:
+                    raw_hrefs = [
+                        el.get_attribute("href") or ""
+                        for el in driver.find_elements(By.TAG_NAME, "a")
+                    ]
+                except Exception:
+                    pass
+
+            new_in_iteration = 0
+            if isinstance(raw_hrefs, list):
+                for href in raw_hrefs:
+                    if not href or "/reel/" not in href:
+                        continue
+                    m = re.search(r"/reel/([a-zA-Z0-9_-]+)", href)
+                    code = m.group(1) if m else extract_instagram_id(href)
+                    if code and code not in seen_codes:
+                        seen_codes.add(code)
+                        collected_urls.append(f"https://www.instagram.com/reel/{code}/")
+                        new_in_iteration += 1
+                        if code not in processed_ids:
+                            unprocessed_candidate_count += 1
+
+            if unprocessed_candidate_count >= max_videos:
+                break
+
+            if new_in_iteration == 0:
+                no_new_links_count += 1
+                if no_new_links_count >= 5:
+                    break
+            else:
+                no_new_links_count = 0
+
+            try:
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            except Exception:
+                break
+            time.sleep(2.0)
+
+        logger.debug(
+            f"Selenium reels page: {driver.current_url}, title: '{driver.title}', "
+            f"found reels: {len(collected_urls)}"
+        )
+
+        # Fallback to main profile page if /{username}/reels/ yielded 0 reels
+        if not collected_urls:
+            main_url = f"https://www.instagram.com/{username}/"
+            try:
+                driver.get(main_url)
+                time.sleep(3.0)
+                for _ in range(max_scrolls):
+                    raw_hrefs = []
+                    try:
+                        raw_hrefs = driver.execute_script(
+                            "return Array.from(document.querySelectorAll('a')).map(a => a.href || '')"
+                        )
+                    except Exception:
+                        raw_hrefs = []
+
+                    if not isinstance(raw_hrefs, list) or not raw_hrefs:
+                        try:
+                            raw_hrefs = [
+                                el.get_attribute("href") or ""
+                                for el in driver.find_elements(By.TAG_NAME, "a")
+                            ]
+                        except Exception:
+                            pass
+
+                    if isinstance(raw_hrefs, list):
+                        for href in raw_hrefs:
+                            if not href or ("/reel/" not in href and "/p/" not in href):
+                                continue
+                            m = re.search(r"/(?:reel|p)/([a-zA-Z0-9_-]+)", href)
+                            code = m.group(1) if m else extract_instagram_id(href)
+                            if code and code not in seen_codes:
+                                seen_codes.add(code)
+                                collected_urls.append(f"https://www.instagram.com/reel/{code}/")
+                    if len(collected_urls) >= max_videos:
+                        break
+                    try:
+                        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    except Exception:
+                        break
+                    time.sleep(2.0)
+            except Exception as e:
+                logger.debug(f"Selenium main profile fallback exception: {e}")
+
+    except Exception as exc:
+        logger.warning(f"Błąd podczas pobierania rolek przez Selenium dla @{username}: {exc}")
+        return None
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+
+    if not collected_urls:
+        logger.debug(f"Selenium nie znalazło żadnych linków do rolek na profilu @{username}")
+        return []
+
+    logger.debug(f"Selenium znalazło {len(collected_urls)} linków do rolek dla @{username}. Weryfikacja metadanych...")
+
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+    min_date = (
+        datetime.now(timezone.utc) - timedelta(days=min_days)
+        if min_days > 0
+        else None
+    )
+    display_name = channel_name or username
+    collected: List[Tuple[str, str, str, str]] = []
+
+    for reel_url in collected_urls:
+        shortcode = extract_instagram_id(reel_url)
+        if not shortcode or shortcode in processed_ids:
+            logger.debug(f"Pominięto już przetworzoną rolkę ID: {shortcode}")
+            continue
+
+        details = get_reel_details_from_url(reel_url, skip_verification=True)
+        if not details:
+            continue
+
+        url, title, pub_date_str, uploader = details
+
+        # Check date filter
+        try:
+            pub_dt = datetime.strptime(pub_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            if pub_dt < cutoff_date:
+                logger.debug(f"Pominięto rolkę {shortcode} z daty {pub_date_str} (starsza niż {days} dni)")
+                continue
+            if min_date and pub_dt > min_date:
+                logger.debug(f"Pominięto rolkę {shortcode} z daty {pub_date_str} (nowsza niż {min_days} dni)")
+                continue
+        except Exception:
+            pass
+
+        # Check title filters
+        if title_filters:
+            caption = get_instagram_post_caption(reel_url) or ""
+            combined_text = f"{title} {caption}".lower()
+            if not any(f.lower() in combined_text for f in title_filters):
+                logger.debug(f"Pominięto rolkę {shortcode} - brak dopasowania do filtrów: {title_filters}")
+                continue
+
+        final_uploader = display_name if display_name != username else uploader
+        collected.append((reel_url, title, pub_date_str, final_uploader))
+
+        if len(collected) >= max_videos:
+            break
+
+    logger.info(f"Zebrano {len(collected)} nowych rolek przez Headless Chrome dla @{username}")
+    return collected
+
+
 def get_reels_from_profile(
     profile_id_or_url: str,
     days: int = 3,
@@ -398,6 +732,7 @@ def get_reels_from_profile(
     skip_verification: bool = False,
     channel_name: Optional[str] = None,
     title_filters: Optional[List[str]] = None,
+    min_days: int = 0,
 ) -> List[Tuple[str, str, str, str]]:
     """
     Collect reels from an Instagram profile published within the last `days` days.
@@ -409,6 +744,7 @@ def get_reels_from_profile(
         skip_verification: If True, ignore processed video index
         channel_name: Human-friendly channel name override
         title_filters: Optional list of keyword filters for title/description
+        min_days: Minimum age of videos in days
 
     Returns:
         List of tuples: (video_url, title, published_date_str, uploader)
@@ -432,11 +768,26 @@ def get_reels_from_profile(
         channel_name=display_name,
         title_filters=title_filters,
         cookie_file=cookie_file,
+        min_days=min_days,
     )
     if reels_api is not None:
         return reels_api
 
-    # Strategy 2: yt-dlp profile extractor
+    # Strategy 2: Selenium Headless Browser fallback (bypasses bot filters, handles /{username}/reels/)
+    reels_sel = _get_reels_from_profile_selenium(
+        username=username,
+        days=days,
+        max_videos=max_videos,
+        skip_verification=skip_verification,
+        channel_name=display_name,
+        title_filters=title_filters,
+        cookie_file=cookie_file,
+        min_days=min_days,
+    )
+    if reels_sel is not None:
+        return reels_sel
+
+    # Strategy 3: yt-dlp profile extractor
     try:
         import yt_dlp
         ydl_opts = {
@@ -452,6 +803,11 @@ def get_reels_from_profile(
             if info and info.get("entries"):
                 raw_entries = list(info.get("entries"))
                 cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+                min_date = (
+                    datetime.now(timezone.utc) - timedelta(days=min_days)
+                    if min_days > 0
+                    else None
+                )
                 processed_ids = get_processed_video_ids(skip_verification)
                 collected: List[Tuple[str, str, str, str]] = []
                 for entry in raw_entries:
@@ -463,6 +819,8 @@ def get_reels_from_profile(
                     pub_dt = _parse_entry_date(entry)
                     if pub_dt:
                         if pub_dt < cutoff_date:
+                            continue
+                        if min_date and pub_dt > min_date:
                             continue
                         pub_date_str = pub_dt.strftime("%Y-%m-%d")
                     else:
@@ -482,7 +840,7 @@ def get_reels_from_profile(
     except Exception as exc:
         logger.debug(f"yt-dlp profile fetch failed: {exc}")
 
-    # Strategy 3: Instaloader fallback
+    # Strategy 4: Instaloader fallback
     reels_il = _get_reels_from_profile_instaloader(
         username=username,
         days=days,
@@ -500,72 +858,6 @@ def get_reels_from_profile(
         "Upewnij się, że plik cookies.txt lub cookies_instagram.txt zawiera poprawne ciasteczka Instagrama."
     )
     return []
-
-    raw_entries = info.get("entries") or []
-    if not isinstance(raw_entries, list):
-        raw_entries = list(raw_entries)
-
-    logger.debug(f"Znaleziono {len(raw_entries)} wpisów na profilu @{username}")
-
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
-    processed_ids = get_processed_video_ids(skip_verification)
-
-    collected_reels: List[Tuple[str, str, str, str]] = []
-
-    for entry in raw_entries:
-        if not entry:
-            continue
-
-        entry_url = entry.get("url") or ""
-        post_id = entry.get("id") or extract_instagram_id(entry_url)
-        if not post_id:
-            continue
-
-        # Skip already processed videos
-        if post_id in processed_ids:
-            logger.debug(f"Pominięto już przetworzoną rolkę ID: {post_id}")
-            continue
-
-        # Check date filter
-        pub_dt = _parse_entry_date(entry)
-        if pub_dt:
-            if pub_dt < cutoff_date:
-                logger.debug(
-                    f"Pominięto rolkę {post_id} z daty {pub_dt.strftime('%Y-%m-%d')} (starsza niż {days} dni)"
-                )
-                continue
-            pub_date_str = pub_dt.strftime("%Y-%m-%d")
-        else:
-            pub_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-        # Canonical reel URL
-        reel_url = f"https://www.instagram.com/reel/{post_id}/"
-
-        # Determine title
-        default_title = f"Instagram Reel #{post_id}"
-        title = _clean_title_from_post(entry, default_title)
-
-        # Title / description filters
-        if title_filters:
-            desc = entry.get("description") or ""
-            combined_text = f"{title} {desc}".lower()
-            if not any(f.lower() in combined_text for f in title_filters):
-                logger.debug(
-                    f"Pominięto rolkę {post_id} - brak dopasowania do filtrów: {title_filters}"
-                )
-                continue
-
-        uploader = display_name or entry.get("uploader") or username
-
-        collected_reels.append((reel_url, title, pub_date_str, uploader))
-
-        if len(collected_reels) >= max_videos:
-            break
-
-    logger.info(
-        f"Zebrano {len(collected_reels)} nowych rolek z profilu @{username} z ostatnich {days} dni"
-    )
-    return collected_reels
 
 
 def get_reel_details_from_url(

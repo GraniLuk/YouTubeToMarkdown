@@ -71,6 +71,50 @@ def open_file(filepath: str) -> bool:
         return False
 
 
+def _is_same_video_file(filepath: str, video_url: str) -> bool:
+    """Check if existing file belongs to the same video by comparing frontmatter source or video ID."""
+    if not os.path.exists(filepath):
+        return False
+
+    target_vid = None
+    try:
+        from yt2md.youtube import extract_video_id
+        target_vid = extract_video_id(video_url)
+    except Exception:
+        pass
+
+    try:
+        # Read header only (first 40 lines)
+        header_lines = []
+        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+            for _ in range(40):
+                line = f.readline()
+                if not line:
+                    break
+                header_lines.append(line)
+        header_text = "".join(header_lines)
+
+        source_match = re.search(
+            r"^source:\s*['\"]?(https?://[^\s'\"]+)", header_text, re.MULTILINE
+        )
+        if source_match:
+            existing_source = source_match.group(1).strip().rstrip("'\"")
+            if existing_source == video_url:
+                return True
+            if target_vid:
+                try:
+                    from yt2md.youtube import extract_video_id
+                    existing_vid = extract_video_id(existing_source)
+                    if existing_vid and existing_vid == target_vid:
+                        return True
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.debug(f"Could not read existing file header from {filepath}: {e}")
+
+    return False
+
+
 def save_to_markdown(
     title: str,
     video_url: str,
@@ -129,20 +173,53 @@ def save_to_markdown(
         logger.debug(f"Ensured directory exists: {file_dir}")
     except Exception as e:
         logger.error(f"Failed to create directory {file_dir}: {str(e)}")
-        raise  # Sanitize the title
-    clean_title = sanitize_filename(title)
+        raise
 
-    # Add suffix if provided, sanitize it first
-    if suffix:
-        clean_suffix = sanitize_model_name_for_suffix(suffix)
-        clean_title = f"{clean_title}_{clean_suffix}"
-        logger.debug(
-            f"Added sanitized suffix '{clean_suffix}' to filename (original: '{suffix}')"
-        )
+    clean_base = sanitize_filename(title)
+    clean_suffix = sanitize_model_name_for_suffix(suffix) if suffix else ""
 
-    # Create the full filename
-    filename = f"{clean_title}.md"
+    try:
+        from yt2md.youtube import extract_video_id
+        video_id = extract_video_id(video_url)
+    except Exception:
+        video_id = None
+
+    if clean_suffix:
+        filename = f"{clean_base}_{clean_suffix}.md"
+    else:
+        filename = f"{clean_base}.md"
+
     filepath = os.path.join(file_dir, filename)
+
+    # Check for naming collisions with DIFFERENT videos
+    if os.path.exists(filepath) and not _is_same_video_file(filepath, video_url):
+        logger.warning(
+            f"File '{filename}' already exists for a different video. Disambiguating filename to prevent overwrite."
+        )
+        disambiguated = False
+        if video_id and video_id not in clean_base:
+            id_filename = (
+                f"{clean_base}_{video_id}_{clean_suffix}.md"
+                if clean_suffix
+                else f"{clean_base}_{video_id}.md"
+            )
+            id_path = os.path.join(file_dir, id_filename)
+            if not os.path.exists(id_path) or _is_same_video_file(id_path, video_url):
+                filename = id_filename
+                filepath = id_path
+                disambiguated = True
+
+        if not disambiguated:
+            counter = 2
+            suffix_part = f"_{clean_suffix}" if clean_suffix else ""
+            id_part = f"_{video_id}" if (video_id and video_id not in clean_base) else ""
+            while os.path.exists(filepath) and not _is_same_video_file(filepath, video_url):
+                filename = f"{clean_base}{id_part} ({counter}){suffix_part}.md"
+                filepath = os.path.join(file_dir, filename)
+                counter += 1
+
+        logger.info(f"Using disambiguated file path: {filepath}")
+
     logger.debug(f"Writing to file: {filepath}")
 
     # Get current date for 'created' field

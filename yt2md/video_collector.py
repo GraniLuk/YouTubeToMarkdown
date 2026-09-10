@@ -126,6 +126,8 @@ def collect_videos_from_category(
     days: int,
     channel_name: Optional[str] = None,
     max_videos: int = 10,
+    skip_verification: bool = False,
+    min_days: int = 0,
 ) -> List[Tuple]:
     """
     Collect videos from channels in specified category or categories.
@@ -135,6 +137,8 @@ def collect_videos_from_category(
         days: Number of days to look back for videos
         channel_name: Optional specific channel name to filter within the category
         max_videos: Maximum number of videos to collect per channel
+        skip_verification: If True, ignore processed video index
+        min_days: Minimum age of videos in days
 
     Returns:
         List of tuples with video details
@@ -175,7 +179,13 @@ def collect_videos_from_category(
                 continue
             seen_channel_ids.add(channel.id)
             videos_to_process.extend(
-                _collect_videos_from_single_channel(channel, days, max_videos)
+                _collect_videos_from_single_channel(
+                    channel,
+                    days,
+                    max_videos,
+                    skip_verification=skip_verification,
+                    min_days=min_days,
+                )
             )
 
     return videos_to_process
@@ -185,6 +195,8 @@ def collect_videos_from_all_channels(
     days: int,
     channel_name: Optional[str] = None,
     max_videos: int = 10,
+    skip_verification: bool = False,
+    min_days: int = 0,
 ) -> List[Tuple]:
     """
     Collect videos from all configured channels (optionally filtered by channel_name).
@@ -193,6 +205,8 @@ def collect_videos_from_all_channels(
         days: Number of days to look back for videos
         channel_name: Optional specific channel name or ID to filter
         max_videos: Maximum number of videos to collect per channel
+        skip_verification: If True, ignore processed video index
+        min_days: Minimum age of videos in days
 
     Returns:
         List of tuples with video details
@@ -222,14 +236,24 @@ def collect_videos_from_all_channels(
             continue
         seen_channel_ids.add(channel.id)
         videos_to_process.extend(
-            _collect_videos_from_single_channel(channel, days, max_videos)
+            _collect_videos_from_single_channel(
+                channel,
+                days,
+                max_videos,
+                skip_verification=skip_verification,
+                min_days=min_days,
+            )
         )
 
     return videos_to_process
 
 
 def _collect_videos_from_single_channel(
-    channel: Channel, days: int, max_videos: int = 10
+    channel: Channel,
+    days: int,
+    max_videos: int = 10,
+    skip_verification: bool = False,
+    min_days: int = 0,
 ) -> List[Tuple]:
     """
     Helper function to collect videos from a single channel or playlist.
@@ -238,6 +262,8 @@ def _collect_videos_from_single_channel(
         channel: Channel object with id, name, language_code, etc.
         days: Number of days to look back for videos
         max_videos: Maximum number of videos to collect
+        skip_verification: If True, ignore processed video index
+        min_days: Minimum age of videos in days
 
     Returns:
         List of tuples with video details
@@ -246,14 +272,16 @@ def _collect_videos_from_single_channel(
 
     if getattr(channel, "is_instagram", False) or getattr(channel, "platform", "") == "instagram":
         logger.debug(f"Getting Instagram reels from: {channel.name} ({channel.id})")
-        reels = get_reels_from_profile(
-            channel.id,
-            days=days,
-            max_videos=max_videos,
-            skip_verification=False,
-            channel_name=channel.name,
-            title_filters=channel.title_filters,
-        )
+        reel_kwargs = {
+            "days": days,
+            "max_videos": max_videos,
+            "skip_verification": skip_verification,
+            "channel_name": channel.name,
+            "title_filters": channel.title_filters,
+        }
+        if min_days:
+            reel_kwargs["min_days"] = min_days
+        reels = get_reels_from_profile(channel.id, **reel_kwargs)
         for url, title, published_date, uploader in reels:
             videos_to_process.append(
                 (
@@ -273,7 +301,7 @@ def _collect_videos_from_single_channel(
         playlist_videos = get_videos_from_playlist(
             channel.id,
             max_videos=max_videos,
-            skip_verification=False,
+            skip_verification=skip_verification,
             channel_name=channel.name,
             title_filters=channel.title_filters,
         )
@@ -302,14 +330,16 @@ def _collect_videos_from_single_channel(
 
     logger.debug(f"Getting videos from channel: {channel.name}")
     # We set max_pages to a large number (100) to effectively keep paginating until we hit max_videos
-    channel_videos = get_videos_from_channel(
-        channel.id,
-        days,
-        max_pages=100,
-        max_videos=max_videos,
-        skip_shorts=channel.skip_shorts,
-        title_filters=channel.title_filters,
-    )
+    ch_kwargs = {
+        "skip_verification": skip_verification,
+        "max_pages": 100,
+        "max_videos": max_videos,
+        "skip_shorts": channel.skip_shorts,
+        "title_filters": channel.title_filters,
+    }
+    if min_days:
+        ch_kwargs["min_days"] = min_days
+    channel_videos = get_videos_from_channel(channel.id, days, **ch_kwargs)
     logger.debug(
         f"Found {len(channel_videos)} videos from {channel.name} in the last {days} days"
     )
