@@ -94,16 +94,6 @@ Fitness:
     language_code: pl
     output_language: Polish
 
-  - id: UCwVDvFKQxaLAGgPGWWp1q7Q
-    name: Policzona Szama
-    language_code: pl
-    output_language: Polish
-
-  - id: UCa6wySbod5upZrvwZjnCwDQ
-    name: Jakub Mauricz
-    language_code: pl
-    output_language: Polish
-
   - id: UCx6aU3Smw1OypjTeLKAemgQ
     name: Squats - Swings - Other - Things
     language_code: pl
@@ -146,12 +136,29 @@ Fitness:
     language_code: pl
     output_language: Polish
 
+Kuchnia:
   - id: fit_recenzje
     name: Fit Recenzje
     platform: instagram
     language_code: pl
-    output_language: Polish    
+    output_language: Polish
 
+  - id: UCwVDvFKQxaLAGgPGWWp1q7Q
+    name: Policzona Szama
+    language_code: pl
+    output_language: Polish
+
+  - id: UCa6wySbod5upZrvwZjnCwDQ
+    name: Jakub Mauricz
+    language_code: pl
+    output_language: Polish
+
+Dzieci:
+  - id: poznaj.trojmiasto
+    name: Poznaj Trojmiasto
+    platform: instagram
+    language_code: pl
+    output_language: Polish
 News:
   - id: UClhEl4bMD8_escGCCTmRAYg
     name: Kanal Zero
@@ -206,6 +213,12 @@ category_colors:
   Fitness: 
     color: "MAGENTA"
     style: "NORMAL"
+  Kuchnia: 
+    color: "GREEN"
+    style: "NORMAL"
+  Dzieci: 
+    color: "BLUE"
+    style: "BRIGHT"
   Trading: 
     color: "CYAN"
     style: "DIM"
