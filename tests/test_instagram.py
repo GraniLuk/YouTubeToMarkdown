@@ -277,7 +277,7 @@ class TestInstagramModule(unittest.TestCase):
         res = get_reel_details_from_url("https://www.instagram.com/reel/DF2HwPvo1U5/")
         self.assertIsNotNone(res)
         url, title, pub_date, uploader = res
-        self.assertEqual(url, "https://www.instagram.com/reel/DF2HwPvo1U5/")
+        self.assertEqual(url, "https://www.instagram.com/reels/DF2HwPvo1U5/")
         self.assertEqual(title, "Świetny post treningowy")
         self.assertEqual(uploader, "bartekkruk_")
 
@@ -467,9 +467,66 @@ class TestChannelAndCollectorIntegration(unittest.TestCase):
         with patch("selenium.webdriver.Chrome", return_value=mock_driver):
             reels = _get_reels_from_profile_selenium("bartekkruk_", days=7, max_videos=5)
             self.assertEqual(len(reels), 1)
-            self.assertEqual(reels[0][0], "https://www.instagram.com/reel/DF2HwPvo1U5/")
+            self.assertEqual(reels[0][0], "https://www.instagram.com/reels/DF2HwPvo1U5/")
             self.assertEqual(reels[0][1], "Tytuł rolki")
             mock_driver.quit.assert_called_once()
+
+    def test_get_reels_from_profile_selenium_scrolls_last_reel_into_view(self):
+        processed_id = "DdTbqxjoaL8"
+        target_id = "DcDsN6IoUns"
+        page = {"number": 0}
+        pages = [
+            [f"https://www.instagram.com/poznaje_kaszuby/reel/{processed_id}/"],
+            [
+                f"https://www.instagram.com/poznaje_kaszuby/reel/{processed_id}/",
+                f"https://www.instagram.com/poznaje_kaszuby/reel/{target_id}/",
+            ],
+        ]
+
+        def execute_script(script):
+            if "return Array.from" in script:
+                return pages[page["number"]]
+            if "scrollIntoView" in script:
+                page["number"] = 1
+            return None
+
+        mock_driver = MagicMock()
+        mock_driver.execute_script.side_effect = execute_script
+
+        recent_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        target_details = (
+            f"https://www.instagram.com/reel/{target_id}/",
+            "Nieprzetworzona rolka",
+            recent_date,
+            "Poznaje Kaszuby",
+        )
+
+        with (
+            patch("yt2md.instagram._extract_cookies_dict_from_file", return_value={"sessionid": "test"}),
+            patch("yt2md.instagram.get_processed_video_ids", return_value={processed_id}),
+            patch("yt2md.instagram.get_reel_details_from_url", return_value=target_details),
+            patch("yt2md.video_index.is_video_already_processed_by_title_author", return_value=False),
+            patch("yt2md.instagram.time.sleep"),
+            patch("selenium.webdriver.Chrome", return_value=mock_driver),
+        ):
+            reels = _get_reels_from_profile_selenium(
+                "poznaje_kaszuby", days=100, max_videos=1
+            )
+
+        self.assertEqual(
+            reels,
+            [
+                (
+                    f"https://www.instagram.com/reels/{target_id}/",
+                    target_details[1],
+                    target_details[2],
+                    target_details[3],
+                )
+            ],
+        )
+        self.assertTrue(
+            any("scrollIntoView" in call.args[0] for call in mock_driver.execute_script.call_args_list)
+        )
 
     @patch("yt2md.instagram._get_reels_from_profile_web_api", return_value=None)
     @patch("yt2md.instagram._get_reels_from_profile_selenium")
