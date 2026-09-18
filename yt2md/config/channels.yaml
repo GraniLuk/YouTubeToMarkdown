@@ -164,6 +164,13 @@ Dzieci:
     platform: instagram
     language_code: pl
     output_language: Polish
+  
+  - id: poznaje_kaszuby
+    name: Poznaje Kaszuby
+    platform: instagram
+    language_code: pl
+    output_language: Polish
+    
 News:
   - id: UClhEl4bMD8_escGCCTmRAYg
     name: Kanal Zero

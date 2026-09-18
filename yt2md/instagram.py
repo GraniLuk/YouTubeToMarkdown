@@ -321,6 +321,12 @@ def _get_reels_from_profile_instaloader(
             caption = post.caption or ""
             title = _extract_title_from_caption(caption, f"Instagram Reel #{post_id}")
 
+            # Check if already processed by title+author combination (handles Instagram URL inconsistencies)
+            from yt2md.video_index import is_video_already_processed_by_title_author
+            if is_video_already_processed_by_title_author(title, display_name, skip_verification=skip_verification):
+                logger.debug(f"Pominięto już przetworzoną rolkę (dopasowanie po tytule i autorze): {title} by {display_name}")
+                continue
+
             if title_filters:
                 combined_text = f"{title} {caption}".lower()
                 if not any(f.lower() in combined_text for f in title_filters):
@@ -458,6 +464,12 @@ def _get_reels_from_profile_web_api(
                 )
                 title = _extract_title_from_caption(caption_text, f"Instagram Reel #{code}")
 
+                # Check if already processed by title+author combination (handles Instagram URL inconsistencies)
+                from yt2md.video_index import is_video_already_processed_by_title_author
+                if is_video_already_processed_by_title_author(title, display_name, skip_verification=skip_verification):
+                    logger.debug(f"Pominięto już przetworzoną rolkę (dopasowanie po tytule i autorze): {title} by {display_name}")
+                    continue
+
                 if title_filters:
                     combined_text = f"{title} {caption_text}".lower()
                     if not any(f.lower() in combined_text for f in title_filters):
@@ -583,13 +595,24 @@ def _get_reels_from_profile_selenium(
             new_in_iteration = 0
             if isinstance(raw_hrefs, list):
                 for href in raw_hrefs:
-                    if not href or "/reel/" not in href:
+                    if not href or ("/reel/" not in href and "/reels/" not in href):
                         continue
-                    m = re.search(r"/reel/([a-zA-Z0-9_-]+)", href)
+                    # Try /reels/ first (newer format), then /reel/ (legacy format)
+                    m = re.search(r"/reels/([a-zA-Z0-9_-]+)", href)
+                    if not m:
+                        m = re.search(r"/reel/([a-zA-Z0-9_-]+)", href)
                     code = m.group(1) if m else extract_instagram_id(href)
                     if code and code not in seen_codes:
+                        # Validate shortcode format (11 chars, alphanumeric + underscore/dash)
+                        if not re.match(r"^[A-Za-z0-9_-]{11}$", code):
+                            logger.debug(f"⚠️ Invalid shortcode format from href, skipping: {href} -> {code}")
+                            continue
+                        
                         seen_codes.add(code)
-                        collected_urls.append(f"https://www.instagram.com/reel/{code}/")
+                        # Use /reels/ if possible, fallback to /reel/ if that fails
+                        reel_url = f"https://www.instagram.com/reels/{code}/"
+                        logger.debug(f"Selenium extracted reel URL: {reel_url} (from: {href})")
+                        collected_urls.append(reel_url)
                         new_in_iteration += 1
                         if code not in processed_ids:
                             unprocessed_candidate_count += 1
@@ -607,7 +630,18 @@ def _get_reels_from_profile_selenium(
 
             try:
                 driver.execute_script(
-                    "window.scrollBy(0, -100); window.scrollBy(0, 1500); window.scrollTo(0, document.body.scrollHeight);"
+                    """
+                    const links = Array.from(document.querySelectorAll(
+                        'a[href*="/reel/"], a[href*="/reels/"]'
+                    ));
+                    const lastLink = links[links.length - 1];
+                    if (lastLink) {
+                        lastLink.scrollIntoView({block: 'end', inline: 'nearest'});
+                    } else {
+                        window.scrollTo(0, document.documentElement.scrollHeight);
+                    }
+                    window.dispatchEvent(new Event('scroll', {bubbles: true}));
+                    """
                 )
             except Exception:
                 break
@@ -644,17 +678,42 @@ def _get_reels_from_profile_selenium(
 
                     if isinstance(raw_hrefs, list):
                         for href in raw_hrefs:
-                            if not href or ("/reel/" not in href and "/p/" not in href):
+                            if not href or ("/reel/" not in href and "/reels/" not in href and "/p/" not in href):
                                 continue
-                            m = re.search(r"/(?:reel|p)/([a-zA-Z0-9_-]+)", href)
+                            # Try /reels/ first (newer format), then /reel/, then /p/
+                            m = re.search(r"/reels/([a-zA-Z0-9_-]+)", href)
+                            if not m:
+                                m = re.search(r"/reel/([a-zA-Z0-9_-]+)", href)
+                            if not m:
+                                m = re.search(r"/p/([a-zA-Z0-9_-]+)", href)
                             code = m.group(1) if m else extract_instagram_id(href)
                             if code and code not in seen_codes:
+                                # Validate shortcode format (11 chars, alphanumeric + underscore/dash)
+                                if not re.match(r"^[A-Za-z0-9_-]{11}$", code):
+                                    logger.debug(f"⚠️ Invalid shortcode format from href (fallback), skipping: {href} -> {code}")
+                                    continue
+                                
                                 seen_codes.add(code)
-                                collected_urls.append(f"https://www.instagram.com/reel/{code}/")
+                                reel_url = f"https://www.instagram.com/reels/{code}/"
+                                logger.debug(f"Selenium extracted reel URL (fallback): {reel_url} (from: {href})")
+                                collected_urls.append(reel_url)
                     if len(collected_urls) >= max_videos:
                         break
                     try:
-                        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                        driver.execute_script(
+                            """
+                            const links = Array.from(document.querySelectorAll(
+                                'a[href*="/reel/"], a[href*="/reels/"], a[href*="/p/"]'
+                            ));
+                            const lastLink = links[links.length - 1];
+                            if (lastLink) {
+                                lastLink.scrollIntoView({block: 'end', inline: 'nearest'});
+                            } else {
+                                window.scrollTo(0, document.documentElement.scrollHeight);
+                            }
+                            window.dispatchEvent(new Event('scroll', {bubbles: true}));
+                            """
+                        )
                     except Exception:
                         break
                     time.sleep(2.0)
@@ -698,6 +757,13 @@ def _get_reels_from_profile_selenium(
 
         url, title, pub_date_str, uploader = details
 
+        # Check if already processed by title+author combination (handles Instagram URL inconsistencies)
+        from yt2md.video_index import is_video_already_processed_by_title_author
+        final_uploader = display_name if display_name != username else uploader
+        if is_video_already_processed_by_title_author(title, final_uploader, skip_verification=skip_verification):
+            logger.debug(f"Pominięto już przetworzoną rolkę (dopasowanie po tytule i autorze): {title} by {final_uploader}")
+            continue
+
         # Check date filter
         try:
             pub_dt = datetime.strptime(pub_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
@@ -718,7 +784,6 @@ def _get_reels_from_profile_selenium(
                 logger.debug(f"Pominięto rolkę {shortcode} - brak dopasowania do filtrów: {title_filters}")
                 continue
 
-        final_uploader = display_name if display_name != username else uploader
         collected.append((reel_url, title, pub_date_str, final_uploader))
 
         if len(collected) >= max_videos:
@@ -830,11 +895,18 @@ def get_reels_from_profile(
                         pub_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
                     reel_url = f"https://www.instagram.com/reel/{post_id}/"
                     title = _clean_title_from_post(entry, f"Instagram Reel #{post_id}")
+                    
+                    # Check if already processed by title+author combination (handles Instagram URL inconsistencies)
+                    uploader = display_name or entry.get("uploader") or username
+                    from yt2md.video_index import is_video_already_processed_by_title_author
+                    if is_video_already_processed_by_title_author(title, uploader, skip_verification=skip_verification):
+                        logger.debug(f"Pominięto już przetworzoną rolkę (dopasowanie po tytule i autorze): {title} by {uploader}")
+                        continue
+                    
                     if title_filters:
                         desc = entry.get("description") or ""
                         if not any(f.lower() in f"{title} {desc}".lower() for f in title_filters):
                             continue
-                    uploader = display_name or entry.get("uploader") or username
                     collected.append((reel_url, title, pub_date_str, uploader))
                     if len(collected) >= max_videos:
                         break
@@ -888,30 +960,96 @@ def get_reel_details_from_url(
         logger.error(f"Nieprawidłowy adres URL Instagrama: {url}")
         return None
 
+    # Validate shortcode format (Instagram shortcodes are base64url: A-Za-z0-9_-)
+    if not re.match(r"^[A-Za-z0-9_-]{11}$", post_id):
+        logger.debug(f"Instagram shortcode format invalid, may be corrupted: {post_id}")
+
     processed_ids = get_processed_video_ids(skip_verification)
     if post_id in processed_ids:
         logger.debug(f"Rolka z ID {post_id} została już przetworzona. Pomijanie.")
         return None
 
-    canonical_url = f"https://www.instagram.com/reel/{post_id}/"
-    auth_opts = _get_ytdlp_auth_opts("instagram")
+    # For metadata fetching, DON'T use cookies to avoid Instagram redirects based on auth state
+    # This prevents the issue where authenticated requests are redirected to different content
     base_opts = _get_ytdlp_base_opts()
-
+    # Explicitly don't add auth_opts - use unauthenticated access for metadata only
+    
     ydl_opts = {
         **base_opts,
-        **auth_opts,
         "skip_download": True,
         "quiet": True,
         "no_warnings": True,
     }
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(canonical_url, download=False)
-    except Exception as exc:
-        logger.error(f"Błąd pobierania danych rolki {canonical_url}: {exc}")
-        return None
-
+    # Try /reels/ first (newer format), then /reel/ (legacy format)
+    canonical_urls = [
+        f"https://www.instagram.com/reels/{post_id}/",
+        f"https://www.instagram.com/reel/{post_id}/",
+    ]
+    
+    info = None
+    last_error = None
+    for try_url in canonical_urls:
+        try:
+            logger.debug(f"Fetching metadata (unauthenticated) from: {try_url}")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(try_url, download=False)
+                if info:
+                    # CRITICAL: Validate that the returned video ID matches what we requested
+                    # This catches cases where Instagram redirects authenticated requests to different content
+                    returned_id = info.get("id")
+                    if returned_id and returned_id != post_id:
+                        logger.warning(
+                            f"⚠️ Shortcode mismatch detected! Requested: {post_id}, but yt-dlp returned: {returned_id}. "
+                            f"Instagram may have redirected to different content. Trying with cookies..."
+                        )
+                        info = None
+                        continue
+                    
+                    canonical_url = try_url
+                    logger.debug(f"Successfully fetched reel metadata from: {canonical_url} (ID verified: {post_id})")
+                    break
+        except Exception as e:
+            last_error = e
+            logger.debug(f"Failed to fetch from {try_url}: {e}")
+            continue
+    
+    if not info:
+        # Fallback: try with cookies/authentication if unauthenticated access failed
+        # This handles private reels or reels that require authentication
+        logger.debug(f"Unauthenticated fetch failed for {post_id}, trying with authentication...")
+        auth_opts = _get_ytdlp_auth_opts("instagram")
+        
+        ydl_opts_auth = {
+            **base_opts,
+            **auth_opts,
+            "skip_download": True,
+            "quiet": True,
+            "no_warnings": True,
+        }
+        
+        for try_url in canonical_urls:
+            try:
+                logger.debug(f"Fetching metadata (authenticated) from: {try_url}")
+                with yt_dlp.YoutubeDL(ydl_opts_auth) as ydl:
+                    info = ydl.extract_info(try_url, download=False)
+                    if info:
+                        returned_id = info.get("id")
+                        if returned_id and returned_id != post_id:
+                            logger.warning(
+                                f"⚠️ Shortcode mismatch with auth! Requested: {post_id}, returned: {returned_id}. "
+                                f"Corrupted shortcode or redirect. Skipping."
+                            )
+                            info = None
+                            continue
+                        
+                        canonical_url = try_url
+                        logger.debug(f"Successfully fetched with auth from: {canonical_url} (ID verified: {post_id})")
+                        break
+            except Exception as e:
+                logger.debug(f"Authenticated fetch from {try_url} failed: {e}")
+                continue
+    
     if not info:
         return None
 
@@ -924,6 +1062,12 @@ def get_reel_details_from_url(
 
     uploader = info.get("uploader") or info.get("channel") or "Instagram"
     title = _clean_title_from_post(info, f"Instagram Reel #{post_id}")
+
+    # Additional check: verify by title+author combination (handles Instagram URL inconsistencies)
+    from yt2md.video_index import is_video_already_processed_by_title_author
+    if is_video_already_processed_by_title_author(title, uploader, skip_verification=skip_verification):
+        logger.debug(f"Rolka z dopasowaniem po tytule i autorze już przetworzona: {title} by {uploader}")
+        return None
 
     return (canonical_url, title, pub_date_str, uploader)
 

@@ -2,7 +2,11 @@ import logging
 import os
 import sys
 import textwrap
-import winsound
+
+try:
+    import winsound
+except ImportError:
+    winsound = None
 
 from dotenv import load_dotenv
 
@@ -215,7 +219,7 @@ def run_main(args):
 
     # (Auto-send now handled immediately inside process_videos loop.)
 
-        if os.name == "nt":  # Check if the platform is Windows
+        if winsound is not None:
             winsound.Beep(1000, 500)
     except Exception as e:
         logger.error(f"Error in main process: {str(e)}", exc_info=True)
