@@ -599,13 +599,16 @@ def _get_reels_from_profile_selenium(
 
             if new_in_iteration == 0:
                 no_new_links_count += 1
-                if no_new_links_count >= 5:
+                threshold = 8 if unprocessed_candidate_count == 0 else 5
+                if no_new_links_count >= threshold:
                     break
             else:
                 no_new_links_count = 0
 
             try:
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                driver.execute_script(
+                    "window.scrollBy(0, -100); window.scrollBy(0, 1500); window.scrollTo(0, document.body.scrollHeight);"
+                )
             except Exception:
                 break
             time.sleep(2.0)

@@ -1,6 +1,6 @@
 import unittest
 import xml.etree.ElementTree as ET
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from yt2md.podcast import fetch_or_create_rss_xml, update_rss_feed, clean_old_episodes
 
@@ -209,6 +209,102 @@ class TestPodcastLiveStreamAndErrorHandling(unittest.TestCase):
             process_podcast_subscriptions(days=3)
 
             self.assertEqual(mock_download.call_count, 2)
+
+
+class TestPodcastIndexDeduplication(unittest.TestCase):
+    @patch("yt2md.video_index.update_video_index")
+    @patch("yt2md.video_index.get_processed_video_ids")
+    @patch("yt2md.video_collector.collect_videos_from_category")
+    @patch("yt2md.podcast.get_dropbox_client")
+    @patch("yt2md.podcast.fetch_or_create_rss_xml")
+    @patch("yt2md.podcast.process_podcast_download")
+    def test_subscriptions_skips_indexed_video_and_syncs_rss(
+        self,
+        mock_download,
+        mock_fetch_rss,
+        mock_get_dbx,
+        mock_collect,
+        mock_get_processed,
+        mock_update_index,
+    ):
+        from yt2md.podcast import process_podcast_subscriptions
+
+        # RSS has item with guid 'rss_old_guid'
+        root = ET.Element("rss", {"version": "2.0"})
+        ch = ET.SubElement(root, "channel")
+        it = ET.SubElement(ch, "item")
+        g = ET.SubElement(it, "guid")
+        g.text = "rss_old_guid"
+        tree = ET.ElementTree(root)
+
+        mock_fetch_rss.return_value = tree
+        mock_get_dbx.return_value = MagicMock()
+        mock_download.return_value = tree
+
+        # local index already contains 'indexed_vid'
+        mock_get_processed.return_value = {"indexed_vid"}
+
+        mock_collect.return_value = [
+            ("https://www.youtube.com/watch?v=indexed_vid", "Indexed Video"),
+            ("https://www.youtube.com/watch?v=rss_old_guid", "RSS Old Video"),
+            ("https://www.youtube.com/watch?v=fresh_vid", "Fresh Video"),
+        ]
+
+        process_podcast_subscriptions(days=3)
+
+        # 1. RSS guid not in local index should be synced into video_index
+        mock_update_index.assert_any_call("rss_old_guid", "PODCAST_PROCESSED")
+
+        # 2. Only fresh_vid should be processed by process_podcast_download
+        self.assertEqual(mock_download.call_count, 1)
+        mock_download.assert_called_once_with(
+            "https://www.youtube.com/watch?v=fresh_vid",
+            dbx=mock_get_dbx.return_value,
+            tree=tree,
+        )
+
+    @patch("yt2md.video_index.update_video_index")
+    @patch("yt2md.video_index.get_processed_video_ids")
+    @patch("yt2md.youtube.get_videos_from_playlist")
+    @patch("yt2md.podcast.get_dropbox_client")
+    @patch("yt2md.podcast.fetch_or_create_rss_xml")
+    @patch("yt2md.podcast.process_podcast_download")
+    def test_playlist_skips_indexed_video(
+        self,
+        mock_download,
+        mock_fetch_rss,
+        mock_get_dbx,
+        mock_get_videos,
+        mock_get_processed,
+        mock_update_index,
+    ):
+        from yt2md.podcast import process_podcast_playlist
+
+        root = ET.Element("rss", {"version": "2.0"})
+        ET.SubElement(root, "channel")
+        tree = ET.ElementTree(root)
+
+        mock_fetch_rss.return_value = tree
+        mock_get_dbx.return_value = MagicMock()
+        mock_download.return_value = tree
+
+        # local index contains 'already_done_vid'
+        mock_get_processed.return_value = {"already_done_vid"}
+
+        mock_get_videos.return_value = [
+            ("https://www.youtube.com/watch?v=already_done_vid", "Already Done", "2026-09-10", "Host"),
+            ("https://www.youtube.com/watch?v=new_playlist_vid", "New Episode", "2026-09-11", "Host"),
+        ]
+
+        process_podcast_playlist("PLdummy", max_videos=5)
+
+        # Only new_playlist_vid should be downloaded
+        self.assertEqual(mock_download.call_count, 1)
+        mock_download.assert_called_once_with(
+            "https://www.youtube.com/watch?v=new_playlist_vid",
+            dbx=mock_get_dbx.return_value,
+            tree=tree,
+        )
 
 
 if __name__ == "__main__":

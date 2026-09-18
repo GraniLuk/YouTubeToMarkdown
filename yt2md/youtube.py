@@ -1397,7 +1397,11 @@ def get_videos_from_playlist(
 
     logger.debug(f"Znaleziono {len(raw_entries)} elementów na playliście '{playlist_title}'")
 
-    processed_video_ids = get_processed_video_ids(skip_verification)
+    try:
+        processed_video_ids = get_processed_video_ids(skip_verification)
+    except Exception as exc:
+        logger.warning(f"Could not load processed video IDs: {exc}")
+        processed_video_ids = set()
 
     unprocessed_videos = []
     for entry in raw_entries:
@@ -1406,11 +1410,14 @@ def get_videos_from_playlist(
         video_id = entry.get("id")
         if not video_id:
             continue
-        if video_id in processed_video_ids:
-            logger.debug(f"Video {video_id} already processed, skipping.")
-            continue
 
         title = entry.get("title") or f"Video {video_id}"
+
+        if video_id in processed_video_ids:
+            logger.info(
+                f"⏭️ Pomijanie filmu '{title}' (ID: {video_id}) z playlisty - film był już przetworzony."
+            )
+            continue
 
         if title_filters and not any(
             filter_text.lower() in title.lower()

@@ -93,14 +93,19 @@ def run_main(args):
                         skip_verification=args.skip_verification,
                     )
                 else:
-                    process_podcast_download(args.url)
+                    process_podcast_download(
+                        args.url, skip_verification=getattr(args, "skip_verification", False)
+                    )
                 return
             else:
-                process_podcast_subscriptions(
-                    days=args.days,
-                    channel_name=args.channel,
-                    max_videos=args.max_videos,
-                )
+                podcast_sub_kwargs = {
+                    "days": args.days,
+                    "channel_name": args.channel,
+                    "max_videos": args.max_videos,
+                }
+                if getattr(args, "skip_verification", False):
+                    podcast_sub_kwargs["skip_verification"] = True
+                process_podcast_subscriptions(**podcast_sub_kwargs)
                 if not categories:
                     return
 
@@ -117,11 +122,14 @@ def run_main(args):
                     )
                 if podcast_channels and should_check_podcasts:
                     from yt2md.podcast import process_podcast_subscriptions
-                    process_podcast_subscriptions(
-                        days=args.days,
-                        channel_name=args.channel,
-                        max_videos=args.max_videos,
-                    )
+                    podcast_sub_kwargs = {
+                        "days": args.days,
+                        "channel_name": args.channel,
+                        "max_videos": args.max_videos,
+                    }
+                    if getattr(args, "skip_verification", False):
+                        podcast_sub_kwargs["skip_verification"] = True
+                    process_podcast_subscriptions(**podcast_sub_kwargs)
             except Exception as e:
                 logger.warning(f"Podcast subscription processing warning: {e}")
 

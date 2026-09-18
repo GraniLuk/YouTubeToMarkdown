@@ -159,6 +159,11 @@ Dzieci:
     platform: instagram
     language_code: pl
     output_language: Polish
+  - id: panodsensoryki
+    name: Pan od Sensoryki
+    platform: instagram
+    language_code: pl
+    output_language: Polish
 News:
   - id: UClhEl4bMD8_escGCCTmRAYg
     name: Kanal Zero

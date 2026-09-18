@@ -1,6 +1,25 @@
 import os
 
 
+def _get_summaries_dir() -> str:
+    """Get SUMMARIES_PATH from environment, loading .env if needed."""
+    summaries_dir = os.getenv("SUMMARIES_PATH")
+    if not summaries_dir:
+        from dotenv import load_dotenv
+        for env_cand in [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), ".env")),
+            os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")),
+        ]:
+            if os.path.exists(env_cand):
+                load_dotenv(env_cand)
+                break
+        summaries_dir = os.getenv("SUMMARIES_PATH")
+
+    if not summaries_dir:
+        raise ValueError("SUMMARIES_PATH environment variable is not set")
+    return summaries_dir
+
+
 def get_processed_video_ids(skip_verification: bool = False) -> set[str]:
     """
     Get set of already processed video IDs from the index file.
@@ -15,16 +34,7 @@ def get_processed_video_ids(skip_verification: bool = False) -> set[str]:
         return set()
 
     processed_video_ids = set[str]()
-    summaries_dir = os.getenv("SUMMARIES_PATH")
-    if not summaries_dir:
-        from dotenv import load_dotenv
-        env_cand = os.path.abspath(os.path.join(os.path.dirname(__file__), ".env"))
-        if os.path.exists(env_cand):
-            load_dotenv(env_cand)
-        summaries_dir = os.getenv("SUMMARIES_PATH")
-
-    if not summaries_dir:
-        raise ValueError("SUMMARIES_PATH environment variable is not set")
+    summaries_dir = _get_summaries_dir()
 
     index_file = os.path.join(summaries_dir, "video_index.txt")
     if os.path.exists(index_file):
@@ -53,9 +63,7 @@ def update_video_index(
     if skip_verification:
         return False
 
-    summaries_dir = os.getenv("SUMMARIES_PATH")
-    if not summaries_dir:
-        raise ValueError("SUMMARIES_PATH environment variable is not set")
+    summaries_dir = _get_summaries_dir()
 
     # Create index directory if it doesn't exist
     os.makedirs(summaries_dir, exist_ok=True)
@@ -77,9 +85,7 @@ def find_markdown_files_for_video(video_id: str) -> list[str]:
     Skips status marker entries (like VIDEO_UNAVAILABLE) and only returns paths that
     currently exist on disk and end with .md.
     """
-    summaries_dir = os.getenv("SUMMARIES_PATH")
-    if not summaries_dir:
-        raise ValueError("SUMMARIES_PATH environment variable is not set")
+    summaries_dir = _get_summaries_dir()
     index_file = os.path.join(summaries_dir, "video_index.txt")
     paths: list[str] = []
     if not os.path.exists(index_file):

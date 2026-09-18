@@ -199,6 +199,186 @@ class TestOpenRouterStrategyRetry(unittest.TestCase):
         self.assertEqual(mock_post.call_count, 2)
         mock_sleep.assert_called_once()
 
+    @patch("yt2md.llm_strategies.time.sleep")
+    @patch("yt2md.llm_strategies.requests.post")
+    def test_retry_on_502_json_error_body_succeeds(self, mock_post, mock_sleep):
+        """Should retry when OpenRouter returns upstream 502 in JSON body (e.g. Nvidia overloaded)."""
+        mock_502_json = MagicMock()
+        mock_502_json.status_code = 200
+        mock_502_json.json.return_value = {
+            "error": {
+                "code": 502,
+                "message": "Upstream error from Nvidia: Service temporarily overloaded",
+                "metadata": {"provider_name": "unknown", "raw": ""},
+            }
+        }
+        mock_502_json.raise_for_status = MagicMock()
+
+        mock_ok = MagicMock()
+        mock_ok.status_code = 200
+        mock_ok.json.return_value = {
+            "choices": [{"message": {"content": "DESCRIPTION: Recovered\nFinal content"}}]
+        }
+        mock_ok.raise_for_status = MagicMock()
+
+        mock_post.side_effect = [mock_502_json, mock_ok]
+
+        strategy = OpenRouterStrategy()
+        text, description = strategy.analyze_transcript(
+            "test transcript",
+            api_key="test-key",
+            model_name="nvidia/nemotron-3-ultra-550b-a55b:free",
+        )
+
+        self.assertEqual(mock_post.call_count, 2)
+        mock_sleep.assert_called_once()
+        self.assertEqual(description, "Recovered")
+        self.assertIn("Final content", text)
+
+    @patch("yt2md.llm_strategies.time.sleep")
+    @patch("yt2md.llm_strategies.requests.post")
+    def test_retry_on_502_http_status(self, mock_post, mock_sleep):
+        """Should retry on HTTP 502 (Bad Gateway) response status."""
+        mock_502 = MagicMock()
+        mock_502.status_code = 502
+        mock_502.text = "Bad Gateway"
+        mock_502.json.side_effect = ValueError("Not JSON")
+        mock_502.raise_for_status.side_effect = __import__(
+            "requests"
+        ).exceptions.HTTPError(response=mock_502)
+
+        mock_ok = MagicMock()
+        mock_ok.status_code = 200
+        mock_ok.json.return_value = {
+            "choices": [{"message": {"content": "DESCRIPTION: OK\nContent"}}]
+        }
+        mock_ok.raise_for_status = MagicMock()
+
+        mock_post.side_effect = [mock_502, mock_ok]
+
+        strategy = OpenRouterStrategy()
+        text, description = strategy.analyze_transcript(
+            "test transcript",
+            api_key="test-key",
+            model_name="test/model",
+        )
+
+        self.assertEqual(mock_post.call_count, 2)
+        mock_sleep.assert_called_once()
+        self.assertEqual(description, "OK")
+
+    @patch("yt2md.llm_strategies.time.sleep")
+    @patch("yt2md.llm_strategies.requests.post")
+    def test_retry_on_504_gateway_timeout(self, mock_post, mock_sleep):
+        """Should retry on HTTP 504 (Gateway Timeout) response status."""
+        mock_504 = MagicMock()
+        mock_504.status_code = 504
+        mock_504.text = "Gateway Timeout"
+        mock_504.json.side_effect = ValueError("Not JSON")
+        mock_504.raise_for_status.side_effect = __import__(
+            "requests"
+        ).exceptions.HTTPError(response=mock_504)
+
+        mock_ok = MagicMock()
+        mock_ok.status_code = 200
+        mock_ok.json.return_value = {
+            "choices": [{"message": {"content": "DESCRIPTION: OK\nContent"}}]
+        }
+        mock_ok.raise_for_status = MagicMock()
+
+        mock_post.side_effect = [mock_504, mock_ok]
+
+        strategy = OpenRouterStrategy()
+        text, description = strategy.analyze_transcript(
+            "test transcript",
+            api_key="test-key",
+            model_name="test/model",
+        )
+
+        self.assertEqual(mock_post.call_count, 2)
+        mock_sleep.assert_called_once()
+        self.assertEqual(description, "OK")
+
+    @patch("yt2md.llm_strategies.time.sleep")
+    @patch("yt2md.llm_strategies.requests.post")
+    def test_retry_on_request_timeout(self, mock_post, mock_sleep):
+        """Should retry on requests.exceptions.Timeout."""
+        mock_ok = MagicMock()
+        mock_ok.status_code = 200
+        mock_ok.json.return_value = {
+            "choices": [{"message": {"content": "DESCRIPTION: OK\nContent"}}]
+        }
+        mock_ok.raise_for_status = MagicMock()
+
+        mock_post.side_effect = [
+            __import__("requests").exceptions.Timeout("Connection timed out"),
+            mock_ok,
+        ]
+
+        strategy = OpenRouterStrategy()
+        text, description = strategy.analyze_transcript(
+            "test transcript",
+            api_key="test-key",
+            model_name="test/model",
+        )
+
+        self.assertEqual(mock_post.call_count, 2)
+        mock_sleep.assert_called_once()
+        self.assertEqual(description, "OK")
+
+    @patch("yt2md.llm_strategies.requests.post")
+    def test_non_retryable_error_in_json_raises_immediately(self, mock_post):
+        """Should raise immediately without retry on non-retryable error in JSON (e.g. 401)."""
+        mock_401_json = MagicMock()
+        mock_401_json.status_code = 200
+        mock_401_json.json.return_value = {
+            "error": {
+                "code": 401,
+                "message": "User key is invalid or disabled",
+            }
+        }
+        mock_401_json.raise_for_status = MagicMock()
+        mock_post.return_value = mock_401_json
+
+        strategy = OpenRouterStrategy()
+        with self.assertRaises(Exception) as ctx:
+            strategy.analyze_transcript(
+                "test transcript",
+                api_key="test-key",
+                model_name="test/model",
+            )
+
+        self.assertIn("OpenRouter", str(ctx.exception))
+        self.assertEqual(mock_post.call_count, 1)
+
+    @patch("yt2md.llm_strategies.time.sleep")
+    @patch("yt2md.llm_strategies.requests.post")
+    def test_retry_exhaustion_raises_after_max_retries(self, mock_post, mock_sleep):
+        """Should exhaust retries and raise after max_retries attempts."""
+        mock_502_json = MagicMock()
+        mock_502_json.status_code = 200
+        mock_502_json.json.return_value = {
+            "error": {
+                "code": 502,
+                "message": "Upstream error from Nvidia: Service temporarily overloaded",
+            }
+        }
+        mock_502_json.raise_for_status = MagicMock()
+        mock_post.return_value = mock_502_json
+
+        strategy = OpenRouterStrategy()
+        with self.assertRaises(Exception) as ctx:
+            strategy.analyze_transcript(
+                "test transcript",
+                api_key="test-key",
+                model_name="test/model",
+                max_retries=4,
+            )
+
+        self.assertIn("OpenRouter", str(ctx.exception))
+        self.assertEqual(mock_post.call_count, 4)
+        self.assertEqual(mock_sleep.call_count, 3)
+
     @patch("yt2md.llm_strategies.requests.post")
     def test_non_retryable_error_raises_immediately(self, mock_post):
         """Should raise immediately on non-retryable HTTP errors (e.g., 400)."""
@@ -226,3 +406,4 @@ class TestOpenRouterStrategyRetry(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

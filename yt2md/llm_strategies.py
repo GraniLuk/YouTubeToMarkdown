@@ -794,6 +794,20 @@ class OllamaStrategy(LLMStrategy):
         return "\n\n".join(final_output), description
 
 
+class OpenRouterAPIError(Exception):
+    """Exception raised for OpenRouter API errors with code and provider details."""
+
+    def __init__(
+        self,
+        message: str,
+        code: str | int | None = None,
+        provider: str | None = None,
+    ):
+        super().__init__(message)
+        self.code = code
+        self.provider = provider
+
+
 class OpenRouterStrategy(LLMStrategy):
     """OpenRouter API implementation strategy (OpenAI-compatible)."""
 
@@ -819,8 +833,11 @@ class OpenRouterStrategy(LLMStrategy):
             openrouter_config.get("model_name"),
             default="nvidia/nemotron-3-ultra-550b-a55b:free",
         )
+        # Retry configuration matching Gemini strategy
         max_retries = kwargs.get("max_retries", 4)
-        retry_delay = kwargs.get("retry_delay", 3)
+        base_backoff = float(kwargs.get("retry_delay", 2.5))
+        max_backoff = 14.0
+        jitter = 0.3  # proportion of backoff added/subtracted
         chunking_strategy = kwargs.get("chunking_strategy", "word")
         chunk_size = kwargs.get("chunk_size", 8000)
         base_url = _string_setting(
@@ -838,6 +855,90 @@ class OpenRouterStrategy(LLMStrategy):
 
         if not api_key:
             raise ValueError("OpenRouter API key is required")
+
+        def _is_retryable_error(exc: Exception) -> bool:
+            # Check for known OpenRouter error codes if wrapped in OpenRouterAPIError
+            if isinstance(exc, OpenRouterAPIError) and exc.code is not None:
+                if exc.code in (
+                    400, 401, 402, 403, 404, 422,
+                    "400", "401", "402", "403", "404", "422",
+                ):
+                    return False
+                if exc.code in (
+                    408, 429, 500, 502, 503, 504,
+                    "408", "429", "500", "502", "503", "504",
+                ):
+                    return True
+
+            # Check HTTPError response status if present
+            if isinstance(exc, requests.exceptions.HTTPError) and exc.response is not None:
+                if exc.response.status_code in (400, 401, 402, 403, 404, 422):
+                    return False
+                if exc.response.status_code in (408, 429, 500, 502, 503, 504):
+                    return True
+
+            # Network timeouts and connection errors are transient/retryable
+            if isinstance(exc, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
+                return True
+
+            msg = str(exc).lower()
+
+            # Permanent non-retryable indicators
+            if any(
+                token in msg
+                for token in [
+                    "unauthorized",
+                    "invalid api key",
+                    "insufficient credits",
+                    "payment required",
+                    "credit balance",
+                    "code: 400",
+                    "code: 401",
+                    "code: 402",
+                    "code: 403",
+                    "code: 404",
+                    "code: 422",
+                    "code 400",
+                    "code 401",
+                    "code 402",
+                    "code 403",
+                    "code 404",
+                    "code 422",
+                ]
+            ):
+                return False
+
+            # Transient retryable indicators
+            return any(
+                token in msg
+                for token in [
+                    "408",
+                    "429",
+                    "500",
+                    "502",
+                    "503",
+                    "504",
+                    "rate limit",
+                    "overloaded",
+                    "temporarily",
+                    "unavailable",
+                    "service unavailable",
+                    "bad gateway",
+                    "gateway timeout",
+                    "timeout",
+                    "timed out",
+                    "connection",
+                    "deadline exceeded",
+                ]
+            )
+
+        def _compute_backoff(attempt: int) -> float:
+            # attempt starts at 1
+            sleep = min((base_backoff ** (attempt - 1)), max_backoff)
+            if jitter > 0:
+                delta = sleep * jitter
+                sleep = random.uniform(max(0, sleep - delta), sleep + delta)
+            return sleep
 
         # Get category-specific prompts
         category_prompt = CATEGORY_PROMPTS.get(category, "")
@@ -890,16 +991,43 @@ class OpenRouterStrategy(LLMStrategy):
                 "temperature": 0.6,
             }
 
-            response = None
-            for attempt in range(max_retries):
+            last_error = None
+            for attempt in range(1, max_retries + 1):
                 try:
                     response = requests.post(base_url, json=data, headers=headers)
-                    response.raise_for_status()
+                    if response.status_code != 200:
+                        # Try to extract detailed error message from response JSON if available
+                        try:
+                            err_json = response.json()
+                            if isinstance(err_json, dict) and "error" in err_json:
+                                error_obj = err_json["error"]
+                                if isinstance(error_obj, dict):
+                                    error_msg = error_obj.get("message", str(error_obj))
+                                    error_code = error_obj.get("code", response.status_code)
+                                    provider_name = error_obj.get("metadata", {}).get(
+                                        "provider_name", "unknown"
+                                    )
+                                    raw = error_obj.get("metadata", {}).get("raw", "")
+                                    if raw:
+                                        logger.debug(f"OpenRouter raw provider error: {raw}")
+                                    raise OpenRouterAPIError(
+                                        f"OpenRouter error from provider '{provider_name}' (code: {error_code}): {error_msg}",
+                                        code=error_code,
+                                        provider=provider_name,
+                                    )
+                                else:
+                                    raise OpenRouterAPIError(
+                                        f"OpenRouter error: {str(error_obj)}",
+                                        code=response.status_code,
+                                    )
+                        except (ValueError, KeyError):
+                            pass
+                        response.raise_for_status()
 
                     result = response.json()
 
                     # Check for error in response body (some models return errors with HTTP 200)
-                    if "error" in result:
+                    if isinstance(result, dict) and "error" in result:
                         error_obj = result["error"]
                         if isinstance(error_obj, dict):
                             error_msg = error_obj.get("message", str(error_obj))
@@ -907,30 +1035,33 @@ class OpenRouterStrategy(LLMStrategy):
                             metadata = error_obj.get("metadata", {})
                             provider_name = metadata.get("provider_name", "unknown")
                             raw = metadata.get("raw", "")
-                            logger.error(
-                                f"OpenRouter error from provider '{provider_name}' "
-                                f"(code: {error_code}): {error_msg}"
-                            )
                             if raw:
                                 logger.debug(f"OpenRouter raw provider error: {raw}")
+                            raise OpenRouterAPIError(
+                                f"OpenRouter error from provider '{provider_name}' (code: {error_code}): {error_msg}",
+                                code=error_code,
+                                provider=provider_name,
+                            )
                         else:
                             error_msg = str(error_obj)
-                            logger.error(f"OpenRouter error: {error_msg}")
-                        raise Exception(
-                            f"OpenRouter error: {error_msg}"
-                        )
+                            raise OpenRouterAPIError(
+                                f"OpenRouter error: {error_msg}",
+                                code="unknown",
+                            )
 
                     # Validate response structure
                     if "choices" not in result or not result["choices"]:
                         logger.error(
                             f"OpenRouter unexpected response format: {str(result)[:500]}"
                         )
-                        raise Exception(
+                        raise ValueError(
                             f"OpenRouter returned unexpected response (no 'choices'). "
                             f"Response: {str(result)[:200]}"
                         )
 
                     text = result["choices"][0]["message"]["content"]
+                    if not text:
+                        raise ValueError("OpenRouter returned an empty response")
 
                     # Process the response text
                     processed_text, chunk_description = self.process_model_response(
@@ -943,34 +1074,30 @@ class OpenRouterStrategy(LLMStrategy):
 
                     previous_response = processed_text
                     final_output.append(processed_text)
+                    if attempt > 1:
+                        logger.info(
+                            f"OpenRouter chunk {i + 1}/{len(chunks)} succeeded after {attempt} attempts"
+                        )
                     break
 
-                except requests.exceptions.HTTPError as e:
-                    status_code = response.status_code if response is not None else None
-                    if (
-                        status_code in (429, 503)
-                        and attempt < max_retries - 1
-                    ):
-                        wait_time = retry_delay * (2 ** attempt)
+                except Exception as e:
+                    last_error = e
+                    if attempt < max_retries and _is_retryable_error(e):
+                        sleep_for = _compute_backoff(attempt)
                         logger.warning(
-                            f"OpenRouter API error {status_code} (attempt {attempt + 1}/{max_retries}), "
-                            f"retrying in {wait_time}s..."
+                            f"OpenRouter transient error (attempt {attempt}/{max_retries}): {e}. Retrying in {sleep_for:.2f}s"
                         )
-                        time.sleep(wait_time)
-                    else:
-                        response_text = (
-                            response.text
-                            if response is not None
-                            else "No response text"
-                        )
-                        raise Exception(
-                            f"OpenRouter HTTP {status_code}: {str(e)}, Response: {response_text}"
-                        ) from e
-
-                except Exception:
-                    raise
+                        time.sleep(sleep_for)
+                        continue
+                    # Non-retryable or exhausted retries
+                    logger.error(
+                        f"OpenRouter API error (attempt {attempt}/{max_retries}) for chunk {i + 1}: {e}"
+                    )
+                    raise Exception(f"OpenRouter API error: {str(e)}") from e
             else:
-                raise Exception("OpenRouter: Failed to get response after multiple retries")
+                raise Exception(
+                    f"OpenRouter API failed after {max_retries} attempts: {last_error}"
+                )
 
         return "\n\n".join(final_output), description
 

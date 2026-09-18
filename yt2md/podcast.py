@@ -455,6 +455,7 @@ def process_podcast_download(
     video_url: str,
     dbx: Optional[dropbox.Dropbox] = None,
     tree: Optional[ET.ElementTree] = None,
+    skip_verification: bool = False,
 ) -> ET.ElementTree:
     """Download YouTube audio, upload to Dropbox, update RSS feed and display link."""
     logger.info(f"🎧 Przetwarzanie trybu Podcast dla: {video_url}")
@@ -556,7 +557,7 @@ def process_podcast_download(
         # 8b. Update local video index so yt2md collector skips this video ID
         try:
             from yt2md.video_index import update_video_index
-            update_video_index(video_id, "PODCAST_PROCESSED")
+            update_video_index(video_id, "PODCAST_PROCESSED", skip_verification=skip_verification)
         except Exception as index_err:
             logger.warning(f"Could not update video index: {index_err}")
 
@@ -591,7 +592,10 @@ def process_podcast_download(
 
 
 def process_podcast_subscriptions(
-    days: int = 3, channel_name: Optional[str] = None, max_videos: int = 10
+    days: int = 3,
+    channel_name: Optional[str] = None,
+    max_videos: int = 10,
+    skip_verification: bool = False,
 ) -> None:
     """Collect new videos from subscribed Podcast channels and export to Dropbox RSS."""
     logger.info("📡 Sprawdzanie subskrypcji podcastów (kategoria: Podcast w channels.yaml)...")
@@ -602,6 +606,7 @@ def process_podcast_subscriptions(
         days=days,
         channel_name=channel_name,
         max_videos=max_videos,
+        skip_verification=skip_verification,
     )
 
     if not videos_to_process:
@@ -610,9 +615,29 @@ def process_podcast_subscriptions(
 
     logger.info(f"Znaleziono {len(videos_to_process)} filmów z kanałów podcastowych.")
 
+    # Get local processed video IDs from video_index.txt
+    try:
+        from yt2md.video_index import get_processed_video_ids, update_video_index
+        local_processed_ids = get_processed_video_ids(skip_verification)
+    except Exception as e:
+        logger.warning(f"Could not load local video index: {e}")
+        local_processed_ids = set()
+        update_video_index = None
+
     # Get Dropbox client and fetch existing RSS feed
     dbx = get_dropbox_client()
     tree = fetch_or_create_rss_xml(dbx, "/podcast.xml")
+
+    # Sync existing RSS feed guids into local video index if not present
+    if not skip_verification:
+        root = tree.getroot()
+        for item_elem in root.findall(".//item"):
+            guid_elem = item_elem.find("guid")
+            guid = guid_elem.text.strip() if (guid_elem is not None and guid_elem.text) else None
+            if guid and guid not in local_processed_ids:
+                if update_video_index:
+                    update_video_index(guid, "PODCAST_PROCESSED")
+                local_processed_ids.add(guid)
 
     processed_count = 0
     for video_tuple in videos_to_process:
@@ -639,13 +664,20 @@ def process_podcast_subscriptions(
                 if "v=" in link_url:
                     existing_guids.add(link_url.split("v=")[1].split("&")[0])
 
-        if video_id and video_id in existing_guids:
-            logger.info(f"⏭️ Odcinek '{video_title}' (ID: {video_id}) już istnieje w RSS. Pomijanie.")
+        if video_id and (video_id in existing_guids or video_id in local_processed_ids) and not skip_verification:
+            logger.info(f"⏭️ Odcinek '{video_title}' (ID: {video_id}) był już przetworzony. Pomijanie.")
             continue
 
         logger.info(f"🎙️ Nowy odcinek podcastu: '{video_title}' ({video_url})")
         try:
-            tree = process_podcast_download(video_url, dbx=dbx, tree=tree)
+            if skip_verification:
+                tree = process_podcast_download(
+                    video_url, dbx=dbx, tree=tree, skip_verification=True
+                )
+            else:
+                tree = process_podcast_download(video_url, dbx=dbx, tree=tree)
+            if video_id and not skip_verification:
+                local_processed_ids.add(video_id)
             processed_count += 1
         except Exception as e:
             if _is_live_or_upcoming_error(e):
@@ -690,6 +722,26 @@ def process_podcast_playlist(
     if tree is None:
         tree = fetch_or_create_rss_xml(dbx, "/podcast.xml")
 
+    # Get local processed video IDs from video_index.txt
+    try:
+        from yt2md.video_index import get_processed_video_ids, update_video_index
+        local_processed_ids = get_processed_video_ids(skip_verification)
+    except Exception as e:
+        logger.warning(f"Could not load local video index: {e}")
+        local_processed_ids = set()
+        update_video_index = None
+
+    # Sync existing RSS feed guids into local video index if not present
+    if not skip_verification:
+        root = tree.getroot()
+        for item_elem in root.findall(".//item"):
+            guid_elem = item_elem.find("guid")
+            guid = guid_elem.text.strip() if (guid_elem is not None and guid_elem.text) else None
+            if guid and guid not in local_processed_ids:
+                if update_video_index:
+                    update_video_index(guid, "PODCAST_PROCESSED")
+                local_processed_ids.add(guid)
+
     processed_count = 0
     for video_url, video_title, _published_date, _uploader in videos_to_process:
         video_id = None
@@ -711,13 +763,20 @@ def process_podcast_playlist(
                 if "v=" in link_url:
                     existing_guids.add(link_url.split("v=")[1].split("&")[0])
 
-        if video_id and video_id in existing_guids and not skip_verification:
-            logger.info(f"⏭️ Odcinek '{video_title}' (ID: {video_id}) już istnieje w RSS. Pomijanie.")
+        if video_id and (video_id in existing_guids or video_id in local_processed_ids) and not skip_verification:
+            logger.info(f"⏭️ Odcinek '{video_title}' (ID: {video_id}) był już przetworzony. Pomijanie.")
             continue
 
         logger.info(f"🎙️ Nowy odcinek podcastu z playlisty: '{video_title}' ({video_url})")
         try:
-            tree = process_podcast_download(video_url, dbx=dbx, tree=tree)
+            if skip_verification:
+                tree = process_podcast_download(
+                    video_url, dbx=dbx, tree=tree, skip_verification=True
+                )
+            else:
+                tree = process_podcast_download(video_url, dbx=dbx, tree=tree)
+            if video_id and not skip_verification:
+                local_processed_ids.add(video_id)
             processed_count += 1
         except Exception as e:
             if _is_live_or_upcoming_error(e):

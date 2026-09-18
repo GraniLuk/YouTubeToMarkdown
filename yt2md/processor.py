@@ -315,6 +315,12 @@ def process_video(
                 logger.debug(f"Saved Ollama result to: {ollama_file_path}")
                 saved_files.append(ollama_file_path)
 
+        if not saved_files:
+            logger.warning(
+                f"No notes saved for video: {video_title} (LLM processing yielded no results). "
+                f"Video was NOT added to video index and will be retried on subsequent runs."
+            )
+
         # Also return approximate word counts for downstream logic (e.g., Kindle auto-send)
         result = []
         for path in saved_files:
