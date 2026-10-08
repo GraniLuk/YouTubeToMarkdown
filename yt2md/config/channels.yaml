@@ -20,11 +20,6 @@ IT:
     language_code: en
     output_language: English
 
-  - id: UCTdw38Cw6jcm0atBPA39a0Q
-    name: NDC Conferences
-    language_code: en
-    output_language: English
-
   - id: UCs5Y5_7XK8HLDX0SLNwkd3w
     name: Visual Studio Code
     language_code: en
