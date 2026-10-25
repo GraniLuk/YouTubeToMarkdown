@@ -173,14 +173,28 @@ The audio fallback system automatically **skips videos that are not suitable** f
    - Warning: "Video is too short (9s < 30s). Skipping audio fallback for very short videos."
    - Reason: Processing overhead (download + Whisper) is not worth it for such short content
 
-These videos are **not added to the video index**, allowing you to retry them later when they become available or decide to process them manually.
+3. **New and Long Videos**: Videos that are both newly published and long
+   - Thresholds: Published within the last 24 hours (configurable) and duration >= 20 minutes (configurable)
+   - Warning/Log: "⏳ Video is new (6.6h old <= 24.0h) and long (59m 53s >= 20m 00s). Skipping audio fallback as YouTube transcript is likely still generating. Video will be retried later."
+   - Reason: YouTube often takes several hours or up to 24-48 hours to automatically generate captions for longer videos. Downloading a large audio file and running Whisper locally is slow and resource-heavy when YouTube's transcript will naturally become available later.
+
+These videos are **not added to the video index** and **do not count towards consecutive failures**, allowing you to retry them later when they become available.
 
 ### Configuration
 
-Adjust the minimum duration threshold:
+Adjust duration and age thresholds:
 ```bash
 # Skip videos shorter than 60 seconds
 MIN_VIDEO_DURATION_SECONDS=60
+
+# Enable/disable skipping new and long videos (default: true)
+AUDIO_FALLBACK_SKIP_NEW_LONG_VIDEOS=true
+
+# Minimum duration for long video skip (default: 1200 seconds / 20 minutes)
+AUDIO_FALLBACK_LONG_VIDEO_MIN_DURATION_SECONDS=1200
+
+# Maximum age in hours for new video skip (default: 24 hours)
+AUDIO_FALLBACK_NEW_VIDEO_MAX_AGE_HOURS=24
 ```
 
 ## Troubleshooting

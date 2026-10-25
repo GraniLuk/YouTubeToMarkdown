@@ -17,6 +17,7 @@ from youtube_transcript_api._errors import (  # type: ignore
 
 from yt2md.audio_fallback import (
     CopyrightBlockedError,
+    NewAndLongVideoError,
     extract_transcript_via_audio,
     is_fallback_enabled,
     _is_copyright_blocked_error,
@@ -292,6 +293,11 @@ def _try_audio_fallback(
             except Exception as index_error:
                 logger.error(f"Failed to update video index: {str(index_error)}")
         return None
+    except NewAndLongVideoError as new_long_err:
+        logger.info(
+            f"Video is new and long; skipping audio fallback for now (will retry on next run): {new_long_err}"
+        )
+        raise
     except Exception as fallback_error:
         # Check if it's a live stream error - re-raise so caller can handle appropriately
         if _is_live_or_upcoming_error(fallback_error):
@@ -349,7 +355,18 @@ def get_youtube_transcript(
     # If in fallback-only mode, skip youtube-transcript-api entirely
     if _fallback_only_mode:
         logger.info(f"Fallback-only mode active. Using audio extraction for {video_id}")
-        return _try_audio_fallback(video_url, video_id, language_code)
+        try:
+            return _try_audio_fallback(video_url, video_id, language_code)
+        except NewAndLongVideoError:
+            logger.info(
+                f"Skipping new and long video {video_id}, YouTube transcript expected later (not counting as failure)"
+            )
+            return None
+        except RetryableError:
+            logger.info(
+                f"Video {video_id} has retryable error, will retry on next run"
+            )
+            return None
 
     max_retries = 10
     delay_seconds = 20
@@ -420,6 +437,11 @@ def get_youtube_transcript(
                 )
                 if fallback_result:
                     return fallback_result
+            except NewAndLongVideoError:
+                logger.info(
+                    f"Skipping new and long video {video_id}: YouTube transcript expected later (not counting as failure)"
+                )
+                return None
             except RetryableError:
                 # Retryable error - don't index, will retry on next run
                 logger.info(
@@ -450,20 +472,30 @@ def get_youtube_transcript(
             logger.warning(
                 f"No transcript found for {video_url} in language '{language_code}' (attempt {attempt})"
             )
-            _increment_failure_counter()
 
             # Try audio fallback
             try:
                 fallback_result = _try_audio_fallback(video_url, video_id, language_code)
                 if fallback_result:
                     return fallback_result
+            except NewAndLongVideoError:
+                logger.info(
+                    f"Skipping new and long video {video_id}: YouTube transcript expected later (not counting as failure)"
+                )
+                return None
+            except RetryableError:
+                logger.info(
+                    f"Video {video_id} has retryable error, will retry on next run"
+                )
+                return None
             except Exception as fallback_error:
                 if _is_live_or_upcoming_error(fallback_error):
                     logger.info(
-                        f"Skipping live/upcoming video {video_id}, will retry later"
+                        f"Skipping live/upcoming video {video_id}, will retry later (not counting as failure)"
                     )
                     return None
 
+            _increment_failure_counter()
             return None
 
         except TranscriptsDisabled:
@@ -489,6 +521,11 @@ def get_youtube_transcript(
                                 f"Failed to update video index: {str(index_error)}"
                             )
                     return fallback_result
+            except NewAndLongVideoError:
+                logger.info(
+                    f"Skipping new and long video {video_id}: YouTube transcript expected later (not counting as failure)"
+                )
+                return None
             except RetryableError:
                 # Retryable error (e.g., 403, network) - don't index, will retry on next run
                 logger.info(
@@ -541,6 +578,11 @@ def get_youtube_transcript(
                                 f"Failed to update video index: {str(index_error)}"
                             )
                     return fallback_result
+            except NewAndLongVideoError:
+                logger.info(
+                    f"Skipping new and long video {video_id}: YouTube transcript expected later (not counting as failure)"
+                )
+                return None
             except RetryableError:
                 # Retryable error - don't index, will retry on next run
                 logger.info(
@@ -587,6 +629,11 @@ def get_youtube_transcript(
                 # Try audio fallback immediately (no retry for IP blocks)
                 try:
                     return _try_audio_fallback(video_url, video_id, language_code)
+                except NewAndLongVideoError:
+                    logger.info(
+                        f"Skipping new and long video {video_id}: YouTube transcript expected later (not counting as failure)"
+                    )
+                    return None
                 except RetryableError:
                     # Even though IP is blocked, if audio fallback has retryable error, allow retry
                     logger.info(
@@ -613,6 +660,11 @@ def get_youtube_transcript(
                     )
                     if fallback_result:
                         return fallback_result
+                except NewAndLongVideoError:
+                    logger.info(
+                        f"Skipping new and long video {video_id}: YouTube transcript expected later (not counting as failure)"
+                    )
+                    return None
                 except Exception as fallback_error:
                     # If it's a live/upcoming video, don't add to index and don't count as failure
                     if _is_live_or_upcoming_error(fallback_error):
@@ -647,6 +699,11 @@ def get_youtube_transcript(
                 # Try audio fallback as last resort
                 try:
                     return _try_audio_fallback(video_url, video_id, language_code)
+                except NewAndLongVideoError:
+                    logger.info(
+                        f"Skipping new and long video {video_id}: YouTube transcript expected later (not counting as failure)"
+                    )
+                    return None
                 except RetryableError:
                     # Retryable error - don't index, will retry on next run
                     logger.info(

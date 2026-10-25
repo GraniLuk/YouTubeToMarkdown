@@ -2,6 +2,7 @@
 
 import os
 import time
+from datetime import datetime, timezone
 from typing import Optional
 
 from yt2md.logger import get_logger
@@ -56,6 +57,103 @@ class WhisperModelNotFoundError(Exception):
     """Raised when Whisper model is not available locally."""
 
     pass
+
+
+class NewAndLongVideoError(Exception):
+    """Raised when a video is newly uploaded and long, skipping audio fallback to wait for YouTube transcript."""
+
+    pass
+
+
+def _format_duration(seconds: int | float) -> str:
+    """Format duration in seconds to human readable string (e.g. 59m 53s or 1h 05m 20s)."""
+    total_seconds = int(seconds)
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours > 0:
+        return f"{hours}h {minutes:02d}m {secs:02d}s"
+    return f"{minutes}m {secs:02d}s"
+
+
+def _check_new_and_long_video(info: dict) -> None:
+    """
+    Check if video is newly published and long.
+    If so, raise NewAndLongVideoError to skip audio fallback,
+    allowing YouTube auto-generated captions to become available later.
+    """
+    skip_env = os.getenv(
+        "AUDIO_FALLBACK_SKIP_NEW_LONG_VIDEOS",
+        os.getenv("SKIP_AUDIO_FALLBACK_FOR_NEW_LONG_VIDEOS", "true"),
+    ).lower()
+    if skip_env not in ("true", "1", "yes", "on"):
+        return
+
+    # Check duration
+    duration = info.get("duration") or 0
+    try:
+        min_duration_str = os.getenv(
+            "AUDIO_FALLBACK_LONG_VIDEO_MIN_DURATION_SECONDS",
+            os.getenv("AUDIO_FALLBACK_LONG_VIDEO_MIN_SECONDS", "1200"),
+        )
+        min_duration_seconds = int(min_duration_str)
+    except ValueError:
+        logger.warning(
+            "Invalid AUDIO_FALLBACK_LONG_VIDEO_MIN_DURATION_SECONDS, using default 1200"
+        )
+        min_duration_seconds = 1200
+
+    if duration < min_duration_seconds:
+        return  # Video is not long enough to trigger the new-and-long skip
+
+    # Check age
+    try:
+        max_age_str = os.getenv(
+            "AUDIO_FALLBACK_NEW_VIDEO_MAX_AGE_HOURS",
+            os.getenv("AUDIO_FALLBACK_NEW_VIDEO_HOURS", "24"),
+        )
+        max_age_hours = float(max_age_str)
+    except ValueError:
+        logger.warning(
+            "Invalid AUDIO_FALLBACK_NEW_VIDEO_MAX_AGE_HOURS, using default 24"
+        )
+        max_age_hours = 24.0
+
+    age_hours: Optional[float] = None
+    timestamp = info.get("timestamp") or info.get("release_timestamp")
+    now_utc = datetime.now(timezone.utc)
+
+    if timestamp is not None:
+        try:
+            upload_dt = datetime.fromtimestamp(float(timestamp), tz=timezone.utc)
+            age_hours = max(0.0, (now_utc - upload_dt).total_seconds() / 3600.0)
+        except Exception as e:
+            logger.debug(f"Failed to calculate video age from timestamp {timestamp}: {e}")
+
+    if age_hours is None and info.get("upload_date"):
+        upload_date_str = str(info.get("upload_date"))
+        try:
+            upload_dt = datetime.strptime(upload_date_str, "%Y%m%d").replace(
+                tzinfo=timezone.utc
+            )
+            age_hours = max(0.0, (now_utc - upload_dt).total_seconds() / 3600.0)
+        except Exception as e:
+            logger.debug(
+                f"Failed to calculate video age from upload_date {upload_date_str}: {e}"
+            )
+
+    if age_hours is not None and age_hours <= max_age_hours:
+        dur_str = _format_duration(duration)
+        min_dur_str = _format_duration(min_duration_seconds)
+        logger.info(
+            f"⏳ Video is new ({age_hours:.1f}h old <= {max_age_hours:.1f}h) and long "
+            f"({dur_str} >= {min_dur_str}). Skipping audio fallback as YouTube transcript "
+            f"is likely still generating. Video will be retried later."
+        )
+        raise NewAndLongVideoError(
+            f"Video is new ({age_hours:.1f}h <= {max_age_hours:.1f}h) and long "
+            f"({dur_str} >= {min_dur_str}), skipping audio fallback to convert later"
+        )
+
 
 
 def extract_transcript_via_audio(
@@ -123,6 +221,9 @@ def extract_transcript_via_audio(
     except AudioDownloadError as e:
         logger.error(f"Audio download error: {str(e)}")
         raise  # Re-raise to let caller distinguish between error types
+    except NewAndLongVideoError as e:
+        logger.info(f"⏳ {str(e)}")
+        raise  # Re-raise to let caller distinguish and avoid indexing
     except TranscriptionError as e:
         logger.error(f"Transcription error: {str(e)}")
         return None
@@ -369,10 +470,14 @@ def _download_audio_ytdlp(video_url: str) -> Optional[str]:
                     f"Video too short ({duration}s), not worth processing with Whisper"
                 )
 
+            # Check if YouTube video is new and long (transcript likely to become available later)
+            if not is_instagram:
+                _check_new_and_long_video(info)
+
             logger.debug(
                 f"Video is valid (status: {live_status or 'normal'}, duration: {duration}s), proceeding..."
             )
-    except AudioDownloadError:
+    except (AudioDownloadError, CopyrightBlockedError, NewAndLongVideoError):
         raise
     except Exception as e:
         # Check if the metadata error indicates a permanent copyright/geo-block
