@@ -224,7 +224,6 @@ class TestPromptSyntax(unittest.TestCase):
             "retaining EVERY detail",
             "Organizing the content",
             "bullet points",
-            "Mermaid syntax",
             "Markdown table syntax",
         ]
 
@@ -242,17 +241,19 @@ class TestPromptSyntax(unittest.TestCase):
 
     def test_category_prompts_content_validity(self):
         """Test that category prompts contain valid content."""
-        # Test IT category
-        if "IT" in CATEGORY_PROMPTS:
-            it_prompt = CATEGORY_PROMPTS["IT"]
-            self.assertIn("C#", it_prompt)
-            self.assertIn("code examples", it_prompt)
-
         # Test Crypto category
         if "Crypto" in CATEGORY_PROMPTS:
             crypto_prompt = CATEGORY_PROMPTS["Crypto"]
             self.assertIn("price levels", crypto_prompt)
             self.assertIn("blockchain explorers", crypto_prompt)
+
+    def test_no_csharp_or_mermaid_in_prompts(self):
+        """Test that prompt template and category prompts do not mention C# or Mermaid."""
+        self.assertNotIn("mermaid", PROMPT_TEMPLATE.lower())
+        self.assertNotIn("c#", PROMPT_TEMPLATE.lower())
+        for category, prompt in CATEGORY_PROMPTS.items():
+            self.assertNotIn("mermaid", prompt.lower())
+            self.assertNotIn("c#", prompt.lower())
 
     def test_no_trailing_quotes_in_templates(self):
         """Test that templates don't contain problematic trailing quotes."""
@@ -277,15 +278,12 @@ class TestPromptSyntax(unittest.TestCase):
                         )
 
     def test_escaped_braces_in_content(self):
-        """Test that curly braces in content are properly escaped."""
-        # Check that literal curly braces in content are doubled
-
-        # This should be in the PROMPT_TEMPLATE as escaped braces
-        self.assertIn(
-            "{{ }}",
-            PROMPT_TEMPLATE,
-            "Literal curly braces should be escaped with double braces in PROMPT_TEMPLATE",
-        )
+        """Test that curly braces in content are properly escaped or valid placeholders."""
+        # Check that only valid format placeholders or properly doubled braces exist
+        single_braces = re.findall(r"(?<!\{)\{(?!\{)[^}]*\}(?!\})", PROMPT_TEMPLATE)
+        valid_placeholders = ["{category_prompts}", "{output_language}"]
+        for brace in single_braces:
+            self.assertIn(brace, valid_placeholders)
 
     def test_output_language_placeholder_usage(self):
         """Test that output_language placeholder is used correctly."""
