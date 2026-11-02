@@ -148,6 +148,12 @@ Kuchnia:
     language_code: pl
     output_language: Polish
 
+  - id: zdrowo_z_paula
+    name: Zdrowo z Paula
+    platform: instagram
+    language_code: pl
+    output_language: Polish
+
 Dzieci:
   - id: poznaj.trojmiasto
     name: Poznaj Trojmiasto
